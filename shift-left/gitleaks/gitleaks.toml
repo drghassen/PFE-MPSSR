@@ -1,0 +1,96 @@
+title = "CloudSentinel Enterprise Secret Detection v1.0"
+
+############################################
+# Extend Official Ruleset
+############################################
+
+[extend]
+useDefault = true
+
+############################################
+# Global Allowlist (Noise Reduction)
+############################################
+
+[allowlist]
+description = "Global exclusions to reduce false positives and scan noise"
+
+paths = [
+    '''vendor/''',
+    '''node_modules/''',
+    '''.terraform/''',
+    '''dist/''',
+    '''build/''',
+    '''coverage/''',
+    '''.git/'''
+]
+
+files = [
+    '''.*\.lock''',
+    '''.*\.min\.js''',
+    '''.*\.png''',
+    '''.*\.jpg''',
+    '''.*\.jpeg''',
+    '''.*\.gif''',
+    '''.*\.svg''',
+    '''.*\.ico''',
+    '''.*\.pdf'''
+]
+
+############################################
+# Organization Strict Rules
+############################################
+
+[[rules]]
+id = "aws-access-key-strict"
+description = "AWS Access Key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+tags = ["cloud", "aws", "credential"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "azure-client-secret-strict"
+description = "Azure Client Secret"
+regex = '''(?i)(client_secret|azure_secret|azure-client-secret)[^\\n]{0,40}[=: \\"\\']+[a-zA-Z0-9~._-]{32,}'''
+keywords = ["client_secret"]
+tags = ["cloud", "azure", "credential"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "slack-webhook-strict"
+description = "Slack Webhook URL"
+regex = '''https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}'''
+keywords = ["hooks.slack.com"]
+tags = ["integration", "webhook"]
+severity = "HIGH"
+
+[[rules]]
+id = "generic-private-key"
+description = "Private Key Block"
+regex = '''-----BEGIN [A-Z ]*PRIVATE KEY-----'''
+keywords = ["PRIVATE KEY"]
+tags = ["crypto", "key"]
+severity = "CRITICAL"
+
+############################################
+# Context-Aware High Entropy Detection
+############################################
+
+[[rules]]
+id = "contextual-high-entropy"
+description = "Possible secret with contextual keyword and high entropy"
+regex = '''(?i)(secret|token|key|password)[^\\n]{0,25}[=: \\"\\']+[A-Za-z0-9+/=]{20,}'''
+entropy = 4.0
+tags = ["generic", "entropy"]
+severity = "MEDIUM"
+
+############################################
+# JWT Detection
+############################################
+
+[[rules]]
+id = "jwt-token"
+description = "JWT Token"
+regex = '''eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+'''
+tags = ["jwt", "token"]
+severity = "HIGH"

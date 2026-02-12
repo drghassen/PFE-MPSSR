@@ -1,0 +1,275 @@
+# ============================================================================
+# CloudSentinel - GitLab CI/CD Pipeline
+# Implémentation Shift-Left avec Quality Gate
+# ============================================================================
+
+# Variables globales
+variables:
+  # Versions des outils
+  GITLEAKS_VERSION: "8.18.0"
+  CHECKOV_VERSION: "latest"
+  TRIVY_VERSION: "0.48.0"
+  OPA_VERSION: "0.60.0"
+  
+  # Configuration
+  SCAN_TARGET: "infra/azure/dev"
+  REPORTS_DIR: "reports"
+  
+  # DefectDojo (à configurer via GitLab CI/CD Variables)
+  # DOJO_URL
+  # DOJO_API_KEY
+  # DOJO_ENGAGEMENT_ID
+
+# Étapes du pipeline
+stages:
+  - scan          # Exécution parallèle des scanners
+  - normalize     # Fusion et enrichissement des données
+  - decide        # OPA Policy evaluation
+  - report        # Export vers DefectDojo
+  - deploy        # Déploiement (si autorisé)
+
+# ============================================================================
+# STAGE 1: SCAN - Détection des vulnérabilités
+# ============================================================================
+
+gitleaks-scan:
+  stage: scan
+  image: zricethezav/gitleaks:v${GITLEAKS_VERSION}
+  script:
+    - mkdir -p ${REPORTS_DIR}
+    - |
+      gitleaks detect \
+        --source="${SCAN_TARGET}" \
+        --report-path="${REPORTS_DIR}/gitleaks.json" \
+        --no-git \
+        --exit-code=0 || true
+    - echo "✅ Gitleaks scan terminé"
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/gitleaks.json
+    expire_in: 7 days
+    when: always
+  allow_failure: false
+
+checkov-scan:
+  stage: scan
+  image: bridgecrew/checkov:${CHECKOV_VERSION}
+  script:
+    - mkdir -p ${REPORTS_DIR}
+    - |
+      checkov \
+        --directory "${SCAN_TARGET}" \
+        --output json \
+        --output-file ${REPORTS_DIR}/checkov.json \
+        --soft-fail || true
+    - echo "✅ Checkov scan terminé"
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/checkov.json
+    expire_in: 7 days
+    when: always
+  allow_failure: false
+
+trivy-scan:
+  stage: scan
+  image: aquasec/trivy:${TRIVY_VERSION}
+  script:
+    - mkdir -p ${REPORTS_DIR}
+    - |
+      trivy config "${SCAN_TARGET}" \
+        --format json \
+        --output ${REPORTS_DIR}/trivy.json \
+        --exit-code 0 || true
+    - echo "✅ Trivy scan terminé"
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/trivy.json
+    expire_in: 7 days
+    when: always
+  allow_failure: false
+
+# ============================================================================
+# STAGE 2: NORMALIZE - Fusion des rapports
+# ============================================================================
+
+normalize-reports:
+  stage: normalize
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache jq
+  script:
+    - mkdir -p ${REPORTS_DIR}
+    - |
+      jq -n \
+        --slurpfile gl ${REPORTS_DIR}/gitleaks.json \
+        --slurpfile ck ${REPORTS_DIR}/checkov.json \
+        --slurpfile tv ${REPORTS_DIR}/trivy.json \
+        --arg env "${CI_ENVIRONMENT_NAME:-dev}" \
+        --arg branch "${CI_COMMIT_BRANCH}" \
+        --arg commit "${CI_COMMIT_SHA}" \
+        '{
+          metadata: {
+            environment: $env,
+            branch: $branch,
+            commit: $commit,
+            pipeline_id: env.CI_PIPELINE_ID,
+            timestamp: now | todate
+          },
+          gitleaks: ($gl[0] // []),
+          checkov: ($ck[0] // {}),
+          trivy: ($tv[0] // {})
+        }' > ${REPORTS_DIR}/opa_input.json
+    - echo "✅ Normalisation terminée"
+    - cat ${REPORTS_DIR}/opa_input.json | jq .metadata
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/opa_input.json
+    expire_in: 7 days
+  dependencies:
+    - gitleaks-scan
+    - checkov-scan
+    - trivy-scan
+
+# ============================================================================
+# STAGE 3: DECIDE - OPA Policy Evaluation (QUALITY GATE)
+# ============================================================================
+
+opa-decision:
+  stage: decide
+  image: openpolicyagent/opa:${OPA_VERSION}
+  script:
+    - |
+      echo "⚖️  Évaluation de la policy OPA..."
+      opa eval \
+        --input ${REPORTS_DIR}/opa_input.json \
+        --data policies/opa/pipeline_decision.rego \
+        --format pretty \
+        "data.ci.security" > ${REPORTS_DIR}/opa_decision.txt
+      
+      # Extraction du résultat
+      OPA_OUTPUT=$(opa eval \
+        --input ${REPORTS_DIR}/opa_input.json \
+        --data policies/opa/pipeline_decision.rego \
+        --format json \
+        "data.ci.security")
+      
+      echo "$OPA_OUTPUT" > ${REPORTS_DIR}/opa_decision.json
+      
+      # Vérification ALLOW/DENY
+      IS_ALLOWED=$(echo "$OPA_OUTPUT" | jq -r '.result[0].expressions[0].value.allow // false')
+      
+      echo "════════════════════════════════════════"
+      echo "🛡️  QUALITY GATE DECISION"
+      echo "════════════════════════════════════════"
+      
+      if [ "$IS_ALLOWED" = "true" ]; then
+        echo "✅ STATUS: ALLOWED"
+        echo "Le déploiement peut continuer"
+        exit 0
+      else
+        echo "❌ STATUS: DENIED"
+        echo "Le déploiement est BLOQUÉ"
+        echo ""
+        echo "Raisons:"
+        echo "$OPA_OUTPUT" | jq -r '.result[0].expressions[0].value.deny[]' | sed 's/^/  - /'
+        exit 1
+      fi
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/opa_decision.json
+      - ${REPORTS_DIR}/opa_decision.txt
+    expire_in: 30 days
+    when: always
+  dependencies:
+    - normalize-reports
+  allow_failure: false
+
+# ============================================================================
+# STAGE 4: REPORT - Export vers DefectDojo
+# ============================================================================
+
+upload-to-defectdojo:
+  stage: report
+  image: curlimages/curl:latest
+  script:
+    - |
+      echo "📊 Upload des findings vers DefectDojo..."
+      
+      # Upload Gitleaks
+      if [ -f "${REPORTS_DIR}/gitleaks.json" ]; then
+        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY}" \
+          -F "file=@${REPORTS_DIR}/gitleaks.json" \
+          -F "scan_type=Gitleaks Scan" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "active=true" \
+          -F "verified=false"
+        echo "  ✅ Gitleaks findings importés"
+      fi
+      
+      # Upload Checkov
+      if [ -f "${REPORTS_DIR}/checkov.json" ]; then
+        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY}" \
+          -F "file=@${REPORTS_DIR}/checkov.json" \
+          -F "scan_type=Checkov Scan" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "active=true" \
+          -F "verified=false"
+        echo "  ✅ Checkov findings importés"
+      fi
+      
+      # Upload Trivy
+      if [ -f "${REPORTS_DIR}/trivy.json" ]; then
+        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY}" \
+          -F "file=@${REPORTS_DIR}/trivy.json" \
+          -F "scan_type=Trivy Scan" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "active=true" \
+          -F "verified=false"
+        echo "  ✅ Trivy findings importés"
+      fi
+      
+      echo "📊 Upload terminé - Consultez DefectDojo"
+  dependencies:
+    - gitleaks-scan
+    - checkov-scan
+    - trivy-scan
+  when: always
+  allow_failure: true
+
+# ============================================================================
+# STAGE 5: DEPLOY - Déploiement Infrastructure (si Quality Gate PASS)
+# ============================================================================
+
+deploy-infrastructure:
+  stage: deploy
+  image: hashicorp/terraform:latest
+  before_script:
+    - cd infra/azure/dev
+  script:
+    - terraform init
+    - terraform plan -out=tfplan
+    - terraform apply -auto-approve tfplan
+    - echo "✅ Infrastructure déployée"
+  only:
+    - main
+    - develop
+  dependencies:
+    - opa-decision
+  when: on_success
+  environment:
+    name: dev
+    action: start
+
+# ============================================================================
+# WORKFLOW RULES
+# ============================================================================
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - when: manual
