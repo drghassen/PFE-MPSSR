@@ -1,0 +1,15 @@
+# Configuration Taplo - PFE CloudSentinel
+# Standardize TOML formatting across the repository
+
+[formatting]
+align_comments       = true
+align_entries        = true
+array_trailing_comma = true
+indent_string        = "  "
+reorder_keys         = true
+
+[[rule]]
+include = ["**/gitleaks.toml"]
+[rule.formatting]
+align_entries = true
+# Gitleaks toml is better with some specific alignment

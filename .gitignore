@@ -1,3 +1,6 @@
+
+.cloudsentinel/
+
 # Terraform
 .terraform/
 *.tfstate

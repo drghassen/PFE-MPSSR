@@ -1,96 +1,155 @@
-title = "CloudSentinel Enterprise Secret Detection v1.0"
-
-############################################
-# Extend Official Ruleset
-############################################
+title = "CloudSentinel Enterprise v5.0 - PFE Edition"
+description = "Enterprise-grade secret detection - PFE optimized (15 rules, full control, low noise)"
+version = "5.0.0-pfe"
+author = "CloudSentinel Security Team"
 
 [extend]
-useDefault = true
-
-############################################
-# Global Allowlist (Noise Reduction)
-############################################
+useDefault = false
 
 [allowlist]
-description = "Global exclusions to reduce false positives and scan noise"
-
+description = "Non-exploitable patterns - PFE optimized"
 paths = [
-    '''vendor/''',
-    '''node_modules/''',
-    '''.terraform/''',
-    '''dist/''',
-    '''build/''',
-    '''coverage/''',
-    '''.git/'''
+  '''(^|/)vendor/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.pnpm-store/''',
+  '''(^|/)\.terraform/''',
+  '''(^|/)\.terragrunt-cache/''',
+  '''(^|/)\.git/''',
+  '''(^|/)tests?/fixtures/''',
+  '''(^|/)__tests__/fixtures/''',
+  '''(^|/)test/fixtures/''',
+  '''(^|/)gitleaks\.toml$'''
 ]
-
 files = [
-    '''.*\.lock''',
-    '''.*\.min\.js''',
-    '''.*\.png''',
-    '''.*\.jpg''',
-    '''.*\.jpeg''',
-    '''.*\.gif''',
-    '''.*\.svg''',
-    '''.*\.ico''',
-    '''.*\.pdf'''
+  '''.*\.lock$''',
+  '''package-lock\.json$''',
+  '''yarn\.lock$''',
+  '''go\.sum$''',
+  '''.*\.min\.(js|css)$''',
+  '''.*\.(png|jpg|jpeg|gif|svg|ico|pdf)$''',
+  '''.*\.map$''',
+  '''.*\.(test|spec)\.(js|ts|py|go)$'''
+]
+regexes = [
+  '''^[a-f0-9]{40}$''',
+  '''^sha256:[a-f0-9]{64}$''',
+  '''^YOUR?_?(API|SECRET|KEY|TOKEN|PASSWORD)$''',
+  '''^EXAMPLE$''',
+  '''^PLACEHOLDER$''',
+  '''^xxx+$''',
+  '''^XXX+$''',
+  '''^test123$''',
+  '''^password123$''',
+  '''^changeme$''',
+  '''^admin123$''',
+  '''^AKIAIOSFODNN7EXAMPLE$''',
+  '''^wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY$''',
+  '''^id_[a-z0-9]{10,}$''',
+  '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@(localhost|127\.0\.0\.1)(:\d+)?([/\?#][^\s]*)?$''',
+  '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@(\[::1\]|::1)(:\d+)?([/\?#][^\s]*)?$'''
 ]
 
-############################################
-# Organization Strict Rules
-############################################
-
 [[rules]]
-id = "aws-access-key-strict"
+id = "aws-access-key-id"
 description = "AWS Access Key ID"
-regex = '''AKIA[0-9A-Z]{16}'''
-keywords = ["AKIA"]
-tags = ["cloud", "aws", "credential"]
+regex = '''(A3T[A-Z0-9]|AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)[A-Z0-9]{16}'''
 severity = "CRITICAL"
+tags = ["cloud", "aws", "iam", "credential"]
 
 [[rules]]
-id = "azure-client-secret-strict"
-description = "Azure Client Secret"
-regex = '''(?i)(client_secret|azure_secret|azure-client-secret)[^\\n]{0,40}[=: \\"\\']+[a-zA-Z0-9~._-]{32,}'''
-keywords = ["client_secret"]
-tags = ["cloud", "azure", "credential"]
+id = "aws-secret-access-key"
+description = "AWS Secret Access Key"
+regex = '''(?i)\baws[_-]?(secret[_-]?access[_-]?key|secret[_-]?key|secret)\b\s*[:=]\s*["']?[A-Za-z0-9/+=]{40}["']?'''
 severity = "CRITICAL"
+tags = ["cloud", "aws", "iam", "credential"]
 
 [[rules]]
-id = "slack-webhook-strict"
-description = "Slack Webhook URL"
-regex = '''https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}'''
-keywords = ["hooks.slack.com"]
-tags = ["integration", "webhook"]
+id = "gcp-service-account-key"
+description = "GCP Service Account JSON Key"
+regex = '''(?s)"type"\s*:\s*"service_account".{0,800}?"private_key"\s*:\s*"(?:-----BEGIN PRIVATE KEY-----|-----BEGIN RSA PRIVATE KEY-----)(?:\\n|\n).{50,}?(?:\\n|\n)-----END (?:PRIVATE KEY|RSA PRIVATE KEY)-----'''
+severity = "CRITICAL"
+tags = ["cloud", "gcp", "service-account", "credential"]
+
+[[rules]]
+id = "azure-client-secret"
+description = "Azure AD Client Secret"
+regex = '''(?i)\b(azure|aad|entra|microsoft)[_-]?client[_-]?secret\b\s*[:=]\s*["']?[A-Za-z0-9~._-]{32,80}["']?'''
+severity = "CRITICAL"
+tags = ["cloud", "azure", "aad", "credential"]
+
+[[rules]]
+id = "azure-storage-connection"
+description = "Azure Storage Connection String"
+regex = '''(?i)\b(DefaultEndpointsProtocol|BlobEndpoint)=https?;.*\bAccountName=[^;]+;.*\bAccountKey=[A-Za-z0-9+/=]{40,}\b'''
+severity = "CRITICAL"
+tags = ["cloud", "azure", "storage", "credential"]
+
+[[rules]]
+id = "github-pat-classic"
+description = "GitHub Personal Access Token (Classic)"
+regex = '''\bghp_[A-Za-z0-9]{36}\b'''
+severity = "CRITICAL"
+tags = ["scm", "github", "pat", "credential"]
+
+[[rules]]
+id = "github-pat-finegrained"
+description = "GitHub Fine-grained Personal Access Token"
+regex = '''\bgithub_pat_[A-Za-z0-9_]{40,255}\b'''
+severity = "CRITICAL"
+tags = ["scm", "github", "pat", "fine-grained", "credential"]
+
+[[rules]]
+id = "gitlab-pat"
+description = "GitLab Personal Access Token"
+regex = '''\bglpat-[A-Za-z0-9-]{20,}\b'''
+severity = "CRITICAL"
+tags = ["scm", "gitlab", "pat", "credential"]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack Incoming Webhook URL"
+regex = '''(?i)https://hooks\.slack\.com/services/T[A-Z0-9]{8,12}/B[A-Z0-9]{8,12}/[A-Za-z0-9]{20,}'''
+severity = "CRITICAL"
+tags = ["saas", "slack", "webhook", "write-access"]
+
+[[rules]]
+id = "private-key-block"
+description = "Private Key Block (RSA/EC/DSA/OpenSSH/PGP)"
+regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----(?:[A-Za-z0-9+/=\r\n\s]{80,}?)(?:-----END (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----)'''
+severity = "CRITICAL"
+tags = ["crypto", "pki", "private-key", "credential"]
+
+[[rules]]
+id = "azure-sas-token"
+description = "Azure Shared Access Signature Token"
+regex = '''(?i)\bsv=\d{4}-\d{2}-\d{2}.*\bsig=[A-Za-z0-9%/+._=-]{20,}\b'''
 severity = "HIGH"
+tags = ["cloud", "azure", "sas", "token"]
 
 [[rules]]
-id = "generic-private-key"
-description = "Private Key Block"
-regex = '''-----BEGIN [A-Z ]*PRIVATE KEY-----'''
-keywords = ["PRIVATE KEY"]
-tags = ["crypto", "key"]
-severity = "CRITICAL"
-
-############################################
-# Context-Aware High Entropy Detection
-############################################
+id = "gcp-api-key"
+description = "Google Cloud API Key"
+regex = '''\bAIza[0-9A-Za-z_\-]{35}\b'''
+severity = "HIGH"
+tags = ["cloud", "gcp", "api-key", "quota-risk"]
 
 [[rules]]
-id = "contextual-high-entropy"
-description = "Possible secret with contextual keyword and high entropy"
-regex = '''(?i)(secret|token|key|password)[^\\n]{0,25}[=: \\"\\']+[A-Za-z0-9+/=]{20,}'''
-entropy = 4.0
-tags = ["generic", "entropy"]
+id = "vault-token-explicit"
+description = "HashiCorp Vault Token"
+regex = '''(?i)\bvault[_-]?token\b\s*[:=]\s*["']?(?:s\.[A-Za-z0-9]{20,}|hvs\.[A-Za-z0-9]{20,}|hvb\.[A-Za-z0-9]{20,})["']?'''
+severity = "HIGH"
+tags = ["vault", "hashicorp", "token", "secrets-management"]
+
+[[rules]]
+id = "kubernetes-secret-yaml"
+description = "Kubernetes Secret with Base64 data"
+regex = '''(?is)\bkind:\s*Secret\b.{0,800}?\bdata:\s*(?:\n\s+[A-Za-z0-9_.-]+\s*:\s*[A-Za-z0-9+/=]{16,})+'''
+severity = "HIGH"
+tags = ["kubernetes", "k8s", "secret", "base64"]
+
+[[rules]]
+id = "database-connection-prod"
+description = "Database Connection String with credentials (Host reviewed by allowlist)"
+regex = '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@[^/\s]+'''
 severity = "MEDIUM"
-
-############################################
-# JWT Detection
-############################################
-
-[[rules]]
-id = "jwt-token"
-description = "JWT Token"
-regex = '''eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+'''
-tags = ["jwt", "token"]
-severity = "HIGH"
+tags = ["database", "connection-string", "credential"]

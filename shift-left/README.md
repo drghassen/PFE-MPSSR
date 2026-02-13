@@ -115,6 +115,27 @@ shift-left/
         └── unified-format.json # Schéma JSON unifié
 ```
 
+## 🚀 Mise en route locale
+
+### Protection contre les secrets
+```bash
+ln -sf ../../shift-left/gitleaks/pre-commit-hook.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+### Formatage des configurations (TOML)
+Pour garder un code propre et professionnel :
+```bash
+# Installation (Simple via npm)
+npm install -g @taplo/cli
+
+# OU via Cargo (si présent)
+cargo install taplo-cli --locked
+
+# Utilisation : Formater tous les fichiers .toml
+taplo fmt
+```
+
 ## 🚀 Utilisation
 
 ### Localement (Pre-Commit)
