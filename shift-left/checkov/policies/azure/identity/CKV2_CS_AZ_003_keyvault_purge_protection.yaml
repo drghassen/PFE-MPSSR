@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_003"
+  name: "Ensure key vault has purge protection enabled (CIS 8.4)"
+  category: "BACKUP_AND_RECOVERY"
+  severity: "CRITICAL"
+  guideline: "https://docs.microsoft.com/en-us/azure/key-vault/general/soft-delete-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_key_vault"
+  attribute: "purge_protection_enabled"
+  operator: "equals"
+  value: true

@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_023"
+  name: "Ensure Microsoft Defender for SQL is enabled (CIS 2.2)"
+  category: "GENERAL_SECURITY"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/defender-for-cloud/defender-for-sql-introduction"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_mssql_server_security_alert_policy"
+  attribute: "state"
+  operator: "equals"
+  value: "Enabled"

@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_006"
+  name: "Ensure storage accounts use TLS 1.2 or higher (CIS 3.4)"
+  category: "ENCRYPTION"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/storage/common/transport-layer-security-configure"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_storage_account"
+  attribute: "min_tls_version"
+  operator: "equals"
+  value: "TLS1_2"

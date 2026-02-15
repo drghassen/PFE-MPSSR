@@ -1,0 +1,15 @@
+metadata:
+  id: "CKV2_CS_AZ_027"
+  name: "Ensure App Service uses Managed Identity (CIS 9.3)"
+  category: "IAM"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/app-service/overview-managed-identity"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_linux_web_app"
+    - "azurerm_windows_web_app"
+  attribute: "identity.type"
+  operator: "contains"
+  value: "SystemAssigned"

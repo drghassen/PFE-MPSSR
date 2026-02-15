@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_018"
+  name: "Ensure Azure SQL Database Advanced Threat Protection is enabled (CIS 4.3)"
+  category: "NETWORKING"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/azure-sql/database/threat-detection-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_mssql_server_security_alert_policy"
+  attribute: "state"
+  operator: "equals"
+  value: "Enabled"

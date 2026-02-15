@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_007"
+  name: "Ensure Network Security Group Flow logs are captured and sent to Log Analytics (CIS 6.1)"
+  category: "LOGGING"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_network_watcher_flow_log"
+  attribute: "enabled"
+  operator: "equals"
+  value: true

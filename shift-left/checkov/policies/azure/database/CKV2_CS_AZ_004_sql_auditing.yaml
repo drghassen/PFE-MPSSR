@@ -1,0 +1,15 @@
+metadata:
+  id: "CKV2_CS_AZ_004"
+  name: "Ensure Azure SQL Database Auditing is enabled (CIS 4.1)"
+  category: "LOGGING"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/azure-sql/database/auditing-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_mssql_server_extended_auditing_policy"
+    - "azurerm_sql_server_extended_auditing_policy"
+  attribute: "enabled"
+  operator: "equals"
+  value: true

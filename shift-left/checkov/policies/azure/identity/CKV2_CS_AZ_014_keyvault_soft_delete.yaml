@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_014"
+  name: "Ensure key vault has soft delete enabled (CIS 8.3)"
+  category: "BACKUP_AND_RECOVERY"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/key-vault/general/soft-delete-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_key_vault"
+  attribute: "soft_delete_enabled"
+  operator: "equals"
+  value: true

@@ -1,0 +1,13 @@
+metadata:
+  id: "CKV2_CS_AZ_010"
+  name: "Ensure disk encryption is enabled on Azure Virtual Machines (CIS 7.1)"
+  category: "ENCRYPTION"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/virtual-machines/windows/disk-encryption-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_virtual_machine"
+  attribute: "os_disk.disk_encryption_set_id"
+  operator: "exists"

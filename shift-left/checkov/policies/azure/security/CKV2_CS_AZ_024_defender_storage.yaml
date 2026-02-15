@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_024"
+  name: "Ensure Microsoft Defender for Storage is enabled (CIS 2.3)"
+  category: "GENERAL_SECURITY"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/defender-for-cloud/defender-for-storage-introduction"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_security_center_subscription_pricing"
+  attribute: "resource_type"
+  operator: "equals"
+  value: "StorageAccounts"

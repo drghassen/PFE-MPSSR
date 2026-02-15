@@ -1,0 +1,13 @@
+metadata:
+  id: "CKV2_CS_AZ_012"
+  name: "Ensure Azure SQL Database TDE is enabled with Customer-Managed Key (CIS 4.2)"
+  category: "ENCRYPTION"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/azure-sql/database/transparent-data-encryption-byok-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_mssql_server_transparent_data_encryption"
+  attribute: "key_vault_key_id"
+  operator: "exists"

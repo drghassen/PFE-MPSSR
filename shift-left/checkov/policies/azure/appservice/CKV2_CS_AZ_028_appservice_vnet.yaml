@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_028"
+  name: "Ensure App Service is integrated with VNet (CIS 9.4)"
+  category: "NETWORKING"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/app-service/overview-vnet-integration"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_linux_web_app"
+    - "azurerm_windows_web_app"
+  attribute: "virtual_network_subnet_id"
+  operator: "exists"

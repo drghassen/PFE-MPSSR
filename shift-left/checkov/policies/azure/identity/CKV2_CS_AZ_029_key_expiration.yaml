@@ -1,0 +1,13 @@
+metadata:
+  id: "CKV2_CS_AZ_029"
+  name: "Ensure Key Vault keys have expiration date set (CIS 10.1)"
+  category: "ENCRYPTION"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/key-vault/keys/about-keys"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_key_vault_key"
+  attribute: "expiration_date"
+  operator: "exists"

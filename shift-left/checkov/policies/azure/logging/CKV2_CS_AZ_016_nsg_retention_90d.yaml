@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_016"
+  name: "Ensure Network Security Group Flow Log retention is greater than 90 days (CIS 6.2)"
+  category: "LOGGING"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_network_watcher_flow_log"
+  attribute: "retention_policy.days"
+  operator: "greater_than_or_equal"
+  value: 90

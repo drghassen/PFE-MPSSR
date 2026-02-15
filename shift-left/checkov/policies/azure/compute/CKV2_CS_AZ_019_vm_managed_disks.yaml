@@ -1,0 +1,13 @@
+metadata:
+  id: "CKV2_CS_AZ_019"
+  name: "Ensure Virtual Machines use managed disks (CIS 7.3)"
+  category: "GENERAL_SECURITY"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_virtual_machine"
+  attribute: "storage_os_disk.managed_disk_type"
+  operator: "exists"

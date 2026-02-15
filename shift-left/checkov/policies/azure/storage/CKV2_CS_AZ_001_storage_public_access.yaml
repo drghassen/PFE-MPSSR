@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_001"
+  name: "Ensure that 'Public access level' is disabled for storage accounts (CIS 3.1)"
+  category: "NETWORKING"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/storage/common/storage-network-security"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_storage_account"
+  attribute: "allow_nested_items_to_be_public"
+  operator: "equals"
+  value: false

@@ -1,0 +1,22 @@
+metadata:
+  id: "CKV2_CS_AZ_017"
+  name: "Ensure RDP access from the Internet is evaluated and restricted (CIS 6.3)"
+  category: "NETWORKING"
+  severity: "CRITICAL"
+  guideline: "https://docs.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview"
+
+definition:
+  and:
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_network_security_rule"
+      attribute: "destination_port_range"
+      operator: "not_equals"
+      value: "3389"
+    
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_network_security_rule"
+      attribute: "source_address_prefix"
+      operator: "not_equals"
+      value: "*"

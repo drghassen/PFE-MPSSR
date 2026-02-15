@@ -1,0 +1,15 @@
+metadata:
+  id: "CKV2_CS_AZ_026"
+  name: "Ensure App Service uses TLS 1.2 or higher (CIS 9.2)"
+  category: "ENCRYPTION"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/app-service/configure-ssl-bindings"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_linux_web_app"
+    - "azurerm_windows_web_app"
+  attribute: "site_config.minimum_tls_version"
+  operator: "equals"
+  value: "1.2"

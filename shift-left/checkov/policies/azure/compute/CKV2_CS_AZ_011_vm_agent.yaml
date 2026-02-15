@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_011"
+  name: "Ensure Virtual Machine Agent is installed (CIS 7.2)"
+  category: "GENERAL_SECURITY"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/agent-windows"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_virtual_machine"
+  attribute: "provision_vm_agent"
+  operator: "equals"
+  value: true

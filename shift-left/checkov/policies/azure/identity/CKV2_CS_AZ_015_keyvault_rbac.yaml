@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_015"
+  name: "Ensure Key Vault uses RBAC authorization (CIS 8.1)"
+  category: "IAM"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/key-vault/general/rbac-guide"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_key_vault"
+  attribute: "enable_rbac_authorization"
+  operator: "equals"
+  value: true

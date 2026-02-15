@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_013"
+  name: "Ensure Activity Log retention is set to 365 days or greater (CIS 5.1)"
+  category: "LOGGING"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_monitor_log_profile"
+  attribute: "retention_policy.days"
+  operator: "greater_than_or_equal"
+  value: 365

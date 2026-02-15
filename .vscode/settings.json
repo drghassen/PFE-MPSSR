@@ -1,3 +1,10 @@
 {
-    "snyk.advanced.autoSelectOrganization": true
+    "snyk.advanced.autoSelectOrganization": true,
+    "yaml.schemaStore.enable": true,
+    "yaml.schemas": {
+        ".cloudsentinel/schemas/checkov-policy-schema.json": [
+            "shift-left/checkov/policies/**/*.yaml",
+            "shift-left/checkov/policies/**/*.yml"
+        ]
+    }
 }

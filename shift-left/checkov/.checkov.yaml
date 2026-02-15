@@ -1,0 +1,29 @@
+check:
+  - CKV_AZURE_
+  - CKV_K8S_
+  - CKV_DOCKER_
+  - CKV_SECRET_
+
+skip-check:
+  - CKV_AWS_ 
+  - CKV_GCP_
+
+framework:
+  - terraform
+  - kubernetes
+  - dockerfile
+  - bicep
+  - arm
+
+# Output settings
+soft-fail: true 
+quiet: true
+no-guide: true
+compact: true
+
+# Custom policies
+external-checks-dir:
+  - shift-left/checkov/policies
+
+# Baseline for suppression
+baseline: shift-left/checkov/.checkov.baseline

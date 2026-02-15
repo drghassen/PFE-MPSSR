@@ -1,0 +1,13 @@
+metadata:
+  id: "CKV2_CS_AZ_020"
+  name: "Ensure diagnostic settings capture appropriate categories (CIS 5.2)"
+  category: "LOGGING"
+  severity: "MEDIUM"
+  guideline: "https://docs.microsoft.com/en-us/azure/azure-monitor/essentials/diagnostic-settings"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_monitor_diagnostic_setting"
+  attribute: "enabled_log"
+  operator: "exists"

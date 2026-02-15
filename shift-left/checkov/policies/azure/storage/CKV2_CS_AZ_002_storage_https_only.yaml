@@ -1,0 +1,14 @@
+metadata:
+  id: "CKV2_CS_AZ_002"
+  name: "Ensure that 'Secure transfer required' is enabled for Storage Accounts (CIS 3.2)"
+  category: "ENCRYPTION"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/storage/common/storage-require-secure-transfer"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_storage_account"
+  attribute: "enable_https_traffic_only"
+  operator: "equals"
+  value: true

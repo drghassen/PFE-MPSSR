@@ -1,0 +1,15 @@
+metadata:
+  id: "CKV2_CS_AZ_025"
+  name: "Ensure App Service only accepts HTTPS connections (CIS 9.1)"
+  category: "ENCRYPTION"
+  severity: "HIGH"
+  guideline: "https://docs.microsoft.com/en-us/azure/app-service/configure-ssl-bindings"
+
+definition:
+  cond_type: "attribute"
+  resource_types:
+    - "azurerm_linux_web_app"
+    - "azurerm_windows_web_app"
+  attribute: "https_only"
+  operator: "equals"
+  value: true
