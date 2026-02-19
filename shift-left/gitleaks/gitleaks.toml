@@ -15,9 +15,9 @@ paths = [
   '''(^|/)\.terraform/''',
   '''(^|/)\.terragrunt-cache/''',
   '''(^|/)\.git/''',
-  '''(^|/)tests?/fixtures/''',
-  '''(^|/)__tests__/fixtures/''',
-  '''(^|/)test/fixtures/''',
+  # '''(^|/)tests?/fixtures/''',
+  # '''(^|/)__tests__/fixtures/''',
+  # '''(^|/)test/fixtures/''',
   '''(^|/)gitleaks\.toml$'''
 ]
 files = [

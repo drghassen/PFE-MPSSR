@@ -30,3 +30,5 @@ Thumbs.db
 
 # Security scan results
 shift-left/trivy/results.json
+*.sarif
+checkov_scan.log

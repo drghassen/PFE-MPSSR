@@ -1,0 +1,8 @@
+[
+  {
+    "id": "CKV2_CS_AZ_003",
+    "resource": "azurerm_key_vault.kv_secure",
+    "reason": "Approved temporary exception",
+    "expires_at": "2026-06-01T00:00:00Z"
+  }
+]
