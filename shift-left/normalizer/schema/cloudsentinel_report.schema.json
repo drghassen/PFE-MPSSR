@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CloudSentinel Golden Report",
+  "type": "object",
+  "required": ["schema_version", "metadata", "summary", "scanners", "findings", "quality_gate"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "metadata": {
+      "type": "object",
+      "required": ["tool", "timestamp", "generation_duration_ms", "git"],
+      "properties": {
+        "tool": { "type": "string", "const": "cloudsentinel" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "generation_duration_ms": { "type": "integer" },
+        "git": {
+          "type": "object",
+          "required": ["branch", "commit", "commit_date", "author_email"],
+          "properties": {
+            "branch": { "type": "string" },
+            "commit": { "type": "string" },
+            "commit_date": { "type": "string", "format": "date-time" },
+            "author_email": { "type": "string", "format": "email" },
+            "pipeline_id": { "type": "string" }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["global", "by_tool", "by_category"],
+      "properties": {
+        "global": {
+          "type": "object",
+          "properties": {
+            "CRITICAL": { "type": "integer" },
+            "HIGH": { "type": "integer" },
+            "MEDIUM": { "type": "integer" },
+            "LOW": { "type": "integer" },
+            "INFO": { "type": "integer" },
+            "TOTAL": { "type": "integer" },
+            "EXEMPTED": { "type": "integer" },
+            "FAILED": { "type": "integer" },
+            "PASSED": { "type": "integer" }
+          }
+        },
+        "by_tool": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "CRITICAL": { "type": "integer" },
+              "HIGH": { "type": "integer" },
+              "MEDIUM": { "type": "integer" },
+              "LOW": { "type": "integer" },
+              "TOTAL": { "type": "integer" },
+              "status": { "type": "string", "enum": ["PASSED", "FAILED", "NOT_RUN"] }
+            }
+          }
+        },
+        "by_category": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        }
+      }
+    },
+    "scanners": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["tool", "status"],
+        "properties": {
+          "tool": { "type": "string" },
+          "version": { "type": "string" },
+          "stats": { "type": "object" },
+          "findings": { "type": "array" },
+          "status": { "type": "string", "enum": ["PASSED", "FAILED", "NOT_RUN"] }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/finding" }
+    },
+    "quality_gate": {
+      "type": "object",
+      "required": ["decision", "reason", "thresholds"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["PASSED", "FAILED"] },
+        "reason": { "type": "string" },
+        "thresholds": {
+          "type": "object",
+          "properties": {
+            "critical_max": { "type": "integer" },
+            "high_max": { "type": "integer" }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "source", "resource", "description", "severity", "category", "status", "remediation", "context"],
+      "properties": {
+        "id": { "type": "string" },
+        "source": {
+          "type": "object",
+          "required": ["tool", "id", "scanner_type"],
+          "properties": {
+            "tool": { "type": "string" },
+            "version": { "type": "string" },
+            "id": { "type": "string" },
+            "scanner_type": { "type": "string" }
+          }
+        },
+        "resource": {
+          "type": "object",
+          "required": ["name", "path"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "type": { "type": "string" },
+            "path": { "type": "string" },
+            "location": {
+              "type": "object",
+              "properties": {
+                "file": { "type": "string" },
+                "start_line": { "type": "integer" },
+                "end_line": { "type": "integer" }
+              }
+            }
+          }
+        },
+        "description": { "type": "string" },
+        "severity": {
+          "type": "object",
+          "required": ["level"],
+          "properties": {
+            "level": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
+            "cvss_score": { "type": "number" },
+            "original_severity": { "type": "string" }
+          }
+        },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["PASSED", "FAILED", "EXEMPTED"] },
+        "remediation": {
+          "type": "object",
+          "required": ["sla_hours"],
+          "properties": {
+            "sla_hours": { "type": "integer" },
+            "fix_version": { "type": "string" },
+            "references": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "git": {
+              "type": "object",
+              "properties": {
+                "author_email": { "type": "string" },
+                "commit_date": { "type": "string" }
+              }
+            },
+            "deduplication": {
+              "type": "object",
+              "properties": {
+                "fingerprint": { "type": "string" },
+                "is_duplicate": { "type": "boolean" },
+                "duplicate_of": { "type": "string", "nullable": true }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
