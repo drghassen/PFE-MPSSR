@@ -1,0 +1,33 @@
+{
+  "tool": "trivy",
+  "version": "1.0",
+  "description": "CloudSentinel severity mapping for Trivy findings normalization",
+
+  "severity_mapping": {
+    "CRITICAL": "CRITICAL",
+    "HIGH":     "HIGH",
+    "MEDIUM":   "MEDIUM",
+    "LOW":      "LOW",
+    "UNKNOWN":  "LOW"
+  },
+
+  "remediation_sla": {
+    "CRITICAL": "24h",
+    "HIGH":     "7d",
+    "MEDIUM":   "30d",
+    "LOW":      "90d"
+  },
+
+  "categories": {
+    "os-pkgs":    "INFRASTRUCTURE",
+    "lang-pkgs":  "APPLICATION",
+    "secret":     "SECRET",
+    "config":     "CONFIGURATION"
+  },
+
+  "scan_type_labels": {
+    "image":  "Container Image Scan",
+    "fs":     "Filesystem / SCA Scan",
+    "config": "Dockerfile Misconfig Scan"
+  }
+}

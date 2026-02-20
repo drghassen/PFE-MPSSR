@@ -1,0 +1,16 @@
+# CloudSentinel — CRITICAL Severity Fixture
+# Purpose: Triggers misconfig findings for Trivy config scan tests
+# DO NOT USE IN PRODUCTION
+
+# ── Misconfig 1: Outdated base image with known CVEs ──────────────────────────
+FROM alpine:3.4
+
+# ── Misconfig 2: Running as root (DS002 — CIS Docker Benchmark 4.1) ──────────
+USER root
+
+# ── Misconfig 3: Adding packages with no pinned version (DS013) ───────────────
+RUN apk add --no-cache curl
+
+# ── Misconfig 4: No HEALTHCHECK defined (DS026) ───────────────────────────────
+
+CMD ["/bin/sh"]

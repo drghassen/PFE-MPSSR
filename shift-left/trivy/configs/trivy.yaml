@@ -1,0 +1,54 @@
+################################################################################
+# CloudSentinel — Trivy Configuration (Local / Advisory Mode)
+# Scope: Container vuln (OS+lib) | Dockerfile misconfig | Secrets in image layers
+# NOTE: IaC (Terraform) → Checkov | Secrets (source/git) → Gitleaks
+# Enforcement: OPA Quality Gate — Trivy never blocks (exit-code: 0)
+################################################################################
+
+scan:
+  scanners:
+    - vuln       # OS packages + language libraries
+    - misconfig  # Dockerfile configuration (Checkov handles Terraform)
+    - secret     # Secrets embedded in container image layers
+
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# Console display (wrappers override to JSON for OPA pipeline)
+format: table
+
+# Timeout — prevents hang on large images
+timeout: 10m
+
+# Cache — performance optimisation for repeated scans
+cache:
+  dir: .trivy-cache
+
+# Package types to scan (replaces deprecated 'vulnerability.type')
+pkg:
+  types:
+    - os       # Alpine, Debian, Ubuntu, RHEL packages
+    - library  # npm, pip, maven, go modules
+
+# Misconfig scope — Dockerfile only (Terraform handled by Checkov)
+misconfiguration:
+  scanners:
+    - dockerfile
+
+# Secret scanning sensitivity
+secret:
+  config: ""  # Use Trivy default ruleset
+
+# advisory mode — OPA is the enforcement layer
+exit-code: 0
+
+# CVE allowlist managed by security team
+ignorefile: .trivyignore
+
+# Advisory: expose fix availability
+show-suppressed: false
+db:
+  no-progress: false

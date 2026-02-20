@@ -1,0 +1,4 @@
+# CloudSentinel - HIGH Severity Fixture
+FROM alpine:3.10
+RUN apk add --no-cache openssl=1.1.1b-r1
+CMD ["/usr/bin/openssl"]

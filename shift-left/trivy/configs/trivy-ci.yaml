@@ -1,0 +1,56 @@
+################################################################################
+# CloudSentinel — Trivy Configuration (CI / Enforcement Mode)
+# Scope: Container vuln (OS+lib) | Dockerfile misconfig | Secrets in image layers
+# NOTE: exit-code: 0 — OPA Quality Gate handles ALLOW/DENY decision
+################################################################################
+
+scan:
+  scanners:
+    - vuln
+    - misconfig
+    - secret
+
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+  - LOW
+
+# JSON output — consumed by OPA normalization pipeline
+format: json
+
+# Increased timeout for CI large images
+timeout: 15m
+
+# CI-optimised cache
+cache:
+  dir: .trivy-cache
+
+# Suppress DB download progress bar in CI logs
+db:
+  no-progress: true
+
+# Package types to scan (replaces deprecated 'vulnerability.type')
+pkg:
+  types:
+    - os
+    - library
+
+# Misconfig scope — Dockerfile only
+misconfiguration: 
+  scanners:
+    - dockerfile
+
+# Secret configuration
+secret:
+  config: ""
+
+# OPA is the enforcement layer — Trivy always exits 0
+exit-code: 0
+
+# CVE allowlist managed by security team with expiry dates
+ignorefile: .trivyignore
+
+# Always show whether a fix is available
+show-suppressed: false
+ 

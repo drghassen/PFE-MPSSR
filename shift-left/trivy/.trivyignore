@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# CloudSentinel — .trivyignore
+# Format: CVE-ID or misconfig rule ID, one per line, with structured metadata
+# Reference: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+#
+# GOVERNANCE: Each entry MUST include:
+#   - Justification (business/technical reason)
+#   - Expiry date (ISO 8601)
+#   - Approved-by (security team member or ticket ID)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAMPLE ENTRIES (replace with real CVEs from your scan results)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CVE-2023-44487 (HTTP/2 Rapid Reset Attack)
+# Justification: Internal service not exposed to public internet; WAF mitigates at perimeter
+# Expiry: 2024-12-31
+# Approved-by: CloudSentinel-SEC-001
+# CVE-2023-44487
+
+# CVE-2023-39325 (Go HTTP/2 DoS)
+# Justification: Go runtime patched at OS level; library update pending validation in staging
+# Expiry: 2024-06-30
+# Approved-by: CloudSentinel-SEC-002
+# CVE-2023-39325
+
+# DS002 (Trivy Dockerfile misconfig: no USER specified)
+# Justification: Base image for internal build stage only; final image uses USER 1000
+# Expiry: 2024-09-01
+# Approved-by: CloudSentinel-SEC-003
+# DS002
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Active allowlist (uncomment + document before use)
+# ─────────────────────────────────────────────────────────────────────────────

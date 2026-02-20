@@ -1,0 +1,8 @@
+# CloudSentinel Trivy - Git Ignore
+reports/
+*.json
+!configs/*.json
+.cache/
+trivy-cache/
+*.tmp
+*.log
