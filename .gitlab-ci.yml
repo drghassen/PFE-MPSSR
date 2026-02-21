@@ -1,271 +1,165 @@
 # ============================================================================
-# CloudSentinel - GitLab CI/CD Pipeline
-# Implémentation Shift-Left avec Quality Gate
+# CloudSentinel - GitLab CI/CD
+# Shift-Left scanners are advisory only. OPA is the single ALLOW/DENY gate.
 # ============================================================================
 
-# Variables globales
 variables:
-  # Versions des outils
-  GITLEAKS_VERSION: "8.18.0"
-  CHECKOV_VERSION: "latest"
-  TRIVY_VERSION: "0.48.0"
-  OPA_VERSION: "0.60.0"
-  
-  # Configuration
+  GITLEAKS_VERSION: "8.21.2"
+  CHECKOV_VERSION: "3.2.502"
+  TRIVY_VERSION: "0.69.1"
+  OPA_VERSION: "1.13.1"
+
   SCAN_TARGET: "infra/azure/dev"
-  REPORTS_DIR: "reports"
-  
-  # DefectDojo (à configurer via GitLab CI/CD Variables)
-  # DOJO_URL
-  # DOJO_API_KEY
-  # DOJO_ENGAGEMENT_ID
+  TRIVY_TARGET: "infra/azure/dev"
+  TRIVY_SCAN_TYPE: "config"
 
-# Étapes du pipeline
+  CRITICAL_MAX: "0"
+  HIGH_MAX: "2"
+
 stages:
-  - scan          # Exécution parallèle des scanners
-  - normalize     # Fusion et enrichissement des données
-  - decide        # OPA Policy evaluation
-  - report        # Export vers DefectDojo
-  - deploy        # Déploiement (si autorisé)
+  - scan
+  - normalize
+  - decide
+  - report
+  - deploy
 
-# ============================================================================
-# STAGE 1: SCAN - Détection des vulnérabilités
-# ============================================================================
+.default_tools: &default_tools
+  image: python:3.11-bookworm
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends bash ca-certificates curl git jq tar gzip
+    - rm -rf /var/lib/apt/lists/*
 
-gitleaks-scan:
+shift-left-scan:
+  <<: *default_tools
   stage: scan
-  image: zricethezav/gitleaks:v${GITLEAKS_VERSION}
   script:
-    - mkdir -p ${REPORTS_DIR}
-    - |
-      gitleaks detect \
-        --source="${SCAN_TARGET}" \
-        --report-path="${REPORTS_DIR}/gitleaks.json" \
-        --no-git \
-        --exit-code=0 || true
-    - echo "✅ Gitleaks scan terminé"
+    - pip install --no-cache-dir "checkov==${CHECKOV_VERSION}"
+    - curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
+    - curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
+    - chmod +x shift-left/gitleaks/run-gitleaks.sh shift-left/checkov/run-checkov.sh shift-left/trivy/scripts/run-trivy.sh
+    - mkdir -p .cloudsentinel shift-left/trivy/reports/raw shift-left/trivy/reports/opa
+    - bash shift-left/gitleaks/run-gitleaks.sh || true
+    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
+    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
+    - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' .cloudsentinel/gitleaks_opa.json
+    - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' .cloudsentinel/checkov_opa.json
+    - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' shift-left/trivy/reports/opa/trivy_opa.json
   artifacts:
-    paths:
-      - ${REPORTS_DIR}/gitleaks.json
-    expire_in: 7 days
     when: always
-  allow_failure: false
-
-checkov-scan:
-  stage: scan
-  image: bridgecrew/checkov:${CHECKOV_VERSION}
-  script:
-    - mkdir -p ${REPORTS_DIR}
-    - |
-      checkov \
-        --directory "${SCAN_TARGET}" \
-        --output json \
-        --output-file ${REPORTS_DIR}/checkov.json \
-        --soft-fail || true
-    - echo "✅ Checkov scan terminé"
-  artifacts:
-    paths:
-      - ${REPORTS_DIR}/checkov.json
     expire_in: 7 days
-    when: always
-  allow_failure: false
-
-trivy-scan:
-  stage: scan
-  image: aquasec/trivy:${TRIVY_VERSION}
-  script:
-    - mkdir -p ${REPORTS_DIR}
-    - |
-      trivy config "${SCAN_TARGET}" \
-        --format json \
-        --output ${REPORTS_DIR}/trivy.json \
-        --exit-code 0 || true
-    - echo "✅ Trivy scan terminé"
-  artifacts:
     paths:
-      - ${REPORTS_DIR}/trivy.json
-    expire_in: 7 days
-    when: always
-  allow_failure: false
-
-# ============================================================================
-# STAGE 2: NORMALIZE - Fusion des rapports
-# ============================================================================
+      - .cloudsentinel/gitleaks_raw.json
+      - .cloudsentinel/gitleaks_opa.json
+      - .cloudsentinel/checkov_raw.json
+      - .cloudsentinel/checkov_opa.json
+      - shift-left/trivy/reports/raw/
+      - shift-left/trivy/reports/opa/trivy_opa.json
 
 normalize-reports:
+  <<: *default_tools
   stage: normalize
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache jq
+  needs:
+    - job: shift-left-scan
+      artifacts: true
   script:
-    - mkdir -p ${REPORTS_DIR}
-    - |
-      jq -n \
-        --slurpfile gl ${REPORTS_DIR}/gitleaks.json \
-        --slurpfile ck ${REPORTS_DIR}/checkov.json \
-        --slurpfile tv ${REPORTS_DIR}/trivy.json \
-        --arg env "${CI_ENVIRONMENT_NAME:-dev}" \
-        --arg branch "${CI_COMMIT_BRANCH}" \
-        --arg commit "${CI_COMMIT_SHA}" \
-        '{
-          metadata: {
-            environment: $env,
-            branch: $branch,
-            commit: $commit,
-            pipeline_id: env.CI_PIPELINE_ID,
-            timestamp: now | todate
-          },
-          gitleaks: ($gl[0] // []),
-          checkov: ($ck[0] // {}),
-          trivy: ($tv[0] // {})
-        }' > ${REPORTS_DIR}/opa_input.json
-    - echo "✅ Normalisation terminée"
-    - cat ${REPORTS_DIR}/opa_input.json | jq .metadata
+    - chmod +x shift-left/normalizer/normalize.sh
+    - bash shift-left/normalizer/normalize.sh
+    - jq '.summary' .cloudsentinel/golden_report.json
+    - jq '.quality_gate' .cloudsentinel/golden_report.json
   artifacts:
+    when: always
+    expire_in: 30 days
     paths:
-      - ${REPORTS_DIR}/opa_input.json
-    expire_in: 7 days
-  dependencies:
-    - gitleaks-scan
-    - checkov-scan
-    - trivy-scan
-
-# ============================================================================
-# STAGE 3: DECIDE - OPA Policy Evaluation (QUALITY GATE)
-# ============================================================================
+      - .cloudsentinel/golden_report.json
+      - .cloudsentinel/gitleaks_opa.json
+      - .cloudsentinel/checkov_opa.json
+      - shift-left/trivy/reports/opa/trivy_opa.json
 
 opa-decision:
+  <<: *default_tools
   stage: decide
-  image: openpolicyagent/opa:${OPA_VERSION}
+  needs:
+    - job: normalize-reports
+      artifacts: true
   script:
+    - curl -sSL "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static" -o /usr/local/bin/opa
+    - chmod +x /usr/local/bin/opa
+    - opa eval --format json --input .cloudsentinel/golden_report.json --data policies/opa/pipeline_decision.rego "data.cloudsentinel.gate.decision" > .cloudsentinel/opa_decision.json
+    - ALLOW=$(jq -r '.result[0].expressions[0].value.allow // false' .cloudsentinel/opa_decision.json)
     - |
-      echo "⚖️  Évaluation de la policy OPA..."
-      opa eval \
-        --input ${REPORTS_DIR}/opa_input.json \
-        --data policies/opa/pipeline_decision.rego \
-        --format pretty \
-        "data.ci.security" > ${REPORTS_DIR}/opa_decision.txt
-      
-      # Extraction du résultat
-      OPA_OUTPUT=$(opa eval \
-        --input ${REPORTS_DIR}/opa_input.json \
-        --data policies/opa/pipeline_decision.rego \
-        --format json \
-        "data.ci.security")
-      
-      echo "$OPA_OUTPUT" > ${REPORTS_DIR}/opa_decision.json
-      
-      # Vérification ALLOW/DENY
-      IS_ALLOWED=$(echo "$OPA_OUTPUT" | jq -r '.result[0].expressions[0].value.allow // false')
-      
-      echo "════════════════════════════════════════"
-      echo "🛡️  QUALITY GATE DECISION"
-      echo "════════════════════════════════════════"
-      
-      if [ "$IS_ALLOWED" = "true" ]; then
-        echo "✅ STATUS: ALLOWED"
-        echo "Le déploiement peut continuer"
+      if [ "$ALLOW" = "true" ]; then
+        echo "[opa] STATUS=ALLOWED"
         exit 0
-      else
-        echo "❌ STATUS: DENIED"
-        echo "Le déploiement est BLOQUÉ"
-        echo ""
-        echo "Raisons:"
-        echo "$OPA_OUTPUT" | jq -r '.result[0].expressions[0].value.deny[]' | sed 's/^/  - /'
-        exit 1
       fi
+      echo "[opa] STATUS=DENIED"
+      jq -r '.result[0].expressions[0].value.deny[]?' .cloudsentinel/opa_decision.json | sed 's/^/[opa] reason: /'
+      exit 1
   artifacts:
-    paths:
-      - ${REPORTS_DIR}/opa_decision.json
-      - ${REPORTS_DIR}/opa_decision.txt
-    expire_in: 30 days
     when: always
-  dependencies:
-    - normalize-reports
-  allow_failure: false
-
-# ============================================================================
-# STAGE 4: REPORT - Export vers DefectDojo
-# ============================================================================
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/opa_decision.json
 
 upload-to-defectdojo:
   stage: report
-  image: curlimages/curl:latest
+  image: curlimages/curl:8.12.1
+  needs:
+    - job: shift-left-scan
+      artifacts: true
   script:
     - |
-      echo "📊 Upload des findings vers DefectDojo..."
-      
-      # Upload Gitleaks
-      if [ -f "${REPORTS_DIR}/gitleaks.json" ]; then
-        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+      if [ -z "${DOJO_URL:-}" ] || [ -z "${DOJO_API_KEY:-}" ] || [ -z "${DOJO_ENGAGEMENT_ID:-}" ]; then
+        echo "[dojo] Missing DOJO_URL / DOJO_API_KEY / DOJO_ENGAGEMENT_ID. Skipping upload."
+        exit 0
+      fi
+
+      if [ -f ".cloudsentinel/gitleaks_raw.json" ]; then
+        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY}" \
-          -F "file=@${REPORTS_DIR}/gitleaks.json" \
+          -F "file=@.cloudsentinel/gitleaks_raw.json" \
           -F "scan_type=Gitleaks Scan" \
           -F "engagement=${DOJO_ENGAGEMENT_ID}" \
-          -F "active=true" \
-          -F "verified=false"
-        echo "  ✅ Gitleaks findings importés"
+          -F "active=true" -F "verified=false" >/dev/null
+        echo "[dojo] Gitleaks uploaded"
       fi
-      
-      # Upload Checkov
-      if [ -f "${REPORTS_DIR}/checkov.json" ]; then
-        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+
+      if [ -f ".cloudsentinel/checkov_raw.json" ]; then
+        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY}" \
-          -F "file=@${REPORTS_DIR}/checkov.json" \
+          -F "file=@.cloudsentinel/checkov_raw.json" \
           -F "scan_type=Checkov Scan" \
           -F "engagement=${DOJO_ENGAGEMENT_ID}" \
-          -F "active=true" \
-          -F "verified=false"
-        echo "  ✅ Checkov findings importés"
+          -F "active=true" -F "verified=false" >/dev/null
+        echo "[dojo] Checkov uploaded"
       fi
-      
-      # Upload Trivy
-      if [ -f "${REPORTS_DIR}/trivy.json" ]; then
-        curl -X POST "${DOJO_URL}/api/v2/import-scan/" \
+
+      if [ -f "shift-left/trivy/reports/raw/trivy-config-raw.json" ]; then
+        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY}" \
-          -F "file=@${REPORTS_DIR}/trivy.json" \
+          -F "file=@shift-left/trivy/reports/raw/trivy-config-raw.json" \
           -F "scan_type=Trivy Scan" \
           -F "engagement=${DOJO_ENGAGEMENT_ID}" \
-          -F "active=true" \
-          -F "verified=false"
-        echo "  ✅ Trivy findings importés"
+          -F "active=true" -F "verified=false" >/dev/null
+        echo "[dojo] Trivy uploaded"
       fi
-      
-      echo "📊 Upload terminé - Consultez DefectDojo"
-  dependencies:
-    - gitleaks-scan
-    - checkov-scan
-    - trivy-scan
   when: always
   allow_failure: true
 
-# ============================================================================
-# STAGE 5: DEPLOY - Déploiement Infrastructure (si Quality Gate PASS)
-# ============================================================================
-
 deploy-infrastructure:
   stage: deploy
-  image: hashicorp/terraform:latest
+  image: hashicorp/terraform:1.10.5
+  needs:
+    - job: opa-decision
   before_script:
     - cd infra/azure/dev
   script:
     - terraform init
     - terraform plan -out=tfplan
     - terraform apply -auto-approve tfplan
-    - echo "✅ Infrastructure déployée"
-  only:
-    - main
-    - develop
-  dependencies:
-    - opa-decision
-  when: on_success
-  environment:
-    name: dev
-    action: start
-
-# ============================================================================
-# WORKFLOW RULES
-# ============================================================================
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 workflow:
   rules:

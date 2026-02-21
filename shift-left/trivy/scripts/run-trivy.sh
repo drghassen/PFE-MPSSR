@@ -45,6 +45,52 @@ log()  { echo -e "\033[1;34m[CloudSentinel][Trivy]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[CloudSentinel][Trivy][WARN]\033[0m $*" >&2; }
 err()  { echo -e "\033[1;31m[CloudSentinel][Trivy][ERROR]\033[0m $*" >&2; }
 
+emit_not_run() {
+  local reason="$1"
+  warn "Scan marked as NOT_RUN: $reason"
+  jq -n \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)" \
+    --arg commit "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
+    --arg scan_type "${SCAN_TYPE:-unknown}" \
+    --arg target "${TARGET:-unknown}" \
+    --arg reason "$reason" \
+    '{
+      tool: "trivy",
+      version: "unknown",
+      status: "NOT_RUN",
+      timestamp: $timestamp,
+      branch: $branch,
+      commit: $commit,
+      scan_type: $scan_type,
+      target: $target,
+      stats: {
+        CRITICAL: 0,
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+        INFO: 0,
+        TOTAL: 0,
+        EXEMPTED: 0,
+        FAILED: 0,
+        PASSED: 0,
+        by_type: {
+          vulnerability: 0,
+          secret: 0,
+          misconfig: 0
+        },
+        by_category: {
+          INFRASTRUCTURE: 0,
+          APPLICATION: 0,
+          CONFIGURATION: 0,
+          SECRET: 0
+        }
+      },
+      errors: [$reason],
+      findings: []
+    }' > "$OPA_FINAL_REPORT"
+}
+
 # ── Mode Detection ────────────────────────────────────────────────────────────
 SCAN_MODE="${SCAN_MODE:-local}"
 [[ -n "${CI:-}" ]] && SCAN_MODE="ci"
@@ -70,6 +116,8 @@ fi
 
 # ── Cache Configuration ───────────────────────────────────────────────────────
 export TRIVY_CACHE_DIR="$REPO_ROOT/.trivy-cache"
+TRIVY_VERSION="$(trivy --version 2>/dev/null | awk 'NR==1 {print $2}' | tr -d '\r' || echo unknown)"
+[[ -z "$TRIVY_VERSION" ]] && TRIVY_VERSION="unknown"
 
 log "Scan type : $SCAN_TYPE"
 log "Target    : $TARGET"
@@ -78,6 +126,7 @@ log "Config    : $CONFIG_FILE"
 log "Cache     : $TRIVY_CACHE_DIR"
 
 # ── Dispatch to appropriate scanner ──────────────────────────────────────────
+set +e
 case "$SCAN_TYPE" in
   image)
     bash "$SCAN_IMAGE" "$TARGET"
@@ -96,10 +145,24 @@ case "$SCAN_TYPE" in
     exit 1
     ;;
 esac
+SCAN_RC=$?
+set -e
+
+if [[ "$SCAN_RC" -ne 0 ]]; then
+  emit_not_run "trivy_subscan_error:rc=$SCAN_RC"
+  exit 0
+fi
 
 # ── Validate raw output ───────────────────────────────────────────────────────
-[[ ! -f "$RAW_RESULTS" ]] && { err "Raw scan output not found: $RAW_RESULTS"; exit 1; }
-jq empty "$RAW_RESULTS" 2>/dev/null || { err "Invalid JSON in raw output: $RAW_RESULTS"; exit 1; }
+if [[ ! -f "$RAW_RESULTS" ]]; then
+  emit_not_run "trivy_raw_output_missing:$RAW_RESULTS"
+  exit 0
+fi
+
+if ! jq empty "$RAW_RESULTS" >/dev/null 2>&1; then
+  emit_not_run "trivy_raw_output_invalid_json:$RAW_RESULTS"
+  exit 0
+fi
 
 log "Normalising findings for OPA..."
 
@@ -123,6 +186,7 @@ jq -n \
   --arg timestamp "$TIMESTAMP" \
   --arg branch    "$BRANCH"    \
   --arg commit    "$COMMIT"    \
+  --arg version   "$TRIVY_VERSION" \
   --arg scan_type "$SCAN_TYPE" \
   --arg target    "$TARGET"    \
   --slurpfile raw     "$RAW_RESULTS"  \
@@ -194,7 +258,8 @@ jq -n \
 
   | {
       tool:      "trivy",
-      version:   "7.0",
+      version:   $version,
+      status:    (if ($findings | length) > 0 then "FAILED" else "PASSED" end),
       timestamp: $timestamp,
       branch:    $branch,
       commit:    $commit,
@@ -205,7 +270,11 @@ jq -n \
         HIGH:     ($findings | map(select(.severity == "HIGH"))     | length),
         MEDIUM:   ($findings | map(select(.severity == "MEDIUM"))   | length),
         LOW:      ($findings | map(select(.severity == "LOW"))      | length),
+        INFO:     ($findings | map(select(.severity == "INFO"))      | length),
         TOTAL:    ($findings | length),
+        EXEMPTED: 0,
+        FAILED:   ($findings | length),
+        PASSED:   0,
         by_type: {
           vulnerability: ($findings | map(select(.finding_type == "vulnerability")) | length),
           secret:        ($findings | map(select(.finding_type == "secret"))        | length),

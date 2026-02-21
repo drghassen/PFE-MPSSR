@@ -2,19 +2,41 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "CloudSentinel Golden Report",
   "type": "object",
-  "required": ["schema_version", "metadata", "summary", "scanners", "findings", "quality_gate"],
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "metadata",
+    "summary",
+    "scanners",
+    "findings",
+    "quality_gate"
+  ],
   "properties": {
-    "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
     "metadata": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["tool", "timestamp", "generation_duration_ms", "git"],
       "properties": {
-        "tool": { "type": "string", "const": "cloudsentinel" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "generation_duration_ms": { "type": "integer" },
+        "tool": {
+          "type": "string",
+          "const": "cloudsentinel"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "generation_duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
         "git": {
           "type": "object",
-          "required": ["branch", "commit", "commit_date", "author_email"],
+          "additionalProperties": false,
+          "required": ["branch", "commit", "commit_date", "author_email", "pipeline_id"],
           "properties": {
             "branch": { "type": "string" },
             "commit": { "type": "string" },
@@ -27,54 +49,42 @@
     },
     "summary": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["global", "by_tool", "by_category"],
       "properties": {
         "global": {
-          "type": "object",
-          "properties": {
-            "CRITICAL": { "type": "integer" },
-            "HIGH": { "type": "integer" },
-            "MEDIUM": { "type": "integer" },
-            "LOW": { "type": "integer" },
-            "INFO": { "type": "integer" },
-            "TOTAL": { "type": "integer" },
-            "EXEMPTED": { "type": "integer" },
-            "FAILED": { "type": "integer" },
-            "PASSED": { "type": "integer" }
-          }
+          "$ref": "#/definitions/stats_summary"
         },
         "by_tool": {
           "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "CRITICAL": { "type": "integer" },
-              "HIGH": { "type": "integer" },
-              "MEDIUM": { "type": "integer" },
-              "LOW": { "type": "integer" },
-              "TOTAL": { "type": "integer" },
-              "status": { "type": "string", "enum": ["PASSED", "FAILED", "NOT_RUN"] }
-            }
+          "additionalProperties": false,
+          "required": ["gitleaks", "checkov", "trivy"],
+          "properties": {
+            "gitleaks": { "$ref": "#/definitions/tool_summary" },
+            "checkov": { "$ref": "#/definitions/tool_summary" },
+            "trivy": { "$ref": "#/definitions/tool_summary" }
           }
         },
         "by_category": {
           "type": "object",
-          "additionalProperties": { "type": "integer" }
+          "additionalProperties": false,
+          "required": ["SECRETS", "INFRASTRUCTURE_AS_CODE", "VULNERABILITIES"],
+          "properties": {
+            "SECRETS": { "type": "integer", "minimum": 0 },
+            "INFRASTRUCTURE_AS_CODE": { "type": "integer", "minimum": 0 },
+            "VULNERABILITIES": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     },
     "scanners": {
       "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["tool", "status"],
-        "properties": {
-          "tool": { "type": "string" },
-          "version": { "type": "string" },
-          "stats": { "type": "object" },
-          "findings": { "type": "array" },
-          "status": { "type": "string", "enum": ["PASSED", "FAILED", "NOT_RUN"] }
-        }
+      "additionalProperties": false,
+      "required": ["gitleaks", "checkov", "trivy"],
+      "properties": {
+        "gitleaks": { "$ref": "#/definitions/scanner" },
+        "checkov": { "$ref": "#/definitions/scanner" },
+        "trivy": { "$ref": "#/definitions/scanner" }
       }
     },
     "findings": {
@@ -83,29 +93,138 @@
     },
     "quality_gate": {
       "type": "object",
+      "additionalProperties": true,
       "required": ["decision", "reason", "thresholds"],
       "properties": {
-        "decision": { "type": "string", "enum": ["PASSED", "FAILED"] },
-        "reason": { "type": "string" },
+        "decision": {
+          "type": "string",
+          "enum": ["PASSED", "FAILED"]
+        },
+        "reason": {
+          "type": "string"
+        },
         "thresholds": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["critical_max", "high_max"],
           "properties": {
-            "critical_max": { "type": "integer" },
-            "high_max": { "type": "integer" }
+            "critical_max": { "type": "integer", "minimum": 0 },
+            "high_max": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "reasons": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "not_run_scanners": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
           }
         }
       }
     }
   },
   "definitions": {
+    "stats_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INFO",
+        "TOTAL",
+        "EXEMPTED",
+        "FAILED",
+        "PASSED"
+      ],
+      "properties": {
+        "CRITICAL": { "type": "integer", "minimum": 0 },
+        "HIGH": { "type": "integer", "minimum": 0 },
+        "MEDIUM": { "type": "integer", "minimum": 0 },
+        "LOW": { "type": "integer", "minimum": 0 },
+        "INFO": { "type": "integer", "minimum": 0 },
+        "TOTAL": { "type": "integer", "minimum": 0 },
+        "EXEMPTED": { "type": "integer", "minimum": 0 },
+        "FAILED": { "type": "integer", "minimum": 0 },
+        "PASSED": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tool_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INFO",
+        "TOTAL",
+        "EXEMPTED",
+        "FAILED",
+        "PASSED",
+        "status"
+      ],
+      "properties": {
+        "CRITICAL": { "type": "integer", "minimum": 0 },
+        "HIGH": { "type": "integer", "minimum": 0 },
+        "MEDIUM": { "type": "integer", "minimum": 0 },
+        "LOW": { "type": "integer", "minimum": 0 },
+        "INFO": { "type": "integer", "minimum": 0 },
+        "TOTAL": { "type": "integer", "minimum": 0 },
+        "EXEMPTED": { "type": "integer", "minimum": 0 },
+        "FAILED": { "type": "integer", "minimum": 0 },
+        "PASSED": { "type": "integer", "minimum": 0 },
+        "status": {
+          "type": "string",
+          "enum": ["PASSED", "FAILED", "NOT_RUN"]
+        }
+      }
+    },
+    "scanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "version", "status", "stats", "findings"],
+      "properties": {
+        "tool": { "type": "string" },
+        "version": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["PASSED", "FAILED", "NOT_RUN"]
+        },
+        "stats": { "$ref": "#/definitions/stats_summary" },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/finding" }
+        }
+      }
+    },
     "finding": {
       "type": "object",
-      "required": ["id", "source", "resource", "description", "severity", "category", "status", "remediation", "context"],
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "resource",
+        "description",
+        "severity",
+        "category",
+        "status",
+        "remediation",
+        "context"
+      ],
       "properties": {
         "id": { "type": "string" },
         "source": {
           "type": "object",
-          "required": ["tool", "id", "scanner_type"],
+          "additionalProperties": false,
+          "required": ["tool", "version", "id", "scanner_type"],
           "properties": {
             "tool": { "type": "string" },
             "version": { "type": "string" },
@@ -115,7 +234,8 @@
         },
         "resource": {
           "type": "object",
-          "required": ["name", "path"],
+          "additionalProperties": false,
+          "required": ["name", "version", "type", "path", "location"],
           "properties": {
             "name": { "type": "string" },
             "version": { "type": "string" },
@@ -123,10 +243,12 @@
             "path": { "type": "string" },
             "location": {
               "type": "object",
+              "additionalProperties": false,
+              "required": ["file", "start_line", "end_line"],
               "properties": {
                 "file": { "type": "string" },
-                "start_line": { "type": "integer" },
-                "end_line": { "type": "integer" }
+                "start_line": { "type": "integer", "minimum": 0 },
+                "end_line": { "type": "integer", "minimum": 0 }
               }
             }
           }
@@ -134,40 +256,59 @@
         "description": { "type": "string" },
         "severity": {
           "type": "object",
-          "required": ["level"],
+          "additionalProperties": false,
+          "required": ["level", "original_severity"],
           "properties": {
-            "level": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
-            "cvss_score": { "type": "number" },
-            "original_severity": { "type": "string" }
+            "level": {
+              "type": "string",
+              "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+            },
+            "original_severity": { "type": "string" },
+            "cvss_score": { "type": "number" }
           }
         },
         "category": { "type": "string" },
-        "status": { "type": "string", "enum": ["PASSED", "FAILED", "EXEMPTED"] },
+        "status": {
+          "type": "string",
+          "enum": ["PASSED", "FAILED", "EXEMPTED"]
+        },
         "remediation": {
           "type": "object",
-          "required": ["sla_hours"],
+          "additionalProperties": false,
+          "required": ["sla_hours", "fix_version", "references"],
           "properties": {
-            "sla_hours": { "type": "integer" },
+            "sla_hours": { "type": "integer", "minimum": 0 },
             "fix_version": { "type": "string" },
-            "references": { "type": "array", "items": { "type": "string" } }
+            "references": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
           }
         },
         "context": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["git", "deduplication"],
           "properties": {
             "git": {
               "type": "object",
+              "additionalProperties": false,
+              "required": ["author_email", "commit_date"],
               "properties": {
-                "author_email": { "type": "string" },
-                "commit_date": { "type": "string" }
+                "author_email": { "type": "string", "format": "email" },
+                "commit_date": { "type": "string", "format": "date-time" }
               }
             },
             "deduplication": {
               "type": "object",
+              "additionalProperties": false,
+              "required": ["fingerprint", "is_duplicate", "duplicate_of"],
               "properties": {
                 "fingerprint": { "type": "string" },
                 "is_duplicate": { "type": "boolean" },
-                "duplicate_of": { "type": "string", "nullable": true }
+                "duplicate_of": {
+                  "type": ["string", "null"]
+                }
               }
             }
           }
@@ -176,3 +317,4 @@
     }
   }
 }
+

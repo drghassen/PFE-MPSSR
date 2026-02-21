@@ -17,7 +17,6 @@ need() { command -v "$1" >/dev/null 2>&1 || { err "$1 not installed"; exit 2; };
 
 need git
 need jq
-need gitleaks
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { err "Not a git repo"; exit 2; }
 
@@ -46,7 +45,41 @@ trap 'rm -f "$REPORT_RAW_TMP" "$REPORT_NORM_TMP"' EXIT
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
 REPORT_OUT="$OUT_DIR/gitleaks_opa.json"
 
-[[ -f "$CONFIG_PATH" ]] || { err "Config missing: $CONFIG_PATH"; exit 2; }
+emit_not_run() {
+  local reason=$1
+  warn "Scan marked as NOT_RUN: $reason"
+  echo "[]" > "$REPORT_RAW_OUT"
+  jq -n \
+    --arg branch "${CI_COMMIT_REF_NAME:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}" \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg reason "$reason" \
+    '{
+      tool: "gitleaks",
+      version: "unknown",
+      status: "NOT_RUN",
+      branch: $branch,
+      timestamp: $timestamp,
+      stats: {
+        CRITICAL: 0,
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+        INFO: 0,
+        TOTAL: 0,
+        EXEMPTED: 0,
+        FAILED: 0,
+        PASSED: 0
+      },
+      errors: [$reason],
+      findings: []
+    }' > "$REPORT_OUT"
+}
+
+command -v gitleaks >/dev/null 2>&1 || { emit_not_run "gitleaks_binary_missing"; exit 0; }
+[[ -f "$CONFIG_PATH" ]] || { emit_not_run "gitleaks_config_missing:$CONFIG_PATH"; exit 0; }
+
+GITLEAKS_VERSION="$(gitleaks version 2>/dev/null | head -n 1 | tr -d '\r' || echo unknown)"
+[[ -z "$GITLEAKS_VERSION" ]] && GITLEAKS_VERSION="unknown"
 
 TIMEOUT_BIN=""
 command -v timeout >/dev/null 2>&1 && TIMEOUT_BIN="timeout"
@@ -103,7 +136,10 @@ fi
 RC=$?
 set -e
 
-[[ "$RC" -gt 1 ]] && { err "gitleaks failed (rc=$RC)"; exit 2; }
+if [[ "$RC" -gt 1 ]]; then
+  emit_not_run "gitleaks_execution_error:rc=$RC"
+  exit 0
+fi
 
 # Validation du JSON
 jq -e 'type=="array"' "$REPORT_RAW_TMP" >/dev/null 2>&1 || { echo "[]" > "$REPORT_RAW_TMP"; }
@@ -148,16 +184,21 @@ STATS=$(jq -n --argjson f "$(cat "$REPORT_NORM_TMP")" '{
   HIGH: ($f | map(select(.severity=="HIGH")) | length),
   MEDIUM: ($f | map(select(.severity=="MEDIUM")) | length),
   LOW: ($f | map(select(.severity=="LOW")) | length),
-  TOTAL: ($f | length)
+  INFO: ($f | map(select(.severity=="INFO")) | length),
+  TOTAL: ($f | length),
+  EXEMPTED: 0,
+  FAILED: ($f | length),
+  PASSED: 0
 }')
 
 jq -n \
   --arg tool "gitleaks" \
+  --arg version "$GITLEAKS_VERSION" \
   --arg branch "${CI_COMMIT_REF_NAME:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}" \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --argjson stats "$STATS" \
   --argjson findings "$(cat "$REPORT_NORM_TMP")" \
-  '{tool: $tool, branch: $branch, timestamp: $timestamp, stats: $stats, findings: $findings}' > "$REPORT_OUT"
+  '{tool: $tool, version: $version, status: (if $stats.TOTAL > 0 then "FAILED" else "PASSED" end), branch: $branch, timestamp: $timestamp, stats: $stats, findings: $findings}' > "$REPORT_OUT"
 
 log "Done. Findings: $(jq -r '.stats.TOTAL' "$REPORT_OUT") | Report: $REPORT_OUT"
 exit 0

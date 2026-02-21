@@ -39,9 +39,55 @@ REPORT_RAW="$OUT_DIR/checkov_raw.json"
 REPORT_OPA="$OUT_DIR/checkov_opa.json"
 REPORT_LOG="$OUT_DIR/checkov_scan.log"
 
+emit_not_run() {
+    local reason=$1
+    local branch
+    local commit
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+    commit="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
+
+    log_warn "Scan marked as NOT_RUN: $reason"
+    echo '{"results":{"failed_checks":[]}}' > "$REPORT_RAW"
+    jq -n \
+      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg branch "$branch" \
+      --arg commit "$commit" \
+      --arg repo "$REPO_ROOT" \
+      --arg reason "$reason" \
+      '{
+        tool: "checkov",
+        version: "unknown",
+        status: "NOT_RUN",
+        timestamp: $timestamp,
+        branch: $branch,
+        commit: $commit,
+        repository: $repo,
+        stats: {
+          CRITICAL: 0,
+          HIGH: 0,
+          MEDIUM: 0,
+          LOW: 0,
+          INFO: 0,
+          TOTAL: 0,
+          EXEMPTED: 0,
+          FAILED: 0,
+          PASSED: 0
+        },
+        errors: [$reason],
+        findings: []
+      }' > "$REPORT_OPA"
+}
+
 # --- Prérequis ---
 command -v checkov >/dev/null 2>&1 || { log_err "Checkov n'est pas installé."; exit 2; }
 command -v jq >/dev/null 2>&1 || { log_err "jq n'est pas installé."; exit 2; }
+
+[[ -f "$MAPPING_FILE" ]] || { log_err "Mapping introuvable: $MAPPING_FILE"; emit_not_run "mapping_file_missing"; exit 0; }
+if [[ ! -f "$EXEMPTIONS_FILE" ]]; then
+    log_warn "Exemptions introuvables: $EXEMPTIONS_FILE (fallback liste vide)."
+    EXEMPTIONS_FILE="$OUT_DIR/checkov_exemptions_fallback.json"
+    echo "[]" > "$EXEMPTIONS_FILE"
+fi
 
 # --- Préparation du Scan ---
 SCAN_TARGET="${1:-$REPO_ROOT}" # Par défaut scanne tout le repo ou le dossier passé en argument
@@ -66,7 +112,8 @@ set -e
 # Code 2 = Erreur technique
 if [ $EXIT_CODE -eq 2 ]; then
     log_err "Erreur technique Checkov. Consultez $REPORT_LOG"
-    exit 2
+    emit_not_run "checkov_execution_error"
+    exit 0
 fi
 
 # Si le fichier est vide ou invalide (aucun fichier .tf trouvé par ex)
@@ -120,22 +167,27 @@ jq -n \
       })
     ) as $normalized
     
-  | {
-      tool: "checkov",
-      timestamp: $timestamp,
-      branch: $branch,
-      commit: $commit,
-      repository: $repo,
-      stats: {
-        CRITICAL: ($normalized | map(select(.status == "FAILED" and .severity == "CRITICAL")) | length),
-        HIGH:     ($normalized | map(select(.status == "FAILED" and .severity == "HIGH")) | length),
-        MEDIUM:   ($normalized | map(select(.status == "FAILED" and .severity == "MEDIUM")) | length),
-        LOW:      ($normalized | map(select(.status == "FAILED" and .severity == "LOW")) | length),
-        TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
-        EXEMPTED: ($normalized | map(select(.status == "EXEMPTED")) | length)
-      },
-      findings: $normalized
-    }
+	  | {
+	      tool: "checkov",
+	      version: "unknown",
+	      status: (if ($normalized | map(select(.status == "FAILED")) | length) > 0 then "FAILED" else "PASSED" end),
+	      timestamp: $timestamp,
+	      branch: $branch,
+	      commit: $commit,
+	      repository: $repo,
+	      stats: {
+	        CRITICAL: ($normalized | map(select(.status == "FAILED" and .severity == "CRITICAL")) | length),
+	        HIGH:     ($normalized | map(select(.status == "FAILED" and .severity == "HIGH")) | length),
+	        MEDIUM:   ($normalized | map(select(.status == "FAILED" and .severity == "MEDIUM")) | length),
+	        LOW:      ($normalized | map(select(.status == "FAILED" and .severity == "LOW")) | length),
+	        INFO:     ($normalized | map(select(.status == "FAILED" and .severity == "INFO")) | length),
+	        TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
+	        EXEMPTED: ($normalized | map(select(.status == "EXEMPTED")) | length),
+	        FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
+	        PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
+	      },
+	      findings: $normalized
+	    }
 ' > "$REPORT_OPA"
 
 # --- Résumé Final ---
