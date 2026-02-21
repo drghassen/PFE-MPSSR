@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Dossier de sortie centralisé pour OPA
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" 
 
 # Fichiers de configuration
 POLICIES_DIR="${SCRIPT_DIR}/policies"

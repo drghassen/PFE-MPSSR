@@ -4,7 +4,7 @@
 resource "azurerm_resource_group" "tfstate" {
   name     = "rg-terraform-state"
   location = var.location
-  tags     = var.common_tags
+  tags     = local.mandatory_tags
 }
 
 resource "azurerm_storage_account" "tfstate" {
@@ -36,7 +36,7 @@ resource "azurerm_storage_account" "tfstate" {
     }
   }
 
-  tags = var.common_tags
+  tags = local.mandatory_tags
 }
 
 resource "azurerm_storage_container" "tfstate" {

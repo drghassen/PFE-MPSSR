@@ -24,6 +24,20 @@ ROOT_DIR=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 OUTPUT_DIR="${ROOT_DIR}/.cloudsentinel"
 OUTPUT_FILE="${OUTPUT_DIR}/golden_report.json"
 SCHEMA_VERSION="1.0.0"
+ENVIRONMENT="${ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-dev}}"
+
+case "${ENVIRONMENT,,}" in
+  dev|test|staging|prod)
+    ENVIRONMENT="${ENVIRONMENT,,}"
+    ;;
+  stage)
+    ENVIRONMENT="staging"
+    ;;
+  *)
+    log_warn "Unknown ENVIRONMENT='${ENVIRONMENT}'. Falling back to 'dev'."
+    ENVIRONMENT="dev"
+    ;;
+esac
 
 CRITICAL_MAX="${CRITICAL_MAX:-0}"
 HIGH_MAX="${HIGH_MAX:-2}"
@@ -98,6 +112,7 @@ jq -n \
   --arg commit_date "$GIT_COMMIT_DATE" \
   --arg author_email "$GIT_AUTHOR_EMAIL" \
   --arg pipeline_id "$PIPELINE_ID" \
+  --arg environment "$ENVIRONMENT" \
   --argjson critical_max "$CRITICAL_MAX" \
   --argjson high_max "$HIGH_MAX" \
   --argjson gitleaks "$GITLEAKS_JSON" \
@@ -238,6 +253,7 @@ jq -n \
       tool: "cloudsentinel",
       timestamp: $timestamp,
       generation_duration_ms: 0,
+      environment: ($environment | ascii_downcase),
       git: {
         branch: $branch,
         commit: $commit,
@@ -339,4 +355,3 @@ jq --argjson duration "$DURATION" '.metadata.generation_duration_ms = $duration'
 
 log_info "Golden Report generated successfully: $OUTPUT_FILE"
 log_info "Quality Gate Decision: $(jq -r '.quality_gate.decision' "$OUTPUT_FILE")"
-

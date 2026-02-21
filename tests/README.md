@@ -63,3 +63,8 @@ Les fichiers dans `vulnerable-samples/` sont **INTENTIONNELLEMENT** vulnérables
 ## 📚 Documentation
 
 Voir [../docs/TESTING.md](../docs/TESTING.md) pour le guide complet.
+
+### Test pipeline dev/prod
+```bash
+./tests/e2e/test-pipeline-dev-prod.sh
+```

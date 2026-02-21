@@ -64,6 +64,7 @@ normalize-reports:
       artifacts: true
   script:
     - chmod +x shift-left/normalizer/normalize.sh
+    - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
     - bash shift-left/normalizer/normalize.sh
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
@@ -85,8 +86,12 @@ opa-decision:
   script:
     - curl -sSL "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static" -o /usr/local/bin/opa
     - chmod +x /usr/local/bin/opa
-    - opa eval --format json --input .cloudsentinel/golden_report.json --data policies/opa/pipeline_decision.rego "data.cloudsentinel.gate.decision" > .cloudsentinel/opa_decision.json
+    - opa eval --format json --input .cloudsentinel/golden_report.json --data policies/opa/pipeline_decision.rego --data policies/opa/exceptions.json "data.cloudsentinel.gate.decision" > .cloudsentinel/opa_decision.json
     - ALLOW=$(jq -r '.result[0].expressions[0].value.allow // false' .cloudsentinel/opa_decision.json)
+    - EXC_COUNT=$(jq -r '.result[0].expressions[0].value.exceptions.applied_count // 0' .cloudsentinel/opa_decision.json)
+    - EXC_IDS=$(jq -r '.result[0].expressions[0].value.exceptions.applied_ids // [] | join(",")' .cloudsentinel/opa_decision.json)
+    - echo "[opa] exceptions_applied=${EXC_COUNT}"
+    - '[ -n "$EXC_IDS" ] && echo "[opa] exception_ids=${EXC_IDS}" || true'
     - |
       if [ "$ALLOW" = "true" ]; then
         echo "[opa] STATUS=ALLOWED"
@@ -148,15 +153,22 @@ upload-to-defectdojo:
 
 deploy-infrastructure:
   stage: deploy
-  image: hashicorp/terraform:1.10.5
+  <<: *default_tools
   needs:
     - job: opa-decision
   before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends gpg
+    - rm -rf /var/lib/apt/lists/*
+    - curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
+    - chmod +x /tmp/install-opentofu.sh
+    - /tmp/install-opentofu.sh --install-method standalone --install-path /usr/local/bin
+    - tofu version
     - cd infra/azure/dev
   script:
-    - terraform init
-    - terraform plan -out=tfplan
-    - terraform apply -auto-approve tfplan
+    - tofu init
+    - tofu plan -out=tfplan
+    - tofu apply -auto-approve tfplan
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'

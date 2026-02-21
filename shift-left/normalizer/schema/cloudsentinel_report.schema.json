@@ -19,7 +19,7 @@
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "timestamp", "generation_duration_ms", "git"],
+      "required": ["tool", "timestamp", "generation_duration_ms", "environment", "git"],
       "properties": {
         "tool": {
           "type": "string",
@@ -32,6 +32,10 @@
         "generation_duration_ms": {
           "type": "integer",
           "minimum": 0
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["dev", "test", "staging", "prod"]
         },
         "git": {
           "type": "object",
@@ -317,4 +321,3 @@
     }
   }
 }
-
