@@ -49,13 +49,13 @@ Données normalisées depuis :
 ```rego
 # Exemples de règles
 deny[msg] {
-    count(input.gitleaks) > 0
-    msg := "Secrets détectés - BLOCAGE"
+    scanner_not_run[name]
+    msg := sprintf("Scanner %s did not run or report is invalid", [name])
 }
 
 deny[msg] {
-    count_critical_findings > 0
-    msg := "Vulnérabilités CRITICAL détectées"
+    effective_critical > critical_max
+    msg := sprintf("CRITICAL findings (%d) exceed threshold (%d)", [effective_critical, critical_max])
 }
 
 allow {
@@ -67,7 +67,7 @@ allow {
 ```bash
 opa eval -i opa_input.json \
   -d policies/opa/pipeline_decision.rego \
-  "data.ci.security"
+  "data.cloudsentinel.gate.decision"
 ```
 
 ---

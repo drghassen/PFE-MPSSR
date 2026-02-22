@@ -43,7 +43,10 @@ cat > "$TMP_EXCEPTIONS" <<'JSON'
           "max_severity": "HIGH",
           "reason": "E2E demonstration exception in dev",
           "ticket": "SEC-E2E-001",
+          "requested_by": "dev@example.com",
           "approved_by": "security.lead@example.com",
+          "commit_hash": "abc1234",
+          "request_date": "2026-02-21T09:30:00Z",
           "created_at": "2026-02-21T10:00:00Z",
           "expires_at": "2099-01-01T00:00:00Z"
         }

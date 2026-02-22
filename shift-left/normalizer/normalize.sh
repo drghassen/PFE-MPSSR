@@ -121,10 +121,25 @@ jq -n \
   '
   def severity_lut: {
     "CRITICAL": "CRITICAL",
+    "CRIT": "CRITICAL",
+    "SEV5": "CRITICAL",
+    "SEVERITY5": "CRITICAL",
+    "VERY_HIGH": "CRITICAL",
     "HIGH": "HIGH",
+    "SEV4": "HIGH",
+    "SEVERITY4": "HIGH",
     "MEDIUM": "MEDIUM",
+    "MODERATE": "MEDIUM",
+    "SEV3": "MEDIUM",
+    "SEVERITY3": "MEDIUM",
     "LOW": "LOW",
+    "MINOR": "LOW",
+    "SEV2": "LOW",
+    "SEVERITY2": "LOW",
     "INFO": "INFO",
+    "INFORMATIONAL": "INFO",
+    "SEV1": "INFO",
+    "SEVERITY1": "INFO",
     "UNKNOWN": "INFO"
   };
 
@@ -146,6 +161,12 @@ jq -n \
   def norm_severity($value):
     (($value // "MEDIUM") | tostring | ascii_upcase) as $s
     | (severity_lut[$s] // "MEDIUM");
+
+  def norm_path($value):
+    (($value // "unknown") | tostring) as $raw
+    | ($raw | gsub("\\\\"; "/") | gsub("/\\./"; "/") | gsub("/+"; "/")) as $p1
+    | (if ($p1 | startswith("./")) then $p1[2:] else $p1 end) as $p2
+    | (if $p2 == "" then "unknown" else $p2 end);
 
   def norm_status($value):
     (($value // "FAILED") | tostring | ascii_upcase) as $s
@@ -174,7 +195,7 @@ jq -n \
     | (first_non_empty([$f.description, $f.message, $f.title, $f.check_name, "No description"]) | tostring) as $desc
     | (first_non_empty([$f.category, default_category($tool)]) | tostring) as $category
     | (first_non_empty([obj_field($f.resource; "name"), $f.resource, $f.file, $f.target, "unknown"]) | tostring) as $resource_name
-    | (first_non_empty([obj_field($f.resource; "path"), $f.file, $f.target, "unknown"]) | tostring) as $resource_path
+    | (norm_path(first_non_empty([obj_field($f.resource; "path"), $f.file, $f.target, "unknown"]))) as $resource_path
     | ((obj_field(obj_field($f.resource; "location"); "start_line") // $f.start_line // $f.line // obj_field($f.metadata; "line") // 0) | tonumber? // 0) as $start_line
     | ((obj_field(obj_field($f.resource; "location"); "end_line") // $f.end_line // obj_field($f.metadata; "end_line") // $start_line) | tonumber? // $start_line) as $end_line
     | (norm_severity(obj_field($f.severity; "level") // $f.severity // $f.original_severity // "MEDIUM")) as $severity_level

@@ -5,7 +5,7 @@ set -euo pipefail
 # CloudSentinel - Checkov Wrapper v5.0 (PFE)
 # - Centralise les rapports dans .cloudsentinel/
 # - Normalise les sévérités et catégories via mapping.json
-# - Gère les exemptions temporaires via exemptions.json
+# - Aucun bypass local: les exceptions sont gérées uniquement par OPA
 ################################################################################
 
 # --- Couleurs & Logs ---
@@ -32,7 +32,6 @@ mkdir -p "$OUT_DIR"
 # Fichiers de configuration
 POLICIES_DIR="${SCRIPT_DIR}/policies"
 MAPPING_FILE="${POLICIES_DIR}/mapping.json"
-EXEMPTIONS_FILE="${POLICIES_DIR}/exemptions.json"
 
 # Fichiers de rapports (on utilise des noms fixes pour éviter l'accumulation)
 REPORT_RAW="$OUT_DIR/checkov_raw.json"
@@ -83,12 +82,6 @@ command -v checkov >/dev/null 2>&1 || { log_err "Checkov n'est pas installé."; 
 command -v jq >/dev/null 2>&1 || { log_err "jq n'est pas installé."; exit 2; }
 
 [[ -f "$MAPPING_FILE" ]] || { log_err "Mapping introuvable: $MAPPING_FILE"; emit_not_run "mapping_file_missing"; exit 0; }
-if [[ ! -f "$EXEMPTIONS_FILE" ]]; then
-    log_warn "Exemptions introuvables: $EXEMPTIONS_FILE (fallback liste vide)."
-    EXEMPTIONS_FILE="$OUT_DIR/checkov_exemptions_fallback.json"
-    echo "[]" > "$EXEMPTIONS_FILE"
-fi
-
 # --- Préparation du Scan ---
 SCAN_TARGET="${1:-$REPO_ROOT}" # Par défaut scanne tout le repo ou le dossier passé en argument
 log_info "Démarrage du scan sur : $SCAN_TARGET"
@@ -136,18 +129,12 @@ jq -n \
   --arg repo "$REPO_ROOT" \
   --slurpfile raw "$REPORT_RAW" \
   --slurpfile mapping "$MAPPING_FILE" \
-  --slurpfile exemptions "$EXEMPTIONS_FILE" \
 '
   # Fonctions utilitaires
-  def is_expired(d): if d == null then false else (now > (d | fromdateiso8601? // now)) end;
-  
+
   # Récupère les infos du mapping (catégorie + sévérité forcée)
   def get_map(id): 
     ($mapping[0][id] // {category: "UNKNOWN", severity: "MEDIUM"});
-
-  # Vérifie les exemptions
-  def is_exempt(id; res; ex_list):
-    ex_list | any(.id == id and .resource == res and (is_expired(.expires_at) | not));
 
   # Extraction et transformation des résultats
   ($raw | flatten | map(.results.failed_checks // []) | flatten) as $findings
@@ -163,7 +150,7 @@ jq -n \
         # On utilise notre mapping pour la catégorie et la sévérité
         category: get_map(.check_id).category,
         severity: (get_map(.check_id).severity // .severity | ascii_upcase),
-        status: (if is_exempt(.check_id; .resource; $exemptions[0]) then "EXEMPTED" else "FAILED" end)
+        status: "FAILED"
       })
     ) as $normalized
     
@@ -182,7 +169,7 @@ jq -n \
 	        LOW:      ($normalized | map(select(.status == "FAILED" and .severity == "LOW")) | length),
 	        INFO:     ($normalized | map(select(.status == "FAILED" and .severity == "INFO")) | length),
 	        TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
-	        EXEMPTED: ($normalized | map(select(.status == "EXEMPTED")) | length),
+	        EXEMPTED: 0,
 	        FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
 	        PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
 	      },
@@ -192,10 +179,9 @@ jq -n \
 
 # --- Résumé Final ---
 TOTAL_FAIL=$(jq '.stats.TOTAL' "$REPORT_OPA")
-TOTAL_EXEMPT=$(jq '.stats.EXEMPTED' "$REPORT_OPA")
 
 if [ "$TOTAL_FAIL" -gt 0 ]; then
-    log_warn "Scan terminé : $TOTAL_FAIL violations détectées ($TOTAL_EXEMPT exemptées)."
+    log_warn "Scan terminé : $TOTAL_FAIL violations détectées."
     # Affiche les 5 premières
     jq -r '.findings[] | select(.status == "FAILED") | "  [\(.severity)] \(.id) -> \(.resource)"' "$REPORT_OPA" | head -n 5
 else

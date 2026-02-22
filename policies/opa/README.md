@@ -1,6 +1,7 @@
 # CloudSentinel OPA Quality Gate
 
 This policy layer is the single ALLOW/DENY decision point for shift-left scans.
+All exception governance is centralized here (OPA-only).
 
 ## Contract
 
@@ -12,15 +13,18 @@ This policy layer is the single ALLOW/DENY decision point for shift-left scans.
 ## Decision Logic
 
 - Deny if any scanner reports `NOT_RUN`
+- Deny if threshold config is invalid (must be non-negative integers)
 - Deny if `summary.global.CRITICAL` exceeds `quality_gate.thresholds.critical_max`
 - Deny if `summary.global.HIGH` exceeds `quality_gate.thresholds.high_max`
 - Apply scoped temporary exceptions only when:
   - `enabled=true`
   - ticket + approver are present
+  - audit fields are present (`requested_by`, `commit_hash`, `request_date`)
   - environment matches (`dev`/`test`/`staging`/`prod`)
   - exception is not expired
   - finding severity is less or equal to `max_severity`
 - In `prod`, exceptions with `max_severity=CRITICAL` are rejected
+- Deny if an enabled exception is malformed (fail-closed)
 - Allow only when no deny reason exists
 
 ## Exception Format
@@ -35,12 +39,16 @@ This policy layer is the single ALLOW/DENY decision point for shift-left scans.
           "enabled": true,
           "tool": "checkov",
           "rule_id": "CKV2_CS_AZ_003",
+          "rule_id_aliases": ["CKV2_CS_AZ_003_LEGACY"],
           "resource_path": "/main.tf",
           "environments": ["dev"],
           "max_severity": "HIGH",
           "reason": "Emergency unblock",
           "ticket": "SEC-4821",
+          "requested_by": "dev@example.com",
           "approved_by": "security.lead@example.com",
+          "commit_hash": "a1b2c3d4",
+          "request_date": "2026-02-21T09:30:00Z",
           "created_at": "2026-02-21T10:00:00Z",
           "expires_at": "2026-02-24T10:00:00Z"
         }
@@ -50,7 +58,13 @@ This policy layer is the single ALLOW/DENY decision point for shift-left scans.
 }
 ```
 
-`resource_path` is matched by exact path or suffix to handle normalized scanner paths.
+`resource_path` is canonicalized before matching (`\\` -> `/`, `./` removed, `/./` collapsed).
+Matching supports exact path and suffix-on-segments to tolerate repo-root differences.
+Required governance controls:
+- `requested_by` and `approved_by` must be valid emails and different users
+- `commit_hash` must look like a git hash (7-40 hex chars)
+- `request_date` must be valid RFC3339, not in the future, and before `expires_at`
+- `rule_id_aliases` is optional and must be a list of non-empty strings
 
 ## Local Validation
 
@@ -63,3 +77,10 @@ opa eval \
   --data policies/opa/exceptions.json \
   "data.cloudsentinel.gate.decision"
 ```
+
+## Metrics Semantics
+
+- `metrics.failed_input`: Number of findings with status `FAILED` before exception handling.
+- `metrics.failed_effective` / `metrics.failed`: Number of failed findings after applying valid exceptions.
+- `metrics.excepted` / `metrics.excepted_findings`: Number of failed findings neutralized by exceptions.
+- `metrics.excepted_exception_ids`: Number of unique exception IDs applied.

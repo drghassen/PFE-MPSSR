@@ -12,7 +12,10 @@
           "max_severity": "HIGH",
           "reason": "Emergency unblock during remediation window",
           "ticket": "SEC-0001",
+          "requested_by": "developer@example.com",
           "approved_by": "security.lead@example.com",
+          "commit_hash": "a1b2c3d4",
+          "request_date": "2026-02-21T09:30:00Z",
           "created_at": "2026-02-21T10:00:00Z",
           "expires_at": "2026-02-24T10:00:00Z"
         }
