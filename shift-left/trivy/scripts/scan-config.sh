@@ -13,6 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_DIR="$BASE_DIR/configs"
 REPORT_DIR="$BASE_DIR/reports/raw"
+IGNORE_FILE="$BASE_DIR/.trivyignore"
+IGNORE_ARGS=()
+if [[ -f "$IGNORE_FILE" ]]; then
+  IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+fi
 
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy][CONFIG]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[CloudSentinel][Trivy][CONFIG][WARN]\033[0m $*" >&2; }
@@ -46,12 +51,14 @@ log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
 log "Output    : $OUTPUT_FILE"
+[[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 # trivy config scans Dockerfiles for misconfigurations (CIS Docker Benchmark)
 # --scanners misconfig is implicit with 'trivy config' subcommand
 if ! trivy config \
     --config "$CONFIG_FILE" \
+    "${IGNORE_ARGS[@]}" \
     --format json \
     --output "$OUTPUT_FILE" \
     "$TARGET"; then

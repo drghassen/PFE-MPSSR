@@ -26,6 +26,44 @@ OUTPUT_FILE="${OUTPUT_DIR}/golden_report.json"
 SCHEMA_VERSION="1.0.0"
 ENVIRONMENT="${ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-dev}}"
 
+EXECUTION_MODE="${CLOUDSENTINEL_EXECUTION_MODE:-}"
+if [[ -z "$EXECUTION_MODE" ]]; then
+  if [[ -n "${CI:-}" ]]; then
+    EXECUTION_MODE="ci"
+  else
+    EXECUTION_MODE="local"
+  fi
+fi
+
+case "${EXECUTION_MODE,,}" in
+  ci|local|advisory)
+    EXECUTION_MODE="${EXECUTION_MODE,,}"
+    ;;
+  *)
+    log_warn "Unknown EXECUTION_MODE='${EXECUTION_MODE}'. Falling back to 'local'."
+    EXECUTION_MODE="local"
+    ;;
+esac
+
+LOCAL_FAST="${CLOUDSENTINEL_LOCAL_FAST:-}"
+if [[ -z "$LOCAL_FAST" ]]; then
+  if [[ "$EXECUTION_MODE" == "local" || "$EXECUTION_MODE" == "advisory" ]]; then
+    LOCAL_FAST="true"
+  else
+    LOCAL_FAST="false"
+  fi
+fi
+
+case "${LOCAL_FAST,,}" in
+  true|false)
+    LOCAL_FAST="${LOCAL_FAST,,}"
+    ;;
+  *)
+    log_warn "Unknown LOCAL_FAST='${LOCAL_FAST}'. Falling back to 'false'."
+    LOCAL_FAST="false"
+    ;;
+esac
+
 case "${ENVIRONMENT,,}" in
   dev|test|staging|prod)
     ENVIRONMENT="${ENVIRONMENT,,}"
@@ -39,15 +77,15 @@ case "${ENVIRONMENT,,}" in
     ;;
 esac
 
-CRITICAL_MAX="${CRITICAL_MAX:-0}"
-HIGH_MAX="${HIGH_MAX:-2}"
+# NOTE: Thresholds (CRITICAL_MAX, HIGH_MAX) are NOT managed here.
+# Decision logic belongs exclusively to OPA (see policies/opa/pipeline_decision.rego).
+# This script produces pure data. OPA evaluates it.
 
 GITLEAKS_REPORT="${ROOT_DIR}/.cloudsentinel/gitleaks_opa.json"
 CHECKOV_REPORT="${ROOT_DIR}/.cloudsentinel/checkov_opa.json"
 TRIVY_REPORT="${ROOT_DIR}/shift-left/trivy/reports/opa/trivy_opa.json"
 
-[[ "$CRITICAL_MAX" =~ ^[0-9]+$ ]] || log_error "CRITICAL_MAX must be an integer"
-[[ "$HIGH_MAX" =~ ^[0-9]+$ ]] || log_error "HIGH_MAX must be an integer"
+
 
 require_cmd jq
 require_cmd git
@@ -55,6 +93,34 @@ require_cmd git
 read_report() {
   local file=$1
   local tool=$2
+  local skip=${3:-false}
+
+  if [[ "$skip" == "true" ]]; then
+    log_info "Skipping ${tool} in local-fast mode."
+    jq -n \
+      --arg tool "$tool" \
+      --arg file "$file" \
+      '{
+        tool: $tool,
+        version: "unknown",
+        status: "NOT_RUN",
+        stats: {
+          CRITICAL: 0,
+          HIGH: 0,
+          MEDIUM: 0,
+          LOW: 0,
+          INFO: 0,
+          TOTAL: 0,
+          EXEMPTED: 0,
+          FAILED: 0,
+          PASSED: 0,
+          error: false
+        },
+        findings: [],
+        errors: ["skipped_local_fast: " + $file]
+      }'
+    return
+  fi
 
   if [[ -f "$file" ]] && jq -e '.' "$file" >/dev/null 2>&1; then
     cat "$file"
@@ -97,8 +163,8 @@ GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae 2>/dev/null || echo "unknown@example
 PIPELINE_ID="${CI_PIPELINE_ID:-local}"
 
 GITLEAKS_JSON=$(read_report "$GITLEAKS_REPORT" "gitleaks")
-CHECKOV_JSON=$(read_report "$CHECKOV_REPORT" "checkov")
-TRIVY_JSON=$(read_report "$TRIVY_REPORT" "trivy")
+CHECKOV_JSON=$(read_report "$CHECKOV_REPORT" "checkov" "$LOCAL_FAST")
+TRIVY_JSON=$(read_report "$TRIVY_REPORT" "trivy" "$LOCAL_FAST")
 
 mkdir -p "$OUTPUT_DIR"
 TMP_REPORT="$(mktemp -t cloudsentinel-golden.XXXXXX.json)"
@@ -113,8 +179,7 @@ jq -n \
   --arg author_email "$GIT_AUTHOR_EMAIL" \
   --arg pipeline_id "$PIPELINE_ID" \
   --arg environment "$ENVIRONMENT" \
-  --argjson critical_max "$CRITICAL_MAX" \
-  --argjson high_max "$HIGH_MAX" \
+  --arg execution_mode "$EXECUTION_MODE" \
   --argjson gitleaks "$GITLEAKS_JSON" \
   --argjson checkov "$CHECKOV_JSON" \
   --argjson trivy "$TRIVY_JSON" \
@@ -275,6 +340,9 @@ jq -n \
       timestamp: $timestamp,
       generation_duration_ms: 0,
       environment: ($environment | ascii_downcase),
+      execution: {
+        mode: $execution_mode
+      },
       git: {
         branch: $branch,
         commit: $commit,
@@ -349,24 +417,6 @@ jq -n \
         VULNERABILITIES: ($failed_findings | map(select(.category == "VULNERABILITIES")) | length)
       }
     }
-  | ([.scanners | to_entries[] | select(.value.status == "NOT_RUN") | .key]) as $not_run_scanners
-  | ([
-      (if ($not_run_scanners | length) > 0 then "Scanners not run: " + ($not_run_scanners | join(", ")) else empty end),
-      (if .summary.global.CRITICAL > $critical_max then "CRITICAL findings exceed threshold (" + (.summary.global.CRITICAL | tostring) + ">" + ($critical_max | tostring) + ")" else empty end),
-      (if .summary.global.HIGH > $high_max then "HIGH findings exceed threshold (" + (.summary.global.HIGH | tostring) + ">" + ($high_max | tostring) + ")" else empty end)
-    ] | map(select(. != null))) as $gate_reasons
-  | .quality_gate = {
-      decision: (if ($gate_reasons | length) > 0 then "FAILED" else "PASSED" end),
-      reason: (if ($gate_reasons | length) > 0 then ($gate_reasons | join("; ")) else "Thresholds respected and all scanners executed" end),
-      thresholds: {
-        critical_max: $critical_max,
-        high_max: $high_max
-      },
-      details: {
-        reasons: $gate_reasons,
-        not_run_scanners: $not_run_scanners
-      }
-    }
   ' > "$TMP_REPORT"
 
 END_TIME=$(now_ms)
@@ -375,4 +425,4 @@ DURATION=$((END_TIME - START_TIME))
 jq --argjson duration "$DURATION" '.metadata.generation_duration_ms = $duration' "$TMP_REPORT" > "$OUTPUT_FILE"
 
 log_info "Golden Report generated successfully: $OUTPUT_FILE"
-log_info "Quality Gate Decision: $(jq -r '.quality_gate.decision' "$OUTPUT_FILE")"
+log_info "OPA input ready → run 'bash shift-left/opa/run-opa.sh --enforce' for the gate decision."

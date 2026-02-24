@@ -13,7 +13,7 @@ Le script `normalize.sh` effectue les étapes suivantes :
    - Injecte les SLAs de remédiation basés sur la sévérité.
    - Génère des fingerprints pour la déduplication.
    - Calcule les statistiques globales et par outil.
-5. **Quality Gate** : Évalue le rapport par rapport aux seuils définis (ex: 0 CRITICAL autorisé).
+5. **Sortie standard** : Produit un Golden Report prêt pour OPA.
 
 ## Usage
 
@@ -33,7 +33,12 @@ Le rapport est généré dans `.cloudsentinel/golden_report.json`.
 - `summary` : Vue d'ensemble des vulnérabilités.
 - `scanners` : Détails bruts par outil.
 - `findings` : Liste consolidée et normalisée de toutes les failles.
-- `quality_gate` : Décision finale (PASSED/FAILED).
+
+## Modes d'exécution
+- **CI** : `CLOUDSENTINEL_EXECUTION_MODE=ci`
+- **Local** : `CLOUDSENTINEL_EXECUTION_MODE=local` (active `local-fast` par défaut)
+
+En mode `local-fast`, Checkov/Trivy peuvent être ignorés pour éviter le bruit.
 
 ## Validation
 

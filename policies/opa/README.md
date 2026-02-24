@@ -10,6 +10,12 @@ All exception governance is centralized here (OPA-only).
 - Exceptions data: `exceptions.json`
 - Output query: `data.cloudsentinel.gate.decision`
 
+## Execution Mode
+
+The policy reads `metadata.execution.mode` from the input:
+- `ci` (default): strict enforcement, missing scanners => deny
+- `local` or `advisory`: allow missing scanners to avoid noisy local runs
+
 ## Decision Logic
 
 - Deny if any scanner reports `NOT_RUN`
@@ -40,7 +46,8 @@ All exception governance is centralized here (OPA-only).
           "tool": "checkov",
           "rule_id": "CKV2_CS_AZ_003",
           "rule_id_aliases": ["CKV2_CS_AZ_003_LEGACY"],
-          "resource_path": "/main.tf",
+    "resource_path": "/main.tf",
+    "resource_name": "azurerm_storage_account.insecure",
           "environments": ["dev"],
           "max_severity": "HIGH",
           "reason": "Emergency unblock",
@@ -60,6 +67,8 @@ All exception governance is centralized here (OPA-only).
 
 `resource_path` is canonicalized before matching (`\\` -> `/`, `./` removed, `/./` collapsed).
 Matching supports exact path and suffix-on-segments to tolerate repo-root differences.
+`resource_name` (optional) can be used to match Terraform resource addresses
+e.g., `azurerm_storage_account.insecure`.
 Required governance controls:
 - `requested_by` and `approved_by` must be valid emails and different users
 - `commit_hash` must look like a git hash (7-40 hex chars)

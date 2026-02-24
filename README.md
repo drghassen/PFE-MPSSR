@@ -24,6 +24,15 @@ Grafana + Prometheus pour visualisation de la compliance et incidents
 
 ---
 
+## ✅ Standard entreprise (Local vs CI)
+
+- **Pré-commit (local, advisory)** : Gitleaks (staged) → Normalisation (local-fast) → OPA en mode advisory (CLI)
+- **CI/CD (enforcement)** : Gitleaks + Checkov + Trivy → Normalisation (mode CI) → OPA Server (enforce)
+
+Objectif : feedback rapide en local, gouvernance stricte en CI, sans bruit ni faux positifs locaux.
+
+---
+
 ## 📁 Structure du Projet
 
 ```

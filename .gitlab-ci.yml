@@ -8,6 +8,9 @@ variables:
   CHECKOV_VERSION: "3.2.502"
   TRIVY_VERSION: "0.69.1"
   OPA_VERSION: "1.13.1"
+  OPA_IMAGE: "$CI_REGISTRY_IMAGE/opa:${OPA_VERSION}"
+  CACHE_DIR: "$CI_PROJECT_DIR/.cache"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
   SCAN_TARGET: "infra/azure/dev"
   TRIVY_TARGET: "infra/azure/dev"
@@ -29,30 +32,92 @@ stages:
     - apt-get update
     - apt-get install -y --no-install-recommends bash ca-certificates curl git jq tar gzip
     - rm -rf /var/lib/apt/lists/*
+  cache:
+    key: "cloudsentinel-tools"
+    policy: pull-push
+    paths:
+      - .cache/pip
+      - .cache/gitleaks
+      - .cache/trivy
 
-shift-left-scan:
+gitleaks-scan:
   <<: *default_tools
   stage: scan
   script:
-    - pip install --no-cache-dir "checkov==${CHECKOV_VERSION}"
-    - curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
-    - curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
-    - chmod +x shift-left/gitleaks/run-gitleaks.sh shift-left/checkov/run-checkov.sh shift-left/trivy/scripts/run-trivy.sh
-    - mkdir -p .cloudsentinel shift-left/trivy/reports/raw shift-left/trivy/reports/opa
+    - mkdir -p "${CACHE_DIR}/gitleaks" .cloudsentinel
+    - GITLEAKS_TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+    - GITLEAKS_CHECKSUMS="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+    - |
+      if [ ! -f "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}" ]; then
+        curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_TARBALL}" \
+          -o "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}"
+      fi
+    - |
+      if [ ! -f "${CACHE_DIR}/gitleaks/${GITLEAKS_CHECKSUMS}" ]; then
+        curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_CHECKSUMS}" \
+          -o "${CACHE_DIR}/gitleaks/${GITLEAKS_CHECKSUMS}"
+      fi
+    - |
+      cd "${CACHE_DIR}/gitleaks"
+      grep " ${GITLEAKS_TARBALL}$" "${GITLEAKS_CHECKSUMS}" | sha256sum -c -
+      cd -
+    - tar -xzf "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}" -C /usr/local/bin gitleaks
+    - chmod +x shift-left/gitleaks/run-gitleaks.sh
     - bash shift-left/gitleaks/run-gitleaks.sh || true
-    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
-    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
     - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' .cloudsentinel/gitleaks_opa.json
-    - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' .cloudsentinel/checkov_opa.json
-    - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' shift-left/trivy/reports/opa/trivy_opa.json
   artifacts:
     when: always
     expire_in: 7 days
     paths:
       - .cloudsentinel/gitleaks_raw.json
       - .cloudsentinel/gitleaks_opa.json
+
+checkov-scan:
+  <<: *default_tools
+  stage: scan
+  script:
+    - pip install "checkov==${CHECKOV_VERSION}"
+    - chmod +x shift-left/checkov/run-checkov.sh
+    - mkdir -p .cloudsentinel
+    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
+    - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' .cloudsentinel/checkov_opa.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
       - .cloudsentinel/checkov_raw.json
       - .cloudsentinel/checkov_opa.json
+      - .cloudsentinel/checkov_scan.log
+
+trivy-scan:
+  <<: *default_tools
+  stage: scan
+  script:
+    - mkdir -p "${CACHE_DIR}/trivy" shift-left/trivy/reports/raw shift-left/trivy/reports/opa
+    - TRIVY_TARBALL="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+    - TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"
+    - |
+      if [ ! -f "${CACHE_DIR}/trivy/${TRIVY_TARBALL}" ]; then
+        curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_TARBALL}" \
+          -o "${CACHE_DIR}/trivy/${TRIVY_TARBALL}"
+      fi
+    - |
+      if [ ! -f "${CACHE_DIR}/trivy/${TRIVY_CHECKSUMS}" ]; then
+        curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_CHECKSUMS}" \
+          -o "${CACHE_DIR}/trivy/${TRIVY_CHECKSUMS}"
+      fi
+    - |
+      cd "${CACHE_DIR}/trivy"
+      grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum -c -
+      cd -
+    - tar -xzf "${CACHE_DIR}/trivy/${TRIVY_TARBALL}" -C /usr/local/bin trivy
+    - chmod +x shift-left/trivy/scripts/run-trivy.sh
+    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
+    - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " status=" + (.status // "unknown")' shift-left/trivy/reports/opa/trivy_opa.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
       - shift-left/trivy/reports/raw/
       - shift-left/trivy/reports/opa/trivy_opa.json
 
@@ -60,11 +125,16 @@ normalize-reports:
   <<: *default_tools
   stage: normalize
   needs:
-    - job: shift-left-scan
+    - job: gitleaks-scan
+      artifacts: true
+    - job: checkov-scan
+      artifacts: true
+    - job: trivy-scan
       artifacts: true
   script:
     - chmod +x shift-left/normalizer/normalize.sh
     - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
+    - export CLOUDSENTINEL_EXECUTION_MODE="ci"
     - bash shift-left/normalizer/normalize.sh
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
@@ -78,29 +148,24 @@ normalize-reports:
       - shift-left/trivy/reports/opa/trivy_opa.json
 
 opa-decision:
-  <<: *default_tools
+  image: "$OPA_IMAGE"
   stage: decide
   needs:
     - job: normalize-reports
       artifacts: true
   script:
-    - curl -sSL "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static" -o /usr/local/bin/opa
-    - chmod +x /usr/local/bin/opa
     - opa test policies/opa -v
-    - opa eval --format json --input .cloudsentinel/golden_report.json --data policies/opa/pipeline_decision.rego --data policies/opa/exceptions.json "data.cloudsentinel.gate.decision" > .cloudsentinel/opa_decision.json
-    - ALLOW=$(jq -r '.result[0].expressions[0].value.allow // false' .cloudsentinel/opa_decision.json)
-    - EXC_COUNT=$(jq -r '.result[0].expressions[0].value.exceptions.applied_count // 0' .cloudsentinel/opa_decision.json)
-    - EXC_IDS=$(jq -r '.result[0].expressions[0].value.exceptions.applied_ids // [] | join(",")' .cloudsentinel/opa_decision.json)
-    - echo "[opa] exceptions_applied=${EXC_COUNT}"
-    - '[ -n "$EXC_IDS" ] && echo "[opa] exception_ids=${EXC_IDS}" || true'
     - |
-      if [ "$ALLOW" = "true" ]; then
-        echo "[opa] STATUS=ALLOWED"
-        exit 0
-      fi
-      echo "[opa] STATUS=DENIED"
-      jq -r '.result[0].expressions[0].value.deny[]?' .cloudsentinel/opa_decision.json | sed 's/^/[opa] reason: /'
-      exit 1
+      opa run --server --addr=127.0.0.1:8181 \
+        --log-level=info \
+        --log-format=json \
+        --set=decision_logs.console=true \
+        policies/opa/pipeline_decision.rego \
+        policies/opa/exceptions.json \
+        > /tmp/opa-server.log 2>&1 &
+    - sleep 1
+    - curl -sf "http://127.0.0.1:8181/health" >/dev/null
+    - OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
   artifacts:
     when: always
     expire_in: 30 days
@@ -111,7 +176,11 @@ upload-to-defectdojo:
   stage: report
   image: curlimages/curl:8.12.1
   needs:
-    - job: shift-left-scan
+    - job: gitleaks-scan
+      artifacts: true
+    - job: checkov-scan
+      artifacts: true
+    - job: trivy-scan
       artifacts: true
   script:
     - |
