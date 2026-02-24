@@ -1,27 +1,21 @@
 # Gitleaks Security Component
 
 ## Overview
-Gitleaks est un outil de scan de secrets (clés API, tokens, mots de passe) statique.
+Gitleaks est un outil de scan de secrets (cles API, tokens, mots de passe).
 
-## Utilisation Locale (Pre-commit)
-Pour activer le hook de sécurité :
+## Pre-commit recommande
+Utiliser le hook unifie CloudSentinel :
 ```bash
-ln -s ../../shift-left/gitleaks/pre-commit-hook.sh .git/hooks/pre-commit
+ln -sf ../../shift-left/pre-commit/pre-commit.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+## Gitleaks seulement (optionnel)
+```bash
+ln -sf ../../shift-left/gitleaks/pre-commit-hook.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
 ## Configuration
-Les règles sont définies dans [gitleaks.toml](./gitleaks.toml).
-Les faux positifs peuvent être ajoutés dans [.gitleaksignore](./.gitleaksignore).
-
-######
-# Gitleaks - CloudSentinel Shift-Left
-
-## Overview
-Gitleaks is used to detect secrets before code reaches CI/CD pipelines.
-
-## Pre-Commit Setup
-
-```bash
-ln -sf ../../shift-left/gitleaks/pre-commit-hook.sh .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+Les regles sont definies dans `shift-left/gitleaks/gitleaks.toml`.
+Les faux positifs peuvent etre ajoutes dans `shift-left/gitleaks/.gitleaksignore`.

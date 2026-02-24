@@ -32,6 +32,7 @@ mkdir -p "$OUT_DIR"
 # Fichiers de configuration
 POLICIES_DIR="${SCRIPT_DIR}/policies"
 MAPPING_FILE="${POLICIES_DIR}/mapping.json"
+CONFIG_FILE="${SCRIPT_DIR}/.checkov.yml"
 
 # Fichiers de rapports (on utilise des noms fixes pour éviter l'accumulation)
 REPORT_RAW="$OUT_DIR/checkov_raw.json"
@@ -87,13 +88,20 @@ SCAN_TARGET="${1:-$REPO_ROOT}" # Par défaut scanne tout le repo ou le dossier p
 log_info "Démarrage du scan sur : $SCAN_TARGET"
 
 # Construction de la commande Checkov
-# On charge dynamiquement les sous-dossiers de policies (azure/storage, azure/network...)
-checkov_cmd=(checkov --directory "$SCAN_TARGET" --output json --quiet --compact)
+# Si .checkov.yml existe, il est la source de vérité (frameworks + checks + policies).
+checkov_cmd=(checkov --directory "$SCAN_TARGET")
 
-if [ -d "$POLICIES_DIR" ]; then
-    while IFS= read -r dir; do
-        checkov_cmd+=("--external-checks-dir" "$dir")
-    done < <(find "$POLICIES_DIR" -mindepth 2 -maxdepth 2 -type d 2>/dev/null || true)
+if [[ -f "$CONFIG_FILE" ]]; then
+    log_info "Using config: $CONFIG_FILE"
+    checkov_cmd+=("--config-file" "$CONFIG_FILE")
+else
+    # Fallback si la config n'existe pas
+    checkov_cmd+=("--output" "json" "--quiet" "--compact")
+    if [ -d "$POLICIES_DIR" ]; then
+        while IFS= read -r dir; do
+            checkov_cmd+=("--external-checks-dir" "$dir")
+        done < <(find "$POLICIES_DIR" -mindepth 2 -maxdepth 2 -type d 2>/dev/null || true)
+    fi
 fi
 
 # --- Exécution ---
@@ -143,7 +151,10 @@ jq -n \
     | map(select(.check_id | startswith("CKV2_CS_AZ_"))) # Uniquement nos règles custom
     | map({
         id: .check_id,
-        resource: .resource,
+        resource: {
+          name: .resource,
+          path: .file_path
+        },
         file: .file_path,
         line: .file_line_range[0],
         message: .check_name,

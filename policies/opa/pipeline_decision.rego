@@ -7,6 +7,14 @@ thresholds := object.get(object.get(input, "quality_gate", {}), "thresholds", {}
 required_scanners := ["gitleaks", "checkov", "trivy"]
 allowed_tools := {"gitleaks", "checkov", "trivy"}
 environment := lower(object.get(object.get(input, "metadata", {}), "environment", "dev"))
+execution_mode := lower(object.get(object.get(object.get(input, "metadata", {}), "execution", {}), "mode", "ci"))
+is_local if {
+  execution_mode == "local"
+}
+
+is_local if {
+  execution_mode == "advisory"
+}
 
 default exceptions_store := []
 
@@ -67,7 +75,8 @@ canonical_path(path) := out if {
   p1 := replace(p0, "\\", "/")
   p2 := replace(p1, "/./", "/")
   p3 := replace(p2, "//", "/")
-  p4 := replace(p3, "//", "/")
+  # p4: trim trailing slash — distinct from p3, prevents "/path/" != "/path" mismatches
+  p4 := trim_suffix(p3, "/")
   p5 := trim_prefix(p4, "./")
   out := p5
 }
@@ -109,7 +118,6 @@ has_required_exception_fields(ex) if {
   object.get(ex, "id", "") != ""
   object.get(ex, "tool", "") != ""
   object.get(ex, "rule_id", "") != ""
-  object.get(ex, "resource_path", "") != ""
   count(object.get(ex, "environments", [])) > 0
   object.get(ex, "max_severity", "") != ""
   object.get(ex, "reason", "") != ""
@@ -119,6 +127,7 @@ has_required_exception_fields(ex) if {
   object.get(ex, "commit_hash", "") != ""
   object.get(ex, "request_date", "") != ""
   object.get(ex, "expires_at", "") != ""
+  has_resource_selector(ex)
 }
 
 valid_email(email) if {
@@ -163,6 +172,30 @@ valid_exception_resource_path(ex) if {
   not contains(path, "/../")
 }
 
+resource_name_present(ex) if {
+  rn := object.get(ex, "resource_name", "")
+  type_name(rn) == "string"
+  trim_space(rn) != ""
+}
+
+valid_exception_resource_name(ex) if {
+  not resource_name_present(ex)
+}
+
+valid_exception_resource_name(ex) if {
+  resource_name_present(ex)
+  rn := trim_space(object.get(ex, "resource_name", ""))
+  not contains(rn, "*")
+}
+
+has_resource_selector(ex) if {
+  valid_exception_resource_path(ex)
+}
+
+has_resource_selector(ex) if {
+  resource_name_present(ex)
+}
+
 valid_exception_rule_aliases(ex) if {
   aliases := object.get(ex, "rule_id_aliases", [])
   type_name(aliases) == "array"
@@ -201,7 +234,8 @@ valid_exception_definition(ex) if {
   valid_exception_primary_rule_id(ex)
   valid_exception_env_values(ex)
   valid_exception_max_severity(ex)
-  valid_exception_resource_path(ex)
+  has_resource_selector(ex)
+  valid_exception_resource_name(ex)
   valid_exception_rule_aliases(ex)
   valid_exception_commit_hash(ex)
   valid_exception_dates(ex)
@@ -228,6 +262,22 @@ resource_path_match(expected, actual) if {
   suffix_segments_match(path_segments(expected), path_segments(actual))
 }
 
+resource_name_match(expected, actual) if {
+  lower(trim_space(expected)) == lower(trim_space(actual))
+}
+
+resource_selector_match(ex, f) if {
+  rp := object.get(ex, "resource_path", "")
+  rp != ""
+  resource_path_match(rp, object.get(object.get(f, "resource", {}), "path", ""))
+}
+
+resource_selector_match(ex, f) if {
+  rn := object.get(ex, "resource_name", "")
+  rn != ""
+  resource_name_match(rn, object.get(object.get(f, "resource", {}), "name", ""))
+}
+
 exception_severity_allowed(ex, f) if {
   max_sev := upper(object.get(ex, "max_severity", "LOW"))
   finding_sev := upper(object.get(object.get(f, "severity", {}), "level", "LOW"))
@@ -237,7 +287,7 @@ exception_severity_allowed(ex, f) if {
 exception_matches_finding(ex, f) if {
   lower(object.get(ex, "tool", "")) == lower(object.get(object.get(f, "source", {}), "tool", ""))
   exception_rule_match(ex, f)
-  resource_path_match(object.get(ex, "resource_path", ""), object.get(object.get(f, "resource", {}), "path", ""))
+  resource_selector_match(ex, f)
   exception_env_match(ex)
   exception_not_expired(ex)
   exception_severity_allowed(ex, f)
@@ -317,6 +367,7 @@ invalid_threshold_keys["high_max"] if {
 }
 
 scanner_not_run[name] if {
+  not is_local
   name := required_scanners[_]
   scanner := object.get(scanners, name, {})
   object.get(scanner, "status", "NOT_RUN") == "NOT_RUN"
@@ -381,6 +432,7 @@ decision := {
     "high_max": high_max
   },
   "environment": environment,
+  "execution_mode": execution_mode,
   "exceptions": {
     "applied_ids": sort([id | applied_exception_ids[id]]),
     "applied_count": count(applied_exception_ids),

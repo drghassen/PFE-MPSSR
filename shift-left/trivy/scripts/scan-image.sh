@@ -14,6 +14,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_DIR="$BASE_DIR/configs"
 REPORT_DIR="$BASE_DIR/reports/raw"
+IGNORE_FILE="$BASE_DIR/.trivyignore"
+IGNORE_ARGS=()
+if [[ -f "$IGNORE_FILE" ]]; then
+  IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+fi
 
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy][IMAGE]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[CloudSentinel][Trivy][IMAGE][WARN]\033[0m $*" >&2; }
@@ -38,12 +43,14 @@ log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
 log "Output    : $OUTPUT_FILE"
+[[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 # exit-code: 0 always — OPA is the enforcement layer
 # --scanners: vuln covers OS+lib, secret covers embedded secrets
 if ! trivy image \
     --config "$CONFIG_FILE" \
+    "${IGNORE_ARGS[@]}" \
     --scanners vuln,secret \
     --format json \
     --output "$OUTPUT_FILE" \

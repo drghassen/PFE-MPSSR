@@ -1,0 +1,77 @@
+# ==============================================================================
+# CloudSentinel — OPA Policy Decision Point (PDP) Infrastructure
+#
+# Architecture Pattern: PEP / PDP Separation
+#
+#   PEP (Policy Enforcement Point) → shift-left/opa/run-opa.sh
+#     Receives scan results, calls OPA, enforces the gate decision (exit 0/1).
+#
+#   PDP (Policy Decision Point)    → opa-server (this service)
+#     Stateless evaluation engine. Accepts input JSON, returns allow/deny.
+#     Policies are loaded from the filesystem (hot-reload via --watch).
+#
+# Why a server instead of CLI one-shot?
+#   - Policies update without re-deploying CI infrastructure
+#   - Decision logs centralized (console → stdout, collectable via ELK/Loki)
+#   - REST API: any tool (curl, Python, Java) can evaluate policies
+#   - <50ms evaluation latency for repeated calls (no cold start penalty)
+#
+# Usage:
+#   docker compose up -d opa-server          # start the PDP daemon
+#   docker compose logs -f opa-server        # stream decision logs
+#   curl http://localhost:8181/health         # health check
+#   curl http://localhost:8181/v1/policies    # list loaded policies
+#
+# To evaluate from CI (handled automatically by run-opa.sh):
+#   curl -s -X POST http://localhost:8181/v1/data/cloudsentinel/gate/decision \
+#     -H "Content-Type: application/json" \
+#     -d '{"input": <golden_report.json content>}'
+# ==============================================================================
+
+services:
+
+  opa-server:
+    image: cloudsentinel/opa:1.13.1
+    container_name: cloudsentinel-opa-server
+    ports:
+      - "8181:8181"
+    volumes:
+      # Policy (Rego): loaded as the decision engine
+      # Read-only: policies must be changed via Git, not at runtime.
+      - ./policies/opa/pipeline_decision.rego:/app/policies/pipeline_decision.rego:ro
+      # Exceptions data: loaded as OPA data bundle.
+      # Namespace: data.cloudsentinel.exceptions.exceptions (matches policy expect)
+      - ./policies/opa/exceptions.json:/app/data/exceptions.json:ro
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - --log-format=json
+      # Stream every decision to stdout: input + output + policy path.
+      # In production, pipe stdout to ELK/Loki for audit trail.
+      - --set=decision_logs.console=true
+      # Watch for policy file changes and reload without restart (dev convenience)
+      - --watch
+      # Load policy and data from mounted files
+      - /app/policies/pipeline_decision.rego
+      - /app/data/exceptions.json
+    healthcheck:
+      # OPA exposes /health and /health?plugins for readiness checks
+      test: ["CMD", "curl", "-sf", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    # Security hardening: no new privileges, read-only root filesystem
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    # tmp is needed by OPA for internal state
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    labels:
+      cloudsentinel.component: "pdp"
+      cloudsentinel.role: "policy-decision-point"
+      cloudsentinel.opa.bundle: "cloudsentinel"

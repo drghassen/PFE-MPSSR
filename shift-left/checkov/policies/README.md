@@ -10,7 +10,7 @@ This directory contains enterprise-specific security policies tailored for the P
 
 ## How to use
 
-Checkov automatically loads these policies because they are referenced in `.checkov.yaml`:
+Checkov automatically loads these policies because they are referenced in `.checkov.yml`:
 
 ```yaml
 external-checks-dir:
@@ -19,7 +19,6 @@ external-checks-dir:
 
 ## Adding a new policy
 
-1. Create a Python file in the appropriate sub-directory.
-2. Inherit from the relevant base check class (e.g., `BaseResourceCheck`).
-3. Define a unique ID starting with `CS_` (CloudSentinel).
-4. Implement the `scan_` method.
+1. Create a YAML policy in the appropriate sub-directory.
+2. Define a unique ID following `CKV2_CS_AZ_###`.
+3. Validate severity/category in `mapping.json`.

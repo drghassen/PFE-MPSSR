@@ -96,6 +96,46 @@ test_apply_exception_in_dev if {
   result.exceptions.applied_ids[0] == "EXC-1"
 }
 
+test_allow_when_exception_resource_name_matches if {
+  exceptions := [{
+    "id": "EXC-NAME-1",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_name": "azurerm_storage_account.insecure",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Resource name exception",
+    "ticket": "SEC-NAME-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 1, "FAILED": 1}},
+      "findings": [
+        {
+          "status": "FAILED",
+          "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+          "resource": {
+            "name": "azurerm_storage_account.insecure",
+            "path": "/infra/azure/dev/state_storage.tf"
+          },
+          "severity": {"level": "HIGH"}
+        }
+      ]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  result.allow
+  result.metrics.excepted == 1
+  result.exceptions.applied_ids[0] == "EXC-NAME-1"
+}
+
 test_apply_exception_with_rule_alias_and_path_normalization if {
   exceptions := [{
     "id": "EXC-ALIAS-1",
@@ -149,6 +189,27 @@ test_deny_when_scanner_not_run if {
 
   not result.allow
   contains(result.deny[0], "Scanner checkov")
+}
+
+test_allow_when_scanners_not_run_in_local_mode if {
+  result := decision
+    with input as object.union(base_input, {
+      "metadata": {
+        "environment": "dev",
+        "execution": {"mode": "local"}
+      },
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
+      "scanners": {
+        "gitleaks": {"status": "PASSED"},
+        "checkov": {"status": "NOT_RUN"},
+        "trivy": {"status": "NOT_RUN"}
+      },
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as []
+
+  result.allow
+  count(result.deny) == 0
 }
 
 test_deny_invalid_prod_critical_exception if {
@@ -301,4 +362,89 @@ test_deny_when_threshold_config_is_invalid if {
 
   not result.allow
   contains(result.deny[0], "Invalid threshold configuration")
+}
+
+# --- Test: expired exception must NOT suppress findings ---
+# An exception past its expires_at must be treated as non-existent.
+# The finding must remain effective and trigger a deny if it exceeds the threshold.
+test_deny_when_exception_is_expired if {
+  exceptions := [{
+    "id": "EXC-EXPIRED-1",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Grace period — remediation in progress",
+    "ticket": "SEC-EXP-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2020-01-01T00:00:00Z",
+    "expires_at":   "2020-06-01T00:00:00Z"
+  }]
+
+  # Override high_max to 0 so the HIGH finding must be denied when not excepted
+  result := decision
+    with input as object.union(base_input, {
+      "quality_gate": {"thresholds": {"critical_max": 0, "high_max": 0}},
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 1, "FAILED": 1}},
+      "findings": [
+        {
+          "status": "FAILED",
+          "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "severity": {"level": "HIGH"}
+        }
+      ]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  # Expired exception must NOT apply → finding stays effective → deny
+  not result.allow
+  result.metrics.excepted == 0
+  result.exceptions.applied_count == 0
+  contains(result.deny[0], "HIGH findings")
+}
+
+# --- Test: path suffix matching ---
+# An exception with only the filename (no full path) must match a finding
+# whose resource path is the full path ending with that filename.
+# Validates the suffix_segments_match logic in the policy.
+test_allow_when_exception_path_suffix_matches if {
+  exceptions := [{
+    "id": "EXC-SUFFIX-1",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "state_storage.tf",   # short suffix — no directory prefix
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Suffix path exception for environment-agnostic resource matching",
+    "ticket": "SEC-SUFFIX-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at":   "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 1, "FAILED": 1}},
+      "findings": [
+        {
+          "status": "FAILED",
+          "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+          "resource": {"path": "/infra/azure/dev/state_storage.tf"},  # full path
+          "severity": {"level": "HIGH"}
+        }
+      ]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  result.allow
+  result.metrics.excepted == 1
+  result.exceptions.applied_ids[0] == "EXC-SUFFIX-1"
 }

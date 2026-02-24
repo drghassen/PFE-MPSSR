@@ -72,24 +72,24 @@ eval_env() {
   local env="$1"
   local decision_file=".cloudsentinel/opa_decision_${env}.json"
 
-  log "Normalizing and evaluating OPA for environment=${env}"
-  ENVIRONMENT="$env" HIGH_MAX=1 CRITICAL_MAX=0 bash shift-left/normalizer/normalize.sh >/tmp/cloudsentinel_normalize_"$env".log
+  log "Normalizing for environment=${env}"
+  ENVIRONMENT="$env" CLOUDSENTINEL_EXECUTION_MODE="ci" CLOUDSENTINEL_LOCAL_FAST="false" \
+    bash shift-left/normalizer/normalize.sh > /tmp/cloudsentinel_normalize_"$env".log
 
-  opa eval \
-    --format json \
-    --input .cloudsentinel/golden_report.json \
-    --data policies/opa/pipeline_decision.rego \
-    --data "$TMP_EXCEPTIONS" \
-    "data.cloudsentinel.gate.decision" > "$decision_file"
+  log "Evaluating OPA gate for environment=${env} via run-opa.sh"
+  # run-opa.sh is the PEP: it calls OPA (server or CLI) and saves the decision.
+  # --advisory: always exits 0 so the E2E script controls pass/fail assertions.
+  # OPA_EXCEPTIONS_FILE: override to use the test-scoped exception fixture.
+  # OPA_DECISION_FILE:   save per-env for side-by-side comparison.
+  OPA_EXCEPTIONS_FILE="$TMP_EXCEPTIONS" \
+  OPA_DECISION_FILE=".cloudsentinel/opa_decision_${env}.json" \
+    bash shift-left/opa/run-opa.sh --advisory
 
-  local allow
-  local excepted
-  local ids
-  local deny
-  allow="$(jq -r '.result[0].expressions[0].value.allow' "$decision_file")"
-  excepted="$(jq -r '.result[0].expressions[0].value.exceptions.applied_count' "$decision_file")"
-  ids="$(jq -r '.result[0].expressions[0].value.exceptions.applied_ids | join(",")' "$decision_file")"
-  deny="$(jq -r '.result[0].expressions[0].value.deny | join(" | ")' "$decision_file")"
+  local allow excepted ids deny
+  allow="$(jq -r    '.result.allow'                              "$decision_file")"
+  excepted="$(jq -r '.result.exceptions.applied_count'          "$decision_file")"
+  ids="$(jq -r      '.result.exceptions.applied_ids | join(",")' "$decision_file")"
+  deny="$(jq -r     '.result.deny | join(" | ")'                 "$decision_file")"
 
   log "env=${env} allow=${allow} excepted=${excepted} ids=[${ids}]"
   [[ -n "$deny" ]] && log "env=${env} deny_reasons=${deny}"

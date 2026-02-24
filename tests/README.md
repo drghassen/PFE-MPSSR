@@ -1,70 +1,41 @@
-# 🧪 Tests - Échantillons & Validation
+# Tests - Samples and Validation
 
-> Tests unitaires, échantillons vulnérables, tests end-to-end
+Unit tests, fixtures, and end-to-end checks for the shift-left toolchain.
 
-## 📁 Structure
+## Structure
 
 ```
 tests/
 ├── README.md
-├── vulnerable-samples/          # Échantillons intentionnellement vulnérables
-│   ├── README.md
-│   ├── secrets.tf              # Fichier avec secrets hardcodés
-│   ├── insecure-storage.tf     # Storage public
-│   ├── open-ports.tf           # NSG trop permissif
-│   └── Dockerfile.vulnerable   # Image avec CVE
-│
-├── opa-tests/                   # Tests policies OPA
-│   ├── README.md
-│   └── test-cases/
-│
-└── e2e/                        # Tests end-to-end
-    ├── README.md
-    └── test-full-pipeline.sh
+├── fixtures/                    # Test fixtures (non-secret)
+│   ├── iac/
+│   │   └── azure_storage_public.tf
+│   └── docker/
+│       └── Dockerfile.insecure
+├── opa-tests/                   # OPA policy tests (rego)
+└── e2e/                         # End-to-end tests
+    ├── test-shift-left-all.sh
+    └── test-pipeline-dev-prod.sh
 ```
 
----
+## Usage
 
-## 🎯 Objectifs
-
-1. **Valider les scanners** : S'assurer qu'ils détectent bien les vulnérabilités
-2. **Tester les policies** : Vérifier les règles OPA et Custodian
-3. **E2E** tests : Pipeline complet de bout en bout
-
----
-
-## 🚀 Utilisation
-
-### Tester avec échantillons vulnérables
+### End-to-end (shift-left toolchain)
 ```bash
-make test-vulnerable-samples
+bash tests/e2e/test-shift-left-all.sh
 ```
 
-### Tests OPA
+### OPA tests
 ```bash
 make opa-test
 ```
 
-### Test pipeline complet
+### Dev/Prod policy behavior
 ```bash
-cd tests/e2e
-./test-full-pipeline.sh
+bash tests/e2e/test-pipeline-dev-prod.sh
 ```
 
----
+## Notes
 
-## ⚠️ Important
-
-Les fichiers dans `vulnerable-samples/` sont **INTENTIONNELLEMENT** vulnérables.  
-**NE JAMAIS** les utiliser en production !
-
----
-
-## 📚 Documentation
-
-Voir [../docs/TESTING.md](../docs/TESTING.md) pour le guide complet.
-
-### Test pipeline dev/prod
-```bash
-./tests/e2e/test-pipeline-dev-prod.sh
-```
+- Fixtures are intentionally insecure and used for testing only.
+- Do not use any fixture content in production.

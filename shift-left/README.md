@@ -54,14 +54,14 @@ Poste Développeur            Pipeline CI/CD GitLab
 #### Checkov - IaC Security
 - **Détecte** : Misconfigurations Terraform, CloudFormation, Kubernetes
 - **Framework** : CIS Benchmarks, NSI
-- **Configuration** : `shift-left/checkov/.checkov.yml`
+- **Configuration** : `shift-left/checkov/.checkov.yml` (checks CloudSentinel uniquement)
 
 #### Trivy - Vulnerability Scanner
 - **Détecte** :
   - Vulnerabilités dans les images Docker
   - Dépendances vulnérables (CVE)
   - Misconfigurations IaC
-- **Configuration** : `shift-left/trivy/trivy.yaml`
+- **Configuration** : `shift-left/trivy/configs/trivy.yaml`
 
 ### 3. Normalizer
 - **Emplacement** : `shift-left/normalizer/`
@@ -70,7 +70,7 @@ Poste Développeur            Pipeline CI/CD GitLab
   - Contexte (environnement, branche)
   - Exposition (publique/privée)
   - Métadonnées CI/CD
-- **Script** : `normalize.py`
+- **Script** : `normalize.sh`
 
 ### 4. Moteur OPA (Open Policy Agent)
 - **Emplacement** : `policies/opa/`
@@ -97,7 +97,10 @@ shift-left/
 │   ├── README.md
 │   ├── gitleaks.toml           # Configuration Gitleaks
 │   ├── .gitleaksignore         # Exceptions
-│   └── pre-commit-hook.sh      # Hook Git
+│   └── pre-commit-hook.sh      # Hook Git (gitleaks seul)
+│
+├── pre-commit/
+│   └── pre-commit.sh           # Hook Git (gitleaks + OPA advisory)
 │
 ├── checkov/
 │   ├── README.md
@@ -105,23 +108,24 @@ shift-left/
 │
 ├── trivy/
 │   ├── README.md
-│   └── trivy.yaml              # Configuration Trivy
+│   └── configs/
+│       └── trivy.yaml          # Configuration Trivy
 │
 └── normalizer/
     ├── README.md
-    ├── normalize.py            # Script de normalisation
-    ├── requirements.txt        # Dépendances Python
-    └── schemas/
-        └── unified-format.json # Schéma JSON unifié
+    ├── normalize.sh            # Script de normalisation
+    └── schema/
+        └── cloudsentinel_report.schema.json # Schéma JSON unifié
 ```
 
 ## 🚀 Mise en route locale
 
-### Protection contre les secrets
+### Pre-commit unifiÃ© (Gitleaks + OPA advisory)
 ```bash
-ln -sf ../../shift-left/gitleaks/pre-commit-hook.sh .git/hooks/pre-commit
+ln -sf ../../shift-left/pre-commit/pre-commit.sh .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
+Par dÃ©faut, le mode local-fast ignore Checkov/Trivy pour Ã©viter le bruit.
 
 ### Formatage des configurations (TOML)
 Pour garder un code propre et professionnel :
@@ -140,31 +144,41 @@ taplo fmt
 
 ### Localement (Pre-Commit)
 ```bash
-cd shift-left/gitleaks
-./pre-commit-hook.sh
+bash shift-left/pre-commit/pre-commit.sh
 ```
 
 ### Pipeline CI/CD
-Exécution automatique dans `.gitlab-ci.yml` :
+Exécution automatique dans `.gitlab-ci.yml` via le job `shift-left-scan` :
 ```yaml
 shift-left-scan:
   stage: scan
   script:
-    - ci/scripts/run-scanners.sh
+    - bash shift-left/gitleaks/run-gitleaks.sh
+    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}"
+    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}"
 ```
 
 ### Test Manuel
 ```bash
 # Depuis la racine du projet
 make scan
+
+# Orchestration complÃ¨te (scanners + normalisation + OPA advisory)
+bash scripts/cloudsentinel-scan.sh
 ```
 
 ## 📊 Outputs
 
-- **Rapports bruts** : `gitleaks.json`, `checkov.json`, `trivy.json`
-- **Rapport unifié** : `opa_input.json` (normalisé)
-- **Décision OPA** : `opa_decision.json`
-- **DefectDojo** : Findings importés automatiquement
+- **Rapport brut Gitleaks** : `.cloudsentinel/gitleaks_raw.json`
+- **Rapport brut Checkov** : `.cloudsentinel/checkov_raw.json`
+- **Rapport brut Trivy** : `shift-left/trivy/reports/raw/`
+- **Rapport OPA-ready Gitleaks** : `.cloudsentinel/gitleaks_opa.json`
+- **Rapport OPA-ready Checkov** : `.cloudsentinel/checkov_opa.json`
+- **Rapport OPA-ready Trivy** : `shift-left/trivy/reports/opa/trivy_opa.json`
+- **Rapport unifié** : `.cloudsentinel/golden_report.json`
+- **Décision OPA (CI)** : `.cloudsentinel/opa_decision.json`
+- **Décision OPA (local)** : `.cloudsentinel/opa_decision_precommit.json`
+- **DefectDojo** : Findings importés automatiquement (CI)
 
 ## 🔑 Points Clés
 

@@ -26,22 +26,24 @@ pfe-cloud-sentinel/
 ├── 🔒 shift-left/                  # PHASE 1: Pré-Déploiement
 │   ├── README.md                   # ✅ Créé
 │   ├── gitleaks/
-│   │   ├── README.md               # (À créer)
-│   │   ├── gitleaks.toml           # (À créer) Config Gitleaks
-│   │   ├── .gitleaksignore         # (À créer) Exceptions
-│   │   └── pre-commit-hook.sh      # (À créer) Hook Git
+│   │   ├── README.md               # ✅ Créé
+│   │   ├── gitleaks.toml           # ✅ Config Gitleaks
+│   │   ├── .gitleaksignore         # ✅ Exceptions
+│   │   └── pre-commit-hook.sh      # Hook Git (gitleaks seul)
+│   ├── pre-commit/
+│   │   └── pre-commit.sh           # ✅ Hook Git (gitleaks + OPA advisory)
 │   ├── checkov/
-│   │   ├── README.md               # (À créer)
-│   │   └── .checkov.yml            # (À créer) Config Checkov
+│   │   ├── README.md               # ✅ Créé
+│   │   └── .checkov.yml            # ✅ Config Checkov
 │   ├── trivy/
-│   │   ├── README.md               # (À créer)
-│   │   └── trivy.yaml              # (À créer) Config Trivy
+│   │   ├── README.md               # ✅ Créé
+│   │   └── configs/
+│   │       └── trivy.yaml          # ✅ Config Trivy
 │   └── normalizer/
-│       ├── README.md               # (À créer)
-│       ├── normalize.py            # (À créer) Script normalisation
-│       ├── requirements.txt        # (À créer) Dépendances Python
-│       └── schemas/
-│           └── unified-format.json # (À créer) Schéma JSON
+│       ├── README.md               # ✅ Créé
+│       ├── normalize.sh            # ✅ Script normalisation
+│       └── schema/
+│           └── cloudsentinel_report.schema.json # ✅ Schéma JSON
 │
 ├── 🔍 shift-right/                 # PHASE 2: Runtime Monitoring
 │   ├── README.md                   # ✅ Créé
@@ -62,11 +64,10 @@ pfe-cloud-sentinel/
 ├── 📜 policies/                    # POLICIES AS CODE
 │   ├── README.md                   # ✅ Créé
 │   ├── opa/
-│   │   ├── README.md               # (À créer)
+│   │   ├── README.md               # ✅ Créé
 │   │   ├── pipeline_decision.rego  # ✅ Existe
-│   │   ├── test_pipeline_decision.rego # (À créer)
-│   │   └── examples/
-│   │       └── sample-inputs/      # (À créer)
+│   │   ├── test_pipeline_decision.rego # ✅ Créé
+│   │   └── exceptions.json         # ✅ Créé
 │   └── custodian/
 │       ├── README.md               # (À créer)
 │       ├── azure/
@@ -142,6 +143,7 @@ pfe-cloud-sentinel/
 │
 └── 🛠️ scripts/                     # SCRIPTS UTILITAIRES
     ├── run_prod_pipeline.sh        # ✅ Existe
+    ├── cloudsentinel-scan.sh        # ✅ Orchestrateur scan local
     ├── setup-dev-env.sh            # (À créer - Important)
     ├── cleanup.sh                  # (À créer)
     ├── gitleaks.json               # ⚠️ À supprimer (gitignored)
@@ -173,18 +175,13 @@ pfe-cloud-sentinel/
 ### 🔨 À Implémenter (Phase 2)
 
 #### Configuration Files
-- [ ] shift-left/gitleaks/gitleaks.toml
-- [ ] shift-left/checkov/.checkov.yml
-- [ ] shift-left/trivy/trivy.yaml
-- [ ] policies/opa/test_pipeline_decision.rego
+- [x] shift-left/checkov/.checkov.yml
 - [ ] policies/custodian/azure/*.yml
 - [ ] infra/azure/dev/*.tf (compléter)
 - [ ] defectdojo/docker-compose.yml
 - [ ] monitoring/docker-compose.yml
 
 #### Scripts
-- [ ] shift-left/normalizer/normalize.py
-- [ ] shift-left/gitleaks/pre-commit-hook.sh
 - [ ] shift-right/prowler/run-prowler.sh
 - [ ] shift-right/drift-engine/detect-drift.py
 - [ ] ci/scripts/run-scanners.sh
@@ -213,8 +210,7 @@ pfe-cloud-sentinel/
 ### 1️⃣ Priorité HAUTE (Démarrage)
 1. `scripts/setup-dev-env.sh` - Setup automatisé
 2. `docs/INSTALLATION.md` - Guide installation
-3. Configuration tools shift-left (gitleaks.toml, .checkov.yml, trivy.yaml)
-4. `policies/opa/test_pipeline_decision.rego` - Tests policies
+3. Configuration tools shift-left (`.checkov.yml`)
 
 ### 2️⃣ Priorité MOYENNE (Implémentation)
 1. Normalizer Python script

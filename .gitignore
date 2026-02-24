@@ -27,6 +27,7 @@ terraform.rc
 Thumbs.db
 .vscode/
 .idea/
+.trivy-cache/
 
 # Security scan results
 shift-left/trivy/results.json

@@ -1,0 +1,50 @@
+# CloudSentinel Checkov Configuration (Enterprise)
+#
+# Objective: run ONLY custom CloudSentinel checks (CKV2_CS_AZ_###)
+# Policies are loaded from shift-left/checkov/policies
+#
+# NOTE:
+# - We still use the Terraform framework for parsing IaC.
+# - The "check" list limits execution to our custom IDs.
+
+framework:
+  - terraform
+
+output: json
+quiet: true
+compact: true
+
+external-checks-dir:
+  - shift-left/checkov/policies
+
+check:
+  - CKV2_CS_AZ_001
+  - CKV2_CS_AZ_002
+  - CKV2_CS_AZ_003
+  - CKV2_CS_AZ_004
+  - CKV2_CS_AZ_005
+  - CKV2_CS_AZ_006
+  - CKV2_CS_AZ_007
+  - CKV2_CS_AZ_008
+  - CKV2_CS_AZ_009
+  - CKV2_CS_AZ_010
+  - CKV2_CS_AZ_011
+  - CKV2_CS_AZ_012
+  - CKV2_CS_AZ_013
+  - CKV2_CS_AZ_014
+  - CKV2_CS_AZ_015
+  - CKV2_CS_AZ_016
+  - CKV2_CS_AZ_017
+  - CKV2_CS_AZ_018
+  - CKV2_CS_AZ_019
+  - CKV2_CS_AZ_020
+  - CKV2_CS_AZ_021
+  - CKV2_CS_AZ_022
+  - CKV2_CS_AZ_023
+  - CKV2_CS_AZ_024
+  - CKV2_CS_AZ_025
+  - CKV2_CS_AZ_026
+  - CKV2_CS_AZ_027
+  - CKV2_CS_AZ_028
+  - CKV2_CS_AZ_029
+  - CKV2_CS_AZ_030
