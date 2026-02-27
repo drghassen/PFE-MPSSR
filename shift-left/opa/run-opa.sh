@@ -96,6 +96,9 @@ mkdir -p "$OUTPUT_DIR"
 # Decouples the CI pipeline from policy evaluation logic.
 invoke_opa_server() {
   local input_json
+  local http_code
+  local curl_err
+  
   # Inline the golden_report as the OPA input document
   input_json="$(jq -c '.' "$GOLDEN_REPORT")"
 
@@ -103,14 +106,27 @@ invoke_opa_server() {
   #   POST /v1/data/<package>/<rule>
   #   Body: { "input": <input_document> }
   #   Response: { "result": <rule_value> }
-  curl -sf \
+  http_code=$(curl -s -S -w "%{http_code}" \
     --max-time 5 \
     --connect-timeout 2 \
     -X POST "${OPA_SERVER_URL}${OPA_API_PATH}" \
     -H "Content-Type: application/json" \
     -d "{\"input\": ${input_json}}" \
     -o "$DECISION_FILE" \
-    2>/dev/null
+    2>/dev/null) || curl_err=$?
+
+  if [[ -n "${curl_err:-}" ]]; then
+      log_err "OPA Server connection failed (cURL error: $curl_err). URL: $OPA_SERVER_URL"
+      return 1
+  fi
+
+  if [[ "$http_code" != "200" ]]; then
+      log_err "OPA Server returned HTTP $http_code"
+      [[ -s "$DECISION_FILE" ]] && log_err "Server Response: $(cat "$DECISION_FILE")"
+      return 1
+  fi
+  
+  return 0
 }
 
 # Strategy 2: OPA CLI (opa eval)

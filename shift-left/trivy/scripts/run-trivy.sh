@@ -18,8 +18,10 @@ set -euo pipefail
 ################################################################################
 
 # ── Path Resolution ───────────────────────────────────────────────────────────
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../lib_scanner_utils.sh"
+
+REPO_ROOT="$(cs_get_repo_root)"
 BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configs
@@ -50,49 +52,7 @@ err()  { echo -e "\033[1;31m[CloudSentinel][Trivy][ERROR]\033[0m $*" >&2; }
 
 emit_not_run() {
   local reason="$1"
-  warn "Scan marked as NOT_RUN: $reason"
-  jq -n \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)" \
-    --arg commit "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
-    --arg scan_type "${SCAN_TYPE:-unknown}" \
-    --arg target "${TARGET:-unknown}" \
-    --arg reason "$reason" \
-    '{
-      tool: "trivy",
-      version: "unknown",
-      has_findings: false,
-      status: "NOT_RUN",
-      timestamp: $timestamp,
-      branch: $branch,
-      commit: $commit,
-      scan_type: $scan_type,
-      target: $target,
-      stats: {
-        CRITICAL: 0,
-        HIGH: 0,
-        MEDIUM: 0,
-        LOW: 0,
-        INFO: 0,
-        TOTAL: 0,
-        EXEMPTED: 0,
-        FAILED: 0,
-        PASSED: 0,
-        by_type: {
-          vulnerability: 0,
-          secret: 0,
-          misconfig: 0
-        },
-        by_category: {
-          INFRASTRUCTURE: 0,
-          APPLICATION: 0,
-          CONFIGURATION: 0,
-          SECRET: 0
-        }
-      },
-      errors: [$reason],
-      findings: []
-    }' > "$OPA_FINAL_REPORT"
+  cs_emit_not_run "trivy" "$OPA_FINAL_REPORT" "$reason" "$REPO_ROOT"
 }
 
 # ── Mode Detection ────────────────────────────────────────────────────────────

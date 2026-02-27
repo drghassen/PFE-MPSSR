@@ -18,7 +18,10 @@ need() { command -v "$1" >/dev/null 2>&1 || { err "$1 not installed"; exit 2; };
 need git
 need jq
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { err "Not a git repo"; exit 2; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
+
+REPO_ROOT="$(cs_get_repo_root)"
 
 CONFIG_PATH="${CONFIG_PATH:-$REPO_ROOT/shift-left/gitleaks/gitleaks.toml}"
 BASELINE_PATH="${BASELINE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaks-baseline.json}"
@@ -34,8 +37,7 @@ else
   TIMEOUT_SEC="${CLOUDSENTINEL_TIMEOUT:-60}"
 fi
 
-REAL_REPO_ROOT=$(git rev-parse --show-toplevel)
-OUT_DIR="$REAL_REPO_ROOT/.cloudsentinel"
+OUT_DIR="$REPO_ROOT/.cloudsentinel"
 mkdir -p "$OUT_DIR"
 
 REPORT_RAW_TMP="$(mktemp -t gitleaks-raw.XXXXXX.json)"
@@ -47,33 +49,8 @@ REPORT_OUT="$OUT_DIR/gitleaks_opa.json"
 
 emit_not_run() {
   local reason=$1
-  warn "Scan marked as NOT_RUN: $reason"
   echo "[]" > "$REPORT_RAW_OUT"
-  jq -n \
-    --arg branch "${CI_COMMIT_REF_NAME:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)}" \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg reason "$reason" \
-    '{
-      tool: "gitleaks",
-      version: "unknown",
-      has_findings: false,
-      status: "NOT_RUN",
-      branch: $branch,
-      timestamp: $timestamp,
-      stats: {
-        CRITICAL: 0,
-        HIGH: 0,
-        MEDIUM: 0,
-        LOW: 0,
-        INFO: 0,
-        TOTAL: 0,
-        EXEMPTED: 0,
-        FAILED: 0,
-        PASSED: 0
-      },
-      errors: [$reason],
-      findings: []
-    }' > "$REPORT_OUT"
+  cs_emit_not_run "gitleaks" "$REPORT_OUT" "$reason" "$REPO_ROOT"
 }
 
 command -v gitleaks >/dev/null 2>&1 || { emit_not_run "gitleaks_binary_missing"; exit 0; }
