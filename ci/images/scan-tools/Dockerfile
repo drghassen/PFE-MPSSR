@@ -38,4 +38,4 @@ RUN gitleaks version \
  && checkov --version \
  && trivy --version \
  && jq --version \
- && python3 -c "import jsonschema; print(jsonschema.__version__)"
+ && python3 -c "from importlib.metadata import version; print(version('jsonschema'))"
