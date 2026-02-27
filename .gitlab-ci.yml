@@ -25,8 +25,8 @@ variables:
   CACHE_DIR: "$CI_PROJECT_DIR/.cache"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
-  # Supply chain: must be set in CI/CD settings to enforce hash verification.
-  CHECKOV_WHEEL_SHA256: ""
+  # Supply chain pin for Checkov wheel (3.2.502). Override from CI/CD settings if needed.
+  CHECKOV_WHEEL_SHA256: "277aa51545c2b8ac4ffd747aa6d15bda75bed4ab0984ed1757d2c60abfdd343c"
 
   SCAN_TARGET: "infra/azure/dev"
   TRIVY_TARGET: "infra/azure/dev"
