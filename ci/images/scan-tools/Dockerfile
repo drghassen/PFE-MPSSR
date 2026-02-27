@@ -1,4 +1,4 @@
-ARG PYTHON_IMAGE=python:3.11-bookworm
+ARG PYTHON_IMAGE=python:3.11-slim-bookworm
 FROM ${PYTHON_IMAGE}
 
 ARG GITLEAKS_VERSION=8.21.2

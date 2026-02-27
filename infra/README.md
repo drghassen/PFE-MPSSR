@@ -1,128 +1,50 @@
-# 🏗️ Infrastructure as Code (IaC)
+# 🏗️ Infra — Infrastructure as Code (OpenTofu)
 
-> **Terraform** pour Azure et AWS
+> **Cloud Resources Provisioning** : Code source Terraform configurant l'infrastructure CloudSentinel (Azure, Kubernetes, etc.) protégée et auditée par la pipeline DevOps.
 
-Ce répertoire contient l'infrastructure cloud définie en code.
+Ce répertoire contient l'IaC qui déploie l'environnement applicatif et opérationnel, sécurisé de manière préventive (Shift-Left par Checkov) et monitoré au runtime (Cloud Custodian).
 
 ---
 
-## 📁 Structure
+## 📁 Architecture
 
-```
+L'infrastructure est conçue par modules réutilisables, promus par environnement (`dev`, `staging`, `prod`) :
+
+```text
 infra/
-├── azure/
-│   ├── README.md
-│   ├── dev/
-│   │   ├── main.tf              # Configuration principale
-│   │   ├── variables.tf         # Variables
-│   │   ├── outputs.tf           # Outputs
-│   │   ├── terraform.tfvars.template
-│   │   └── providers.tf         # Azure provider
-│   │
-│   └── modules/
-│       ├── resource-group/
-│       ├── storage/
-│       ├── network/
-│       └── compute/
+├── README.md
+├── modules/               # Composants réutilisables Terraform / OpenTofu
+│   ├── network/           # VNETs, Subnets, NSGs
+│   ├── storage/           # Storage Accounts (Blobs, Queues)
+│   └── compute/           # AKS, VMs
 │
-└── aws/
-    ├── README.md
-    └── (future - structure similaire)
+└── azure/                 # Instanciations par environnement cloud
+    ├── dev/               # Env de développement déployé sur push (Trunk-based)
+    └── prod/              # Env de production (Protégée par MR stricte et OPA)
 ```
 
 ---
 
-## 🎯 Environnements
+## 🔒 Intégration Sécurité (V5.0)
 
-### Dev
-- **Objectif** : Développement et tests
-- **Ressources** : Limitées et non-redondantes
-- **Localisation** : `infra/azure/dev/`
+1.  **Shift-Left : Scanner de Misconfigurations (Checkov)**
+    *   Tout le code `.tf` présent ici passe systématiquement par l'analyseur Checkov de CloudSentinel en CI.
+    *   Une misconfiguration (Ex: `publicNetworkAccess = true` sur un composant sensible) sera bloquée par l'OPA Quality Gate **avant même l'application du `terraform plan`**.
 
-### Staging (Future)
-- **Objectif** : Tests pré-production
-- **Localisation** : `infra/azure/staging/`
-
-### Production (Future)
-- **Objectif** : Production
-- **Localisation** : `infra/azure/prod/`
+2.  **Gestion des Exceptions Terraform**
+    *   Les exemptions de sécurité **ne doivent pas** être écrites dans ce code via `#checkov:skip`.
+    *   Elles doivent être actées par un comité de sécurité via l'enregistrement dans `policies/opa/exceptions.json`. Le code restera "vulnérable" mais sciemment toléré (et tracé).
 
 ---
 
-## 🚀 Utilisation
+## 🚀 Déploiement CI/CD
 
-### Azure Dev Environment
+Le déploiement est orchestré par le job `tofu-deploy` dans `.gitlab-ci.yml`.
+L'infrastructure n'est appliquée (`tofu apply`) **que si, et seulement si**, le stage précédent de décision OPA (`opa-decision`) a émis un `ALLOW`.
 
 ```bash
+# Exemple standard d'initialisation locale (pour tests dry-run)
 cd infra/azure/dev
-
-# 1. Copier le template de variables
-cp terraform.tfvars.template terraform.tfvars
-# Éditer avec vos valeurs
-
-# 2. Initialiser Terraform
-terraform init
-
-# 3. Plan (preview des changements)
-terraform plan
-
-# 4. Apply (déployer)
-terraform apply
-
-# 5. Outputs (récupérer les infos)
-terraform output
+tofu init
+tofu plan
 ```
-
----
-
-## 📦 Ressources Créées (Dev)
-
-- **Resource Group** : Conteneur logique
-- **Storage Account** : Stockage - **intentionnellement mal configuré pour tests**
-- **Virtual Network** : Réseau isolé
-- **Network Security Group** : Firewall règles
-- **Virtual Machine** : Instance de calcul
-
-⚠️ **Note** : Certaines ressources sont volontairement mal configurées pour tester les scanners et policies.
-
----
-
-## 🔐 Sécurité
-
-### Secrets Management
-- ❌ **JAMAIS** committer `terraform.tfvars`
-- ✅ Utiliser `.tfvars.template` comme documentation
-- ✅ Stocker secrets dans Azure Key Vault ou AWS Secrets Manager
-- ✅ Utiliser variables d'environnement pour CI/CD
-
-### State Management
-- 🔒 State stocké dans Azure Storage Account (backend remote)
-- 🔒 Locking activé pour éviter conflits
-- 🔒 Chiffrement au repos
-
----
-
-## 🧪 Tests
-
-### Checkov (IaC Scan)
-```bash
-checkov -d infra/azure/dev/
-```
-
-### Terraform Validate
-```bash
-terraform validate
-```
-
-### Terraform Plan (Dry-run)
-```bash
-terraform plan -out=tfplan
-```
-
----
-
-## 📚 Documentation
-
-- **Azure Terraform** : [azure/README.md](azure/README.md)
-- **Modules** : [azure/modules/README.md](azure/modules/README.md)
-- **Best Practices** : [../docs/IAC_BEST_PRACTICES.md](../docs/IAC_BEST_PRACTICES.md)

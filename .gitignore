@@ -34,3 +34,4 @@ shift-left/trivy/results.json
 *.sarif
 checkov_scan.log
 .trivy-cache/
+tmp_ex.json

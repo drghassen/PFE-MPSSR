@@ -1,100 +1,112 @@
 # CloudSentinel 🛡️
 
-> **Gouvernance Sécurité Cloud — Shift-Left & Shift-Right**
+> **Gouvernance Sécurité Cloud Enterprise — Shift-Left & Shift-Right (v5.0)**
 
-Plateforme de sécurité cloud automatisée combinant prévention pré-déploiement et surveillance continue post-déploiement.
+Plateforme DevSecOps automatisée implémentant une séparation stricte des responsabilités (PEP/PDP), combinant prévention pré-déploiement (CI/CD) et surveillance continue post-déploiement.
 
 ---
 
-## 📐 Architecture
+## 📐 Architecture Globale
 
-Le projet implémente une architecture en deux phases :
+Le projet implémente une architecture Zero-Trust en deux phases :
 
 ### **Phase 1 — SHIFT-LEFT (Pré-déploiement)**
-Pipeline CI/CD avec scanners parallèles → Normalisation → Décision OPA → Quality Gate
+Pipeline CI/CD avec exécution parallèle des scanners, normalisation stricte, et décision centralisée.
+- **Scanners** : Gitleaks (Secrets), Checkov (IaC), Trivy (Conteneurs/Vulnérabilités)
+- **Normalizer** : Unifie 100% des rapports JSON (Format Golden Report)
+- **Open Policy Agent (OPA)** : Souveraineté totale sur la décision (ALLOW/DENY) via policies Rego.
 
 ### **Phase 2 — SHIFT-RIGHT (Runtime & Drift)**
-Infrastructure live → Collecte d'événements → Détection de drift → Remédiation Cloud Custodian
+Infrastructure live → Collecte d'événements → Détection de drift → Remédiation via Cloud Custodian.
 
-### **Gouvernance Centralisée**
-DefectDojo pour traçabilité des findings et gestion des risques
-
-### **Dashboard Temps Réel**
-Grafana + Prometheus pour visualisation de la compliance et incidents
+### **Gouvernance & Observabilité**
+- **DefectDojo** : Traçabilité des findings (ASPM)
+- **Grafana + Prometheus** : Visualisation de la compliance en temps réel
 
 ---
 
-## ✅ Standard entreprise (Local vs CI)
+## ✅ Standard Entreprise (Mode Local vs CI)
 
-- **Pré-commit (local, advisory)** : Gitleaks (staged) → Normalisation (local-fast) → OPA en mode advisory (CLI)
-- **CI/CD (enforcement)** : Gitleaks + Checkov + Trivy → Normalisation (mode CI) → OPA Server (enforce)
+L'architecture supporte un mode d'exécution dual :
 
-Objectif : feedback rapide en local, gouvernance stricte en CI, sans bruit ni faux positifs locaux.
+- **Pré-commit (local, advisory)** : Gitleaks (staged) → Normalisation (mode local-fast) → OPA en mode advisory (CLI). Retour immédiat au développeur sans friction.
+- **CI/CD (enforcement)** : Full Scanners → Normalisation complète → OPA Server (enforce). Bloque impérativement le déploiement en cas de non-conformité.
 
 ---
 
 ## 📁 Structure du Projet
 
-```
+L'arborescence est conçue pour séparer le code applicatif, les policies, et l'infrastructure :
+
+```text
 pfe-cloud-sentinel/
-├── 📋 .gitlab-ci.yml          # Pipeline CI/CD GitLab
-├── 🔧 Makefile                # Commandes pratiques
-├── 🌍 .env.template           # Variables d'environnement
+├── 📋 .gitlab-ci.yml          # Pipeline CI/CD GitLab (6 stages complets)
+├── 🔧 Makefile                # Commandes pratiques d'orchestration
+├── 🌍 .env.template           # Variables d'environnement standardisées
 ├── 🚫 .gitignore              # Exclusions Git
 │
-├── 📖 docs/                   # Documentation complète
-├── 🔒 shift-left/             # Phase 1: Pré-déploiement
-├── 🔍 shift-right/            # Phase 2: Runtime monitoring
-├── 📜 policies/               # Policies as Code (OPA + Custodian)
-├── 🏗️  infra/                 # Infrastructure as Code (Terraform)
-├── 🔄 ci/                     # Scripts CI/CD
-├── 📊 defectdojo/             # Gouvernance & traçabilité
-├── 📈 monitoring/             # Grafana + Prometheus
-├── 🧪 tests/                  # Tests et échantillons vulnérables
-└── 🛠️  scripts/               # Scripts utilitaires
+├── 🔒 shift-left/             # Phase 1: Moteurs de détection et normalisation
+│   ├── gitleaks/              # Wrapper et configuration (Secrets)
+│   ├── checkov/               # Wrapper et configuration (IaC)
+│   ├── trivy/                 # Wrapper et configuration (Vulns)
+│   └── normalizer/            # Engine de normalisation JSON (Golden Report)
+│
+├── 📜 policies/               # Policy as Code (Le cœur décisionnel)
+│   ├── opa/                   # Règles Rego (Pipeline Decision) et exceptions
+│   └── custodian/             # Règles YAML (Remédiation Runtime Azure)
+│
+├── 🔄 ci/                     # Images Docker immutables et scripts CI
+├── 🏗️  infra/                 # Infrastructure as Code (OpenTofu/Terraform)
+├── 📊 defectdojo/             # Gouvernance & intégration outil ASPM
+├── 📈 monitoring/             # Stack Grafana + Prometheus
+├── 🧪 tests/                  # Fixtures et tests d'intégration (E2E)
+├── 📖 docs/                   # Documentation de conception détaillée
+└── 🛠️  scripts/               # Scripts utilitaires globaux
 ```
-
-Voir la documentation complète dans [`docs/`](docs/)
 
 ---
 
 ## 🚀 Démarrage Rapide
 
-### 1️⃣ Configuration
+### 1️⃣ Configuration Initiale
 ```bash
 cp .env.template .env
-# Éditer .env avec vos credentials
+# Renseignez vos accès (Azure, GitLab, DefectDojo) dans le fichier .env
 ```
 
-### 2️⃣ Installation
+### 2️⃣ Installation des dépendances locales
 ```bash
 make setup
 ```
 
-### 3️⃣ Vérification
+### 3️⃣ Exécution d'un scan complet (Simulation CI en local)
 ```bash
-make test
+make scan
 ```
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation Détaillée
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture détaillée
-- **[INSTALLATION.md](docs/INSTALLATION.md)** - Guide d'installation
-- **[SHIFT_LEFT.md](docs/SHIFT_LEFT.md)** - Pipeline Shift-Left
-- **[SHIFT_RIGHT.md](docs/SHIFT_RIGHT.md)** - Monitoring Shift-Right
-- **[GOVERNANCE.md](docs/GOVERNANCE.md)** - DefectDojo & Dashboard
+Chaque dossier contient son propre `README.md` détaillé pour ses composants spécifiques :
+- **[Shift-Left (Scanners & Normalizer)](shift-left/README.md)**
+- **[Policies (OPA & Custodian)](policies/README.md)**
+- **[CI/CD & Images](ci/README.md)**
+
+Guides de conception globaux (dans `docs/`):
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture détaillée et diagrammes
+- **[SHIFT_LEFT.md](docs/SHIFT_LEFT.md)** - Conception approfondie du Shift-Left
+- **[GOVERNANCE.md](docs/GOVERNANCE.md)** - Gestion des exceptions et métriques
 
 ---
 
 ## 👨‍🎓 Projet de Fin d'Études
+
+Projet développé avec des standards de production avancés (Immuabilité CI, PEP/PDP, Supply Chain Security).
 
 **Étudiant** : Ghassen DRIDI  
 **Encadrant** : Mr Moez HACHEM  
 **Formation** : Master 2MPSSR — ISICOM Hammam Sousse  
 **Année** : 2025-2026
 
----
-
-**CloudSentinel** — *De la prévention à la gouvernance* 🛡️
+**CloudSentinel** — *De la prévention à la gouvernance continue* 🛡️

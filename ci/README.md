@@ -1,46 +1,63 @@
-# 🔄 CI/CD Scripts
+# 🔄 CI/CD & Base Images (Supply Chain Security)
 
-> Scripts d'orchestration pour GitLab CI/CD
+Ce répertoire centralise les outils d'orchestration pour le pipeline GitLab CI/CD ainsi que le code de construction des **images Docker immutables** utilisées par CloudSentinel.
+
+> **Principe de conception** : Le pipeline GitLab (`.gitlab-ci.yml`) à la racine pilote les opérations. Le répertoire `ci/` garantit la sécurisation de la **Supply Chain** des outils sous-jacents.
+
+---
 
 ## 📁 Structure
 
-```
+```text
 ci/
 ├── README.md
 └── images/
-    └── opa/            # Image OPA pin-able pour CI
+    ├── opa/            # Image OPA durcie (pinning par digest)
+    └── scan-tools/     # Image multi-outils optimisée (Alpine/Slim)
+```
+
+## 🛡️ Supply Chain Security (V5.0)
+
+Pour éviter les attaques par empoisonnement de cache ou modification de tag (ex: `:latest`), CloudSentinel impose :
+
+### 1. Pinning par Digest SHA256
+Nos images de base (ex: OPA) ne sont pas tirées par un tag flottant (`1.13.1`), mais par leur **empreinte cryptographique stricte** :
+```dockerfile
+# Exemple extrait de ci/images/opa/Dockerfile
+FROM openpolicyagent/opa:1.13.1-static@sha256:79dc887c32be886069d9429075a541c8b0e53326251856190b84572c44702a7a AS opa
+```
+
+### 2. Multi-Stage Builds & Bloat Reduction
+L'image `scan-tools` regroupe Gitleaks, Trivy et Checkov.
+Pour éviter les timeouts réseau (ex: "use of closed network connection" sur les gros layers Python), l'image utilise un build multi-stage propre, basculant de `python:bookworm` vers `python:slim` pour diviser la taille finale par 2 et assurer des push Docker fiables.
+
+### 3. Contrôles d'Intégrité CLI
+*   **Checkov Wheel** : Le binaire Python `.whl` est vérifié par `sha256sum` en CI avant `pip install`.
+*   Un fail-fast UX ("Supply Chain Security Blocked") guide le développeur si la variable `CHECKOV_WHEEL_SHA256` est absente dans GitLab.
+
+---
+
+## 🚀 Build Local & Publication
+
+### Build OPA
+```bash
+docker build -t registry.gitlab.com/votre-user/cloudsentinel/opa:1.13.1 ci/images/opa
+docker push registry.gitlab.com/votre-user/cloudsentinel/opa:1.13.1
+```
+
+### Build Scan-Tools
+```bash
+docker build \
+  --build-arg GITLEAKS_VERSION=8.21.2 \
+  --build-arg CHECKOV_VERSION=3.2.502 \
+  --build-arg TRIVY_VERSION=0.69.1 \
+  -t registry.gitlab.com/votre-user/cloudsentinel/scan-tools:1.0 \
+  ci/images/scan-tools
 ```
 
 ---
 
-## 🎯 Utilisation
+## 📋 Bonnes Pratiques CI (`.gitlab-ci.yml`)
 
-Les scanners sont orchestrés directement par `.gitlab-ci.yml` (jobs `gitleaks-scan`, `checkov-scan`, `trivy-scan`, `normalize-reports`, `opa-decision`). Aucun script additionnel dans `ci/scripts/`.
-
----
-
-## 📚 Documentation
-
-Voir [../.gitlab-ci.yml](../.gitlab-ci.yml) pour la configuration complète.
-
-## OPA CI Image (enterprise)
-
-Pour éviter les téléchargements au runtime et garantir une version OPA identique partout, utilisez l'image dédiée.
-
-### Build local (pour test)
-```bash
-# Remplacer par un tag local simple
-docker build --build-arg OPA_VERSION=1.13.1 -t cloudsentinel/opa:local ci/images/opa
-```
-
-### Build en CI (GitLab Registry)
-La variable `$CI_REGISTRY_IMAGE` est injectée automatiquement par GitLab.
-```bash
-docker build --build-arg OPA_VERSION=1.13.1 -t $CI_REGISTRY_IMAGE/opa:1.13.1 ci/images/opa
-docker push $CI_REGISTRY_IMAGE/opa:1.13.1
-```
-
-### Contrôles CI recommandés
-- Job `opa-image-smoke` dans `.gitlab-ci.yml` valide runtime OPA + outils.
-- Utiliser un digest immutable pour `OPA_IMAGE` dans les variables CI/CD.
-- Activer le scanning registry et une cleanup policy côté GitLab.
+1.  **Immuabilité** : Le `.gitlab-ci.yml` utilise la variable `OPA_IMAGE` pointant vers un digest (et non un tag).
+2.  **Smoke Tests** : Le job `opa-image-smoke` valide que le binaire OPA démarre bien avant le block `decide`.

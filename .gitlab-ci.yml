@@ -70,8 +70,6 @@ build-scan-tools-image:
       --cache=true
       --cache-repo "${CI_REGISTRY_IMAGE}/cache/scan-tools"
   rules:
-    - changes:
-        - ci/images/scan-tools/Dockerfile
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
       allow_failure: true

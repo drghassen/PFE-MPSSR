@@ -1,195 +1,88 @@
-# 🔒 Shift-Left — Sécurité Pré-Déploiement
+# 🔒 Shift-Left — Stack de Sécurité Pré-Déploiement
 
-> **Phase 1** : Détection des vulnérabilités AVANT le déploiement dans le pipeline CI/CD
+> **Phase 1** : Détection exhaustive des vulnérabilités, normalisation des données, et prise de décision centralisée AVANT tout déploiement dans le pipeline CI/CD.
 
-## 📐 Architecture
+## 📐 Architecture Interne (Shift-Left)
 
-```
-Poste Développeur            Pipeline CI/CD GitLab
-     │                              │
-     │                    ┌─────────┴─────────┐
-     ▼                    │                   │
-┌─────────┐          ┌────▼────┐  ┌───────┐  ┌──────┐
-│Gitleaks │          │Gitleaks │  │Checkov│  │Trivy │
-│Pre-Commit│         │         │  │ (IaC) │  │(Image)│
-└─────────┘          └────┬────┘  └───┬───┘  └──┬───┘
-                          │           │         │
-                          └───────────┴─────────┘
-                                   │
-                          ┌────────▼─────────┐
-                          │  Normalisation   │
-                          │ & Enrichissement │
-                          └────────┬─────────┘
-                                   │
-                          ┌────────▼─────────┐
-                          │   Moteur OPA     │
-                          │ Policies CIS/NSI │
-                          └────────┬─────────┘
-                                   │
-                          ┌────────▼─────────┐
-                          │  Quality Gate    │
-                          │  ALLOW / DENY    │
-                          └────────┬─────────┘
-                                   │
-                    ┌──────────────┼──────────────┐
-                    │              │              │
-                 BLOCK          DEPLOY      DefectDojo
-                                           (Findings)
+Le dossier `shift-left/` contient tous les composants agissant avant le déploiement. L'architecture respecte strictement le pattern **PEP/PDP** (Policy Enforcement Point / Policy Decision Point). Aucun scanner ne prend de décision de blocage par lui-même.
+
+```text
+[ Gitleaks ]   [ Checkov ]   [ Trivy ]    <-- Phase de Scan (Parallèle, Advisory)
+      \             |             /
+       \            |            /
+        v           v           v
+    [ Normalizer (normalize.sh) ]         <-- Data Producer (Uniformisation JSON)
+                    |
+                    v (Golden Report)
+    [ OPA Engine (pipeline_decision.rego) ] <-- Policy Decision Point (PDP)
+                    |
+                    v
+    [ Quality Gate (run-opa.sh) ]         <-- Policy Enforcement Point (PEP)
+           /                 \
+        ALLOW                DENY (Bloque la CI)
 ```
 
-## 🛠️ Composants
+## 🛠️ Composants et Responsabilités
 
-### 1. Pre-Commit Hook (Gitleaks)
-- **Emplacement** : `shift-left/gitleaks/`
-- **Fonction** : Détection locale des secrets avant le commit
-- **Configuration** : `gitleaks.toml`
+### 1. Scanners (Les "Detectors")
+Chaque outil est wrappé par un script (ex: `run-gitleaks.sh`) qui garantit une exécution robuste (`emit_not_run` en cas d'erreur) :
+*   **`gitleaks/`** : Détecte les secrets en dur (fichiers de conf customisés `gitleaks.toml`).
+*   **`checkov/`** : Détecte les misconfigurations de l'Infrastructure as Code (Terraform) via des règles spécifiques à CloudSentinel.
+*   **`trivy/`** : Scanne les vulnérabilités CVE dans les images de conteneurs et dépendances.
 
-### 2. Scanners CI/CD (Parallèles)
+### 2. Normalizer (`normalizer/`)
+Le composant le plus critique de l'ETL de sécurité :
+*   Ingère les rapports hétérogènes des scanners.
+*   Génère un **Golden Report** JSON unique (`cloudsentinel_report.schema.json`).
+*   Délègue explicitement la décision à OPA (`quality_gate: "NOT_EVALUATED"`).
+*   Gère le mode "local-fast" pour le confort développeur en pre-commit.
 
-#### Gitleaks - Secrets Detection
-- **Détecte** : API keys, tokens, credentials, mots de passe
-- **Format sortie** : JSON
-- **Configuration** : `shift-left/gitleaks/gitleaks.toml`
+### 3. Policy Engine (`opa/`)
+Point d'exécution de la Quality Gate. Le script `run-opa.sh` évalue le Golden Report à travers les règles définies dans `policies/opa/`.
+*   Support d'exécution "Advisory" (warning uniquement) ou "Enforce" (bloquant).
+*   Interopérabilité API REST (OPA Server) avec fallback sur binaire OPA CLI.
 
-#### Checkov - IaC Security
-- **Détecte** : Misconfigurations Terraform, CloudFormation, Kubernetes
-- **Framework** : CIS Benchmarks, NSI
-- **Configuration** : `shift-left/checkov/.checkov.yml` (checks CloudSentinel uniquement)
+### 4. Pre-commit (`pre-commit/`)
+Garantit que le code ne quitte pas le poste développeur avec des secrets en clair.
+*   Lance de manière ciblée Gitleaks sur les fichiers `staged`.
+*   Consulte OPA en mode "advisory".
 
-#### Trivy - Vulnerability Scanner
-- **Détecte** :
-  - Vulnerabilités dans les images Docker
-  - Dépendances vulnérables (CVE)
-  - Misconfigurations IaC
-- **Configuration** : `shift-left/trivy/configs/trivy.yaml`
+## 📁 Structure du Répertoire
 
-### 3. Normalizer
-- **Emplacement** : `shift-left/normalizer/`
-- **Fonction** : Fusion des 3 rapports JSON en un format unifié
-- **Enrichissement** :
-  - Contexte (environnement, branche)
-  - Exposition (publique/privée)
-  - Métadonnées CI/CD
-- **Script** : `normalize.sh`
-
-### 4. Moteur OPA (Open Policy Agent)
-- **Emplacement** : `policies/opa/`
-- **Fonction** : Évaluation des policies et décision ALLOW/DENY
-- **Policy** : `pipeline_decision.rego`
-- **Règles** :
-  - Blocage si secrets détectés (sauf whitelisted)
-  - Blocage si CRITICAL ou HIGH > seuil
-  - Contexte géographique et environnement
-  - Exceptions par équipe (risk acceptance)
-
-### 5. Quality Gate
-- **Intégration** : GitLab CI/CD
-- **Décision** :
-  - `ALLOW` → Déploiement autorisé
-  - `DENY` → Pipeline échoue, commentaire MR avec détails
-- **Artifacts** : Export findings vers DefectDojo
-
-## 📁 Structure
-
-```
+```text
 shift-left/
-├── gitleaks/
-│   ├── README.md
-│   ├── gitleaks.toml           # Configuration Gitleaks
-│   ├── .gitleaksignore         # Exceptions
-│   └── pre-commit-hook.sh      # Hook Git (gitleaks seul)
+├── gitleaks/            # Outil d'analyse des secrets
+├── checkov/             # Outil d'analyse statique IaC
+├── trivy/               # Outil d'analyse des conteneurs/dépendances
 │
-├── pre-commit/
-│   └── pre-commit.sh           # Hook Git (gitleaks + OPA advisory)
+├── normalizer/          # Engine de transformation de données
+│   ├── normalize.sh     # Convertisseur en Golden Report
+│   └── CONTRACT.md      # Documentation du contrat de données vers OPA
 │
-├── checkov/
-│   ├── README.md
-│   └── .checkov.yml            # Configuration Checkov
+├── opa/                 # Scripts d'exécution du Policy Engine (PEP)
+│   └── run-opa.sh       # Exécuteur local/CI pour OPA
 │
-├── trivy/
-│   ├── README.md
-│   └── configs/
-│       └── trivy.yaml          # Configuration Trivy
-│
-└── normalizer/
-    ├── README.md
-    ├── normalize.sh            # Script de normalisation
-    └── schema/
-        └── cloudsentinel_report.schema.json # Schéma JSON unifié
+└── pre-commit/          # Hooks locaux pour développeurs
 ```
 
-## 🚀 Mise en route locale
+## 🚀 Utilisation Courante
 
-### Pre-commit unifiÃ© (Gitleaks + OPA advisory)
+**Mode CI (Automatique)**
+Géré par `.gitlab-ci.yml`, les scripts sont invoqués dans l'ordre :
+1.  Scan (`bash shift-left/gitleaks/run-gitleaks.sh` etc.)
+2.  Normalisation (`bash shift-left/normalizer/normalize.sh`)
+3.  Décision (`bash shift-left/opa/run-opa.sh --enforce`)
+
+**Mode Local (Déboguage)**
+Depuis la racine du projet, pour simuler la pipeline entière :
 ```bash
-ln -sf ../../shift-left/pre-commit/pre-commit.sh .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-Par dÃ©faut, le mode local-fast ignore Checkov/Trivy pour Ã©viter le bruit.
-
-### Formatage des configurations (TOML)
-Pour garder un code propre et professionnel :
-```bash
-# Installation (Simple via npm)
-npm install -g @taplo/cli
-
-# OU via Cargo (si présent)
-cargo install taplo-cli --locked
-
-# Utilisation : Formater tous les fichiers .toml
-taplo fmt
+export CLOUDSENTINEL_EXECUTION_MODE=local
+bash shift-left/gitleaks/run-gitleaks.sh
+bash shift-left/normalizer/normalize.sh
+bash shift-left/opa/run-opa.sh --advisory
 ```
 
-## 🚀 Utilisation
-
-### Localement (Pre-Commit)
-```bash
-bash shift-left/pre-commit/pre-commit.sh
-```
-
-### Pipeline CI/CD
-Exécution automatique dans `.gitlab-ci.yml` via le job `shift-left-scan` :
-```yaml
-shift-left-scan:
-  stage: scan
-  script:
-    - bash shift-left/gitleaks/run-gitleaks.sh
-    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}"
-    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}"
-```
-
-### Test Manuel
-```bash
-# Depuis la racine du projet
-make scan
-
-# Orchestration complÃ¨te (scanners + normalisation + OPA advisory)
-bash scripts/cloudsentinel-scan.sh
-```
-
-## 📊 Outputs
-
-- **Rapport brut Gitleaks** : `.cloudsentinel/gitleaks_raw.json`
-- **Rapport brut Checkov** : `.cloudsentinel/checkov_raw.json`
-- **Rapport brut Trivy** : `shift-left/trivy/reports/raw/`
-- **Rapport OPA-ready Gitleaks** : `.cloudsentinel/gitleaks_opa.json`
-- **Rapport OPA-ready Checkov** : `.cloudsentinel/checkov_opa.json`
-- **Rapport OPA-ready Trivy** : `.cloudsentinel/trivy_opa.json`
-- **Rapport unifié** : `.cloudsentinel/golden_report.json`
-- **Décision OPA (CI)** : `.cloudsentinel/opa_decision.json`
-- **Décision OPA (local)** : `.cloudsentinel/opa_decision_precommit.json`
-- **DefectDojo** : Findings importés automatiquement (CI)
-
-## 🔑 Points Clés
-
-✅ Détection **AVANT** déploiement  
-✅ Scanners **parallèles** pour rapidité  
-✅ **Normalisation** pour cohérence  
-✅ **Policy-as-Code** pour décision automatisée  
-✅ **Traçabilité** via DefectDojo  
-
-## 📚 Documentation Associée
-
-- [../docs/SHIFT_LEFT.md](../docs/SHIFT_LEFT.md) - Guide complet
-- [../docs/POLICIES_GUIDE.md](../docs/POLICIES_GUIDE.md) - Création de policies
-- [../policies/opa/README.md](../policies/opa/README.md) - Policies OPA
+## 🔑 Rappels de Conception
+*   **Ne jamais coder de logique de décision dans un wrapper de scan.**
+*   Si un scanner plante, il doit émettre un statut `NOT_RUN` (JSON valide) pour que OPA puisse intercepter et bloquer pour "Scanner manquant".
+*   Tout changement au format de sortie du normalizer doit être reflété dans le `CONTRACT.md`.

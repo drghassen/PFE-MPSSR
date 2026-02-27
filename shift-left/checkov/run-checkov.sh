@@ -21,9 +21,13 @@ log_warn()    { echo -e "${YELLOW}[Checkov][WARN]${NC} $*" >&2; }
 log_err()     { echo -e "${RED}[Checkov][ERROR]${NC} $*" >&2; }
 
 # --- Chemins & Dossiers ---
-# On récupère la racine du projet Git
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Import de notre librairie partagée
+source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
+
+# On récupère la racine du projet Git via la lib unifiée
+REPO_ROOT="$(cs_get_repo_root)"
 
 # Dossier de sortie centralisé pour OPA
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
@@ -41,42 +45,8 @@ REPORT_LOG="$OUT_DIR/checkov_scan.log"
 
 emit_not_run() {
     local reason=$1
-    local branch
-    local commit
-    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
-    commit="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
-
-    log_warn "Scan marked as NOT_RUN: $reason"
     echo '{"results":{"failed_checks":[]}}' > "$REPORT_RAW"
-    jq -n \
-      --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-      --arg branch "$branch" \
-      --arg commit "$commit" \
-      --arg repo "$REPO_ROOT" \
-      --arg reason "$reason" \
-      '{
-        tool: "checkov",
-        version: "unknown",
-        has_findings: false,
-        status: "NOT_RUN",
-        timestamp: $timestamp,
-        branch: $branch,
-        commit: $commit,
-        repository: $repo,
-        stats: {
-          CRITICAL: 0,
-          HIGH: 0,
-          MEDIUM: 0,
-          LOW: 0,
-          INFO: 0,
-          TOTAL: 0,
-          EXEMPTED: 0,
-          FAILED: 0,
-          PASSED: 0
-        },
-        errors: [$reason],
-        findings: []
-      }' > "$REPORT_OPA"
+    cs_emit_not_run "checkov" "$REPORT_OPA" "$reason" "$REPO_ROOT"
 }
 
 # --- Prérequis ---
