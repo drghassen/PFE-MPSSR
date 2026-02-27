@@ -31,7 +31,7 @@ MAX_SIZE_MB="${GITLEAKS_MAX_SIZE:-5}"
 if [[ -n "${CI:-}" ]]; then
   TIMEOUT_SEC="${CLOUDSENTINEL_TIMEOUT:-300}"
 else
-  TIMEOUT_SEC="${CLOUDSENTINEL_TIMEOUT:-0}"
+  TIMEOUT_SEC="${CLOUDSENTINEL_TIMEOUT:-60}"
 fi
 
 REAL_REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -56,6 +56,7 @@ emit_not_run() {
     '{
       tool: "gitleaks",
       version: "unknown",
+      has_findings: false,
       status: "NOT_RUN",
       branch: $branch,
       timestamp: $timestamp,
@@ -138,7 +139,7 @@ set -e
 
 if [[ "$RC" -gt 1 ]]; then
   emit_not_run "gitleaks_execution_error:rc=$RC"
-  exit 0
+  exit 2
 fi
 
 # Validation du JSON
@@ -191,6 +192,8 @@ STATS=$(jq -n --argjson f "$(cat "$REPORT_NORM_TMP")" '{
   PASSED: 0
 }')
 
+# NOTE: has_findings is a SCAN OBSERVATION, not a gate decision.
+# The block/allow decision is EXCLUSIVELY made by OPA (run-opa.sh).
 jq -n \
   --arg tool "gitleaks" \
   --arg version "$GITLEAKS_VERSION" \
@@ -198,7 +201,7 @@ jq -n \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --argjson stats "$STATS" \
   --argjson findings "$(cat "$REPORT_NORM_TMP")" \
-  '{tool: $tool, version: $version, status: (if $stats.TOTAL > 0 then "FAILED" else "PASSED" end), branch: $branch, timestamp: $timestamp, stats: $stats, findings: $findings}' > "$REPORT_OUT"
+  '{tool: $tool, version: $version, has_findings: ($stats.TOTAL > 0), branch: $branch, timestamp: $timestamp, stats: $stats, findings: $findings}' > "$REPORT_OUT"
 
 log "Done. Findings: $(jq -r '.stats.TOTAL' "$REPORT_OUT") | Report: $REPORT_OUT"
 exit 0

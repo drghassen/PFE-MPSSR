@@ -8,7 +8,7 @@
     "HIGH":     "HIGH",
     "MEDIUM":   "MEDIUM",
     "LOW":      "LOW",
-    "UNKNOWN":  "LOW"
+    "UNKNOWN":  "MEDIUM"
   },
 
   "remediation_sla": {

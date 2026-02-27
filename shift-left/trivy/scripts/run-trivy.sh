@@ -33,12 +33,15 @@ SCAN_IMAGE="$SCRIPT_DIR/scan-image.sh"
 SCAN_FS="$SCRIPT_DIR/scan-fs.sh"
 SCAN_CONFIG="$SCRIPT_DIR/scan-config.sh"
 
-# Report directories
+# Raw reports stay in trivy-local dir (internal use only)
 REPORTS_RAW_DIR="$BASE_DIR/reports/raw"
-REPORTS_OPA_DIR="$BASE_DIR/reports/opa"
-mkdir -p "$REPORTS_RAW_DIR" "$REPORTS_OPA_DIR"
+mkdir -p "$REPORTS_RAW_DIR"
 
-OPA_FINAL_REPORT="$REPORTS_OPA_DIR/trivy_opa.json"
+# [P3 FIX] OPA report goes to .cloudsentinel/ — the normalizer reads from there.
+# All tools (Checkov, Gitleaks, Trivy) MUST write here for OPA Golden Report.
+OUT_DIR="$REPO_ROOT/.cloudsentinel"
+mkdir -p "$OUT_DIR"
+OPA_FINAL_REPORT="$OUT_DIR/trivy_opa.json"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy]\033[0m $*"; }
@@ -58,6 +61,7 @@ emit_not_run() {
     '{
       tool: "trivy",
       version: "unknown",
+      has_findings: false,
       status: "NOT_RUN",
       timestamp: $timestamp,
       branch: $branch,
@@ -202,14 +206,16 @@ jq -n \
       | (
           # ── Vulnerabilities (OS + SCA) ──────────────────────────────────
           (.Vulnerabilities // [] | map({
-            id:          (.VulnerabilityID // "UNKNOWN"),
-            resource:    (.PkgName         // "unknown"),
-            file:        ($result.Target   // "unknown"),
-            description: (.Title           // .Description // "N/A"),
-            severity:    ($sev_map[.Severity | ascii_upcase] // "LOW"),
-            category:    ($cat_map[$result.Class // ""] // "UNKNOWN"),
-            status:      "FAILED",
+            id:           (.VulnerabilityID // "UNKNOWN"),
+            resource:     (.PkgName         // "unknown"),
+            file:         ($result.Target   // "unknown"),
+            description:  (.Title           // .Description // "N/A"),
+            severity:     ($sev_map[.Severity | ascii_upcase] // "MEDIUM"),
+            category:     ($cat_map[$result.Class // ""] // "UNKNOWN"),
+            status:       "FAILED",
             finding_type: "vulnerability",
+            # [P5] Stable fingerprint: CVE-ID + package + target → OPA exception targeting
+            fingerprint:  ((.VulnerabilityID // "UNKNOWN") + ":" + (.PkgName // "unknown") + ":" + ($result.Target // "unknown") | @base64),
             metadata: {
               installed_version: (.InstalledVersion // "N/A"),
               fixed_version:     (.FixedVersion     // "N/A"),
@@ -221,17 +227,18 @@ jq -n \
 
           # ── Secrets ──────────────────────────────────────────────────────
           (.Secrets // [] | map({
-            id:          (.RuleID      // "SECRET-UNKNOWN"),
-            resource:    (.Category    // "unknown"),
-            file:        ($result.Target // "unknown"),
-            description: (.Title      // "Secret detected"),
-            severity:    ($sev_map[.Severity | ascii_upcase] // "HIGH"),
-            category:    "SECRET",
-            status:      "FAILED",
+            id:           (.RuleID      // "SECRET-UNKNOWN"),
+            resource:     (.Category    // "unknown"),
+            file:         ($result.Target // "unknown"),
+            description:  (.Title      // "Secret detected"),
+            severity:     ($sev_map[.Severity | ascii_upcase] // "HIGH"),
+            category:     "SECRET",
+            status:       "FAILED",
             finding_type: "secret",
+            fingerprint:  ((.RuleID // "SECRET-UNKNOWN") + ":" + ($result.Target // "unknown") + ":" + ((.StartLine // 0)|tostring) | @base64),
             metadata: {
-              match:   (.Match // ""),
-              line:    (.StartLine // 0),
+              match:    (.Match // ""),
+              line:     (.StartLine // 0),
               end_line: (.EndLine // 0)
             }
           }))
@@ -240,14 +247,15 @@ jq -n \
 
           # ── Misconfigurations (Dockerfile CIS) ───────────────────────────
           (.Misconfigurations // [] | map({
-            id:          (.ID          // "MISCONFIG-UNKNOWN"),
-            resource:    (.Type        // "unknown"),
-            file:        ($result.Target // "unknown"),
-            description: (.Title       // .Description // "N/A"),
-            severity:    ($sev_map[.Severity | ascii_upcase] // "MEDIUM"),
-            category:    "CONFIGURATION",
-            status:      "FAILED",
+            id:           (.ID          // "MISCONFIG-UNKNOWN"),
+            resource:     (.Type        // "unknown"),
+            file:         ($result.Target // "unknown"),
+            description:  (.Title       // .Description // "N/A"),
+            severity:     ($sev_map[.Severity | ascii_upcase] // "MEDIUM"),
+            category:     "CONFIGURATION",
+            status:       "FAILED",
             finding_type: "misconfig",
+            fingerprint:  ((.ID // "MISCONFIG-UNKNOWN") + ":" + ($result.Target // "unknown") | @base64),
             metadata: {
               resolution: (.Resolution // "N/A"),
               references: (.References // [])
@@ -256,11 +264,13 @@ jq -n \
         )
     ) | flatten) as $findings
 
+  # [P0] has_findings is a SCAN OBSERVATION — not a gate decision.
+  # The ALLOW/DENY decision is EXCLUSIVELY made by OPA (run-opa.sh --enforce).
   | {
-      tool:      "trivy",
-      version:   $version,
-      status:    (if ($findings | length) > 0 then "FAILED" else "PASSED" end),
-      timestamp: $timestamp,
+      tool:         "trivy",
+      version:      $version,
+      has_findings: (($findings | length) > 0),
+      timestamp:    $timestamp,
       branch:    $branch,
       commit:    $commit,
       scan_type: $scan_type,

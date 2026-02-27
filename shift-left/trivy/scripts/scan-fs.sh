@@ -49,14 +49,22 @@ log "Output    : $OUTPUT_FILE"
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 # --scanners: vuln for SCA, secret for files containing credentials
-if ! trivy fs \
-    --config "$CONFIG_FILE" \
-    "${IGNORE_ARGS[@]}" \
-    --scanners vuln,secret \
-    --format json \
-    --output "$OUTPUT_FILE" \
-    "$TARGET"; then
-  err "Trivy encountered an internal error scanning filesystem: $TARGET"
+# RC handling:
+#   0/1 -> scan executed (findings may exist)
+#   >1  -> technical failure
+set +e
+trivy fs \
+  --config "$CONFIG_FILE" \
+  "${IGNORE_ARGS[@]}" \
+  --scanners vuln,secret \
+  --format json \
+  --output "$OUTPUT_FILE" \
+  "$TARGET"
+TRIVY_RC=$?
+set -e
+
+if [[ "$TRIVY_RC" -gt 1 ]]; then
+  err "Trivy technical error during filesystem scan (rc=$TRIVY_RC): $TARGET"
   exit 1
 fi
 

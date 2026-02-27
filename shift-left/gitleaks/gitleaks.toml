@@ -153,3 +153,24 @@ description = "Database Connection String with credentials (Host reviewed by all
 regex = '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@[^/\s]+'''
 severity = "MEDIUM"
 tags = ["database", "connection-string", "credential"]
+
+[[rules]]
+id = "azure-apim-subscription-key"
+description = "Azure API Management Subscription Key"
+regex = '''(?i)\b(ocp-apim-subscription-key|apim[_-]?key|subscription[_-]?key)\s*[:=]\s*[\"']?[A-Za-z0-9]{32,64}[\"']?'''
+severity = "HIGH"
+tags = ["cloud", "azure", "apim", "api-management", "credential"]
+
+[[rules]]
+id = "terraform-cloud-token"
+description = "Terraform Cloud / Terraform Enterprise API Token"
+regex = '''(?i)\b(TFE_TOKEN|TFC_TOKEN|TERRAFORM_TOKEN|terraform[_-]?cloud[_-]?token)\s*[:=]\s*[\"']?[A-Za-z0-9._-]{32,}[\"']?'''
+severity = "CRITICAL"
+tags = ["iac", "terraform", "ci", "credential", "infra-access"]
+
+[[rules]]
+id = "jwt-hardcoded-secret"
+description = "JWT signing secret hardcoded in code or config"
+regex = '''(?i)\b(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret|signing[_-]?secret)\b\s*[:=]\s*[\"']?[A-Za-z0-9!@#$%^&*_\-+=./]{16,}[\"']?'''
+severity = "HIGH"
+tags = ["auth", "jwt", "signing-key", "credential"]

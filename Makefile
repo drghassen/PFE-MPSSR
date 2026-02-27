@@ -14,6 +14,10 @@ RESET  := $(shell tput -Txterm sgr0)
 # Configuration
 ENV_FILE := .env
 VENV := venv
+GITLEAKS_VERSION ?= 8.21.2
+CHECKOV_VERSION ?= 3.2.502
+TRIVY_VERSION ?= 0.69.1
+OPA_VERSION ?= 1.13.1
 
 ##@ Aide
 
@@ -33,10 +37,30 @@ setup: ## Installation complète de l'environnement
 
 install-tools: ## Installer les outils de sécurité (Gitleaks, Checkov, Trivy, OPA)
 	@echo "$(GREEN)📦 Installation des outils de sécurité...$(RESET)"
-	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing Gitleaks..." && wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz && tar -xzf gitleaks_8.18.0_linux_x64.tar.gz && sudo mv gitleaks /usr/local/bin/ && rm gitleaks_8.18.0_linux_x64.tar.gz)
-	@command -v checkov >/dev/null 2>&1 || (echo "Installing Checkov..." && pip install checkov)
-	@command -v trivy >/dev/null 2>&1 || (echo "Installing Trivy..." && wget -q https://github.com/aquasecurity/trivy/releases/download/v0.48.0/trivy_0.48.0_Linux-64bit.tar.gz && tar -xzf trivy_0.48.0_Linux-64bit.tar.gz && sudo mv trivy /usr/local/bin/ && rm trivy_0.48.0_Linux-64bit.tar.gz)
-	@command -v opa >/dev/null 2>&1 || (echo "Installing OPA..." && wget -q https://openpolicyagent.org/downloads/v0.60.0/opa_linux_amd64 -O opa && chmod +x opa && sudo mv opa /usr/local/bin/)
+	@if ! command -v gitleaks >/dev/null 2>&1 || ! gitleaks version 2>/dev/null | grep -q "$(GITLEAKS_VERSION)"; then \
+		echo "Installing Gitleaks $(GITLEAKS_VERSION)..."; \
+		wget -q "https://github.com/gitleaks/gitleaks/releases/download/v$(GITLEAKS_VERSION)/gitleaks_$(GITLEAKS_VERSION)_linux_x64.tar.gz"; \
+		tar -xzf "gitleaks_$(GITLEAKS_VERSION)_linux_x64.tar.gz"; \
+		sudo mv gitleaks /usr/local/bin/; \
+		rm -f "gitleaks_$(GITLEAKS_VERSION)_linux_x64.tar.gz"; \
+	fi
+	@if ! command -v checkov >/dev/null 2>&1 || ! checkov --version 2>/dev/null | grep -q "$(CHECKOV_VERSION)"; then \
+		echo "Installing Checkov $(CHECKOV_VERSION)..."; \
+		pip install "checkov==$(CHECKOV_VERSION)"; \
+	fi
+	@if ! command -v trivy >/dev/null 2>&1 || ! trivy --version 2>/dev/null | grep -q "$(TRIVY_VERSION)"; then \
+		echo "Installing Trivy $(TRIVY_VERSION)..."; \
+		wget -q "https://github.com/aquasecurity/trivy/releases/download/v$(TRIVY_VERSION)/trivy_$(TRIVY_VERSION)_Linux-64bit.tar.gz"; \
+		tar -xzf "trivy_$(TRIVY_VERSION)_Linux-64bit.tar.gz"; \
+		sudo mv trivy /usr/local/bin/; \
+		rm -f "trivy_$(TRIVY_VERSION)_Linux-64bit.tar.gz"; \
+	fi
+	@if ! command -v opa >/dev/null 2>&1 || ! opa version 2>/dev/null | grep -q "$(OPA_VERSION)"; then \
+		echo "Installing OPA $(OPA_VERSION)..."; \
+		wget -q "https://openpolicyagent.org/downloads/v$(OPA_VERSION)/opa_linux_amd64_static" -O opa; \
+		chmod +x opa; \
+		sudo mv opa /usr/local/bin/; \
+	fi
 	@echo "$(GREEN)✅ Outils installés$(RESET)"
 
 config: ## Créer le fichier .env depuis le template
@@ -59,19 +83,57 @@ scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 
 scan-iac: ## Scanner uniquement l'IaC (Checkov)
 	@echo "$(GREEN)🏗️  Scan IaC...$(RESET)"
-	@checkov -d infra/azure/dev -o json > reports/checkov.json
+	@bash shift-left/checkov/run-checkov.sh infra/azure/dev
+
+checkov-smoke: ## Smoke test des policies Checkov sur fixtures internes
+	@echo "$(GREEN)🧪 Smoke Checkov (fixtures)...$(RESET)"
+	@bash tests/checkov/smoke.sh
+
+gitleaks-test: ## Smoke test Gitleaks sur fixtures (positif + négatif)
+	@echo "$(GREEN)🧪 Smoke test Gitleaks...$(RESET)"
+	@bash tests/gitleaks/smoke.sh
+
+precommit-test: ## Smoke test pre-commit (advisory non-bloquant)
+	@echo "$(GREEN)🧪 Smoke test pre-commit...$(RESET)"
+	@bash tests/pre-commit/smoke.sh
+
+normalizer-test: ## Smoke test normalizer (contrat schema + traçabilité)
+	@echo "$(GREEN)🧪 Smoke test normalizer...$(RESET)"
+	@bash tests/normalizer/smoke.sh
+
+gitleaks-update-baseline: ## Régénérer la baseline Gitleaks (faux positifs connus)
+	@echo "$(YELLOW)⚠️  Régénération baseline Gitleaks — tous les findings actuels seront ignorés.$(RESET)"
+	@read -p "Confirmez-vous ? (y/N) " confirm && [ $$confirm = y ] || exit 1
+	@gitleaks detect \
+		--source=. \
+		--config=shift-left/gitleaks/gitleaks.toml \
+		--report-format=json \
+		--report-path=shift-left/gitleaks/.gitleaks-baseline.json \
+		--exit-code=0 \
+		--redact
+	@echo "$(GREEN)✅ Baseline mise à jour : shift-left/gitleaks/.gitleaks-baseline.json$(RESET)"
+	@echo "$(YELLOW)→ Revue et commit obligatoires avant push.$(RESET)"
 
 scan-vulns: ## Scanner uniquement les vulnérabilités (Trivy)
 	@echo "$(GREEN)🐛 Scan vulnérabilités...$(RESET)"
-	@trivy config infra/azure/dev -f json > reports/trivy.json
+	@bash shift-left/trivy/scripts/run-trivy.sh infra/azure/dev config
 
-opa-test: ## Tester les policies OPA
+trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
+	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"
+	@bash shift-left/trivy/tests/integration/test-trivy.sh
+
+opa-test: ## Tester les policies OPA (unit tests Rego)
 	@echo "$(GREEN)⚖️  Tests OPA...$(RESET)"
 	@cd policies/opa && opa test . -v
 
-opa-eval: ## Évaluer la décision OPA
+opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.decision)
 	@echo "$(GREEN)⚖️  Évaluation OPA...$(RESET)"
-	@opa eval -i reports/opa_input.json -d policies/opa/pipeline_decision.rego "data.ci.security" --format pretty
+	@opa eval \
+		--input .cloudsentinel/golden_report.json \
+		--data policies/opa/pipeline_decision.rego \
+		--data policies/opa/exceptions.json \
+		"data.cloudsentinel.gate.decision" \
+		--format pretty
 
 ##@ Shift-Right (Monitoring Runtime)
 

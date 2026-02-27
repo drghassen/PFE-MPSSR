@@ -17,6 +17,7 @@
 #   - <50ms evaluation latency for repeated calls (no cold start penalty)
 #
 # Usage:
+#   OPA_SERVER_IMAGE=$CI_REGISTRY_IMAGE/opa:1.13.1 docker compose up -d opa-server
 #   docker compose up -d opa-server          # start the PDP daemon
 #   docker compose logs -f opa-server        # stream decision logs
 #   curl http://localhost:8181/health         # health check
@@ -31,10 +32,12 @@
 services:
 
   opa-server:
-    image: cloudsentinel/opa:1.13.1
+    image: ${OPA_SERVER_IMAGE:-openpolicyagent/opa:1.13.1-static}
     container_name: cloudsentinel-opa-server
+    entrypoint: ["/opa"]
+    # Bind to localhost by default; adjust only if a reverse-proxy/TLS front is in place.
     ports:
-      - "8181:8181"
+      - "127.0.0.1:8181:8181"
     volumes:
       # Policy (Rego): loaded as the decision engine
       # Read-only: policies must be changed via Git, not at runtime.
@@ -48,17 +51,13 @@ services:
       - --addr=0.0.0.0:8181
       - --log-level=info
       - --log-format=json
-      # Stream every decision to stdout: input + output + policy path.
-      # In production, pipe stdout to ELK/Loki for audit trail.
       - --set=decision_logs.console=true
-      # Watch for policy file changes and reload without restart (dev convenience)
       - --watch
-      # Load policy and data from mounted files
       - /app/policies/pipeline_decision.rego
       - /app/data/exceptions.json
     healthcheck:
       # OPA exposes /health and /health?plugins for readiness checks
-      test: ["CMD", "curl", "-sf", "http://localhost:8181/health"]
+      test: ["CMD", "/opa", "eval", "1==1"]
       interval: 10s
       timeout: 5s
       retries: 3

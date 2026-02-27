@@ -92,7 +92,7 @@ make test
 
 **Étudiant** : Ghassen DRIDI  
 **Encadrant** : Mr Moez HACHEM  
-**Formation** : Master 2MPSSR — ISI Hammam Sousse  
+**Formation** : Master 2MPSSR — ISICOM Hammam Sousse  
 **Année** : 2025-2026
 
 ---

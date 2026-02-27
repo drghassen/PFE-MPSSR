@@ -12,4 +12,7 @@ bash shift-left/checkov/run-checkov.sh infra/azure/dev
 ## Configuration
 - Fichier de configuration: `shift-left/checkov/.checkov.yml`
 - Policies locales: `shift-left/checkov/policies/`
-- Le fichier `.checkov.yml` force l'exécution **uniquement** des checks `CKV2_CS_AZ_###`.
+- Le filtrage final est géré dans `run-checkov.sh` :
+  - checks custom `CKV2_CS_AZ_*` (CloudSentinel),
+  - checks natifs Azure `CKV_AZURE_*`,
+  - checks natifs Kubernetes `CKV_K8S_*`.

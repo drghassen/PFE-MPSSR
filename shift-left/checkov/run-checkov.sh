@@ -57,6 +57,7 @@ emit_not_run() {
       '{
         tool: "checkov",
         version: "unknown",
+        has_findings: false,
         status: "NOT_RUN",
         timestamp: $timestamp,
         branch: $branch,
@@ -91,18 +92,15 @@ log_info "Démarrage du scan sur : $SCAN_TARGET"
 # Si .checkov.yml existe, il est la source de vérité (frameworks + checks + policies).
 checkov_cmd=(checkov --directory "$SCAN_TARGET")
 
-if [[ -f "$CONFIG_FILE" ]]; then
-    log_info "Using config: $CONFIG_FILE"
-    checkov_cmd+=("--config-file" "$CONFIG_FILE")
-else
-    # Fallback si la config n'existe pas
-    checkov_cmd+=("--output" "json" "--quiet" "--compact")
-    if [ -d "$POLICIES_DIR" ]; then
-        while IFS= read -r dir; do
-            checkov_cmd+=("--external-checks-dir" "$dir")
-        done < <(find "$POLICIES_DIR" -mindepth 2 -maxdepth 2 -type d 2>/dev/null || true)
-    fi
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    log_err "Config file missing: $CONFIG_FILE"
+    emit_not_run "config_file_missing"
+    # Do not block on scanner setup issues here: OPA remains the single gate.
+    exit 0
 fi
+
+log_info "Using config: $CONFIG_FILE"
+checkov_cmd+=("--config-file" "$CONFIG_FILE")
 
 # --- Exécution ---
 set +e
@@ -114,7 +112,8 @@ set -e
 if [ $EXIT_CODE -eq 2 ]; then
     log_err "Erreur technique Checkov. Consultez $REPORT_LOG"
     emit_not_run "checkov_execution_error"
-    exit 0
+    # Bloque le job (technique) : OPA ne doit pas décider sur un scanner en échec dur.
+    exit 2
 fi
 
 # Si le fichier est vide ou invalide (aucun fichier .tf trouvé par ex)
@@ -130,25 +129,28 @@ COMMIT="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
 # --- Normalisation JQ (Le Cœur du Système) ---
 log_info "Normalisation des résultats pour OPA..."
 
+CHECKOV_VERSION="$(checkov --version 2>/dev/null | head -n1 | tr -d '\r' || echo unknown)"
+[[ -z "$CHECKOV_VERSION" ]] && CHECKOV_VERSION="unknown"
+
 jq -n \
   --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   --arg branch "$BRANCH" \
   --arg commit "$COMMIT" \
   --arg repo "$REPO_ROOT" \
+  --arg version "$CHECKOV_VERSION" \
   --slurpfile raw "$REPORT_RAW" \
   --slurpfile mapping "$MAPPING_FILE" \
 '
-  # Fonctions utilitaires
+  def get_map(id): ($mapping[0][id] // {category: "UNKNOWN", severity: null});
 
-  # Récupère les infos du mapping (catégorie + sévérité forcée)
-  def get_map(id): 
-    ($mapping[0][id] // {category: "UNKNOWN", severity: "MEDIUM"});
+  def allowed_check(id):
+    (id | startswith("CKV2_CS_AZ_"))
+    or (id | startswith("CKV_AZURE_"))
+    or (id | startswith("CKV_K8S_"));
 
-  # Extraction et transformation des résultats
   ($raw | flatten | map(.results.failed_checks // []) | flatten) as $findings
-  
   | ($findings 
-    | map(select(.check_id | startswith("CKV2_CS_AZ_"))) # Uniquement nos règles custom
+    | map(select(allowed_check(.check_id))) 
     | map({
         id: .check_id,
         resource: {
@@ -158,34 +160,42 @@ jq -n \
         file: .file_path,
         line: .file_line_range[0],
         message: .check_name,
-        # On utilise notre mapping pour la catégorie et la sévérité
-        category: get_map(.check_id).category,
-        severity: (get_map(.check_id).severity // .severity | ascii_upcase),
-        status: "FAILED"
+        category: (get_map(.check_id).category // (.check_class // "UNKNOWN")),
+        severity: ((get_map(.check_id).severity // .severity // "MEDIUM") | ascii_upcase),
+        status: "FAILED",
+        fingerprint: (
+          (.check_id + ":" + (.file_path // "unknown") + ":" + ((.file_line_range[0] // 0)|tostring))
+          | @base64
+        )
       })
     ) as $normalized
     
-	  | {
-	      tool: "checkov",
-	      version: "unknown",
-	      status: (if ($normalized | map(select(.status == "FAILED")) | length) > 0 then "FAILED" else "PASSED" end),
-	      timestamp: $timestamp,
-	      branch: $branch,
-	      commit: $commit,
-	      repository: $repo,
-	      stats: {
-	        CRITICAL: ($normalized | map(select(.status == "FAILED" and .severity == "CRITICAL")) | length),
-	        HIGH:     ($normalized | map(select(.status == "FAILED" and .severity == "HIGH")) | length),
-	        MEDIUM:   ($normalized | map(select(.status == "FAILED" and .severity == "MEDIUM")) | length),
-	        LOW:      ($normalized | map(select(.status == "FAILED" and .severity == "LOW")) | length),
-	        INFO:     ($normalized | map(select(.status == "FAILED" and .severity == "INFO")) | length),
-	        TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
-	        EXEMPTED: 0,
-	        FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
-	        PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
-	      },
-	      findings: $normalized
-	    }
+  # ---------------------------------------------------------------------------
+  # NOTE: has_findings is a SCAN OBSERVATION, not a gate decision.
+  # The block/allow decision is EXCLUSIVELY made by OPA (run-opa.sh).
+  # Never use this field to gate a pipeline directly.
+  # ---------------------------------------------------------------------------
+  | {
+      tool: "checkov",
+      version: $version,
+      has_findings: ($normalized | map(select(.status == "FAILED")) | length > 0),
+      timestamp: $timestamp,
+      branch: $branch,
+      commit: $commit,
+      repository: $repo,
+      stats: {
+        CRITICAL: ($normalized | map(select(.status == "FAILED" and .severity == "CRITICAL")) | length),
+        HIGH:     ($normalized | map(select(.status == "FAILED" and .severity == "HIGH")) | length),
+        MEDIUM:   ($normalized | map(select(.status == "FAILED" and .severity == "MEDIUM")) | length),
+        LOW:      ($normalized | map(select(.status == "FAILED" and .severity == "LOW")) | length),
+        INFO:     ($normalized | map(select(.status == "FAILED" and .severity == "INFO")) | length),
+        TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
+        EXEMPTED: 0,
+        FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
+        PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
+      },
+      findings: $normalized
+    }
 ' > "$REPORT_OPA"
 
 # --- Résumé Final ---

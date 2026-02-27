@@ -55,14 +55,21 @@ log "Output    : $OUTPUT_FILE"
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 # trivy config scans Dockerfiles for misconfigurations (CIS Docker Benchmark)
-# --scanners misconfig is implicit with 'trivy config' subcommand
-if ! trivy config \
-    --config "$CONFIG_FILE" \
-    "${IGNORE_ARGS[@]}" \
-    --format json \
-    --output "$OUTPUT_FILE" \
-    "$TARGET"; then
-  err "Trivy encountered an internal error during config scan: $TARGET"
+# RC handling:
+#   0/1 -> scan executed (findings may exist)
+#   >1  -> technical failure
+set +e
+trivy config \
+  --config "$CONFIG_FILE" \
+  "${IGNORE_ARGS[@]}" \
+  --format json \
+  --output "$OUTPUT_FILE" \
+  "$TARGET"
+TRIVY_RC=$?
+set -e
+
+if [[ "$TRIVY_RC" -gt 1 ]]; then
+  err "Trivy technical error during config scan (rc=$TRIVY_RC): $TARGET"
   exit 1
 fi
 
