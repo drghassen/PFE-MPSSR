@@ -174,7 +174,7 @@ bash scripts/cloudsentinel-scan.sh
 - **Rapport brut Trivy** : `shift-left/trivy/reports/raw/`
 - **Rapport OPA-ready Gitleaks** : `.cloudsentinel/gitleaks_opa.json`
 - **Rapport OPA-ready Checkov** : `.cloudsentinel/checkov_opa.json`
-- **Rapport OPA-ready Trivy** : `shift-left/trivy/reports/opa/trivy_opa.json`
+- **Rapport OPA-ready Trivy** : `.cloudsentinel/trivy_opa.json`
 - **Rapport unifié** : `.cloudsentinel/golden_report.json`
 - **Décision OPA (CI)** : `.cloudsentinel/opa_decision.json`
 - **Décision OPA (local)** : `.cloudsentinel/opa_decision_precommit.json`

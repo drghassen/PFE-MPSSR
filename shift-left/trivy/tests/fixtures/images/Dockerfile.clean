@@ -1,5 +1,8 @@
 # CloudSentinel - CLEAN Fixture
-FROM alpine:latest
+FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
-USER 1000
+WORKDIR /app
+RUN adduser -D appuser
+USER appuser
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD test -d /app || exit 1
 CMD ["/bin/sh"]

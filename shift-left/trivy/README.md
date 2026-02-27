@@ -70,7 +70,7 @@ bash ./scripts/run-trivy.sh ./src fs
 
 ## OPA Output Schema
 
-`reports/opa/trivy_opa.json` — fed to OPA Quality Gate:
+`.cloudsentinel/trivy_opa.json` — fed to OPA Quality Gate:
 
 ```json
 {

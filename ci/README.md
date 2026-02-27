@@ -7,26 +7,15 @@
 ```
 ci/
 ├── README.md
-└── scripts/
-    ├── run-scanners.sh        # Lance tous les scanners
-    └── upload-to-defectdojo.sh # Upload findings
+└── images/
+    └── opa/            # Image OPA pin-able pour CI
 ```
 
 ---
 
 ## 🎯 Utilisation
 
-Ces scripts sont appelés automatiquement par `.gitlab-ci.yml`
-
-### Localement
-
-```bash
-# Exécuter les scanners
-./ci/scripts/run-scanners.sh
-
-# Upload vers DefectDojo
-./ci/scripts/upload-to-defectdojo.sh
-```
+Les scanners sont orchestrés directement par `.gitlab-ci.yml` (jobs `gitleaks-scan`, `checkov-scan`, `trivy-scan`, `normalize-reports`, `opa-decision`). Aucun script additionnel dans `ci/scripts/`.
 
 ---
 
@@ -50,3 +39,8 @@ La variable `$CI_REGISTRY_IMAGE` est injectée automatiquement par GitLab.
 docker build --build-arg OPA_VERSION=1.13.1 -t $CI_REGISTRY_IMAGE/opa:1.13.1 ci/images/opa
 docker push $CI_REGISTRY_IMAGE/opa:1.13.1
 ```
+
+### Contrôles CI recommandés
+- Job `opa-image-smoke` dans `.gitlab-ci.yml` valide runtime OPA + outils.
+- Utiliser un digest immutable pour `OPA_IMAGE` dans les variables CI/CD.
+- Activer le scanning registry et une cleanup policy côté GitLab.

@@ -46,17 +46,23 @@ log "Output    : $OUTPUT_FILE"
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
-# exit-code: 0 always — OPA is the enforcement layer
 # --scanners: vuln covers OS+lib, secret covers embedded secrets
-if ! trivy image \
-    --config "$CONFIG_FILE" \
-    "${IGNORE_ARGS[@]}" \
-    --scanners vuln,secret \
-    --format json \
-    --output "$OUTPUT_FILE" \
-    "$TARGET"; then
-  # Trivy internal failure (not "found vulnerabilities") — this is a real error
-  err "Trivy encountered an internal error scanning image: $TARGET"
+# RC handling:
+#   0/1 -> scan executed (findings may exist)
+#   >1  -> technical failure
+set +e
+trivy image \
+  --config "$CONFIG_FILE" \
+  "${IGNORE_ARGS[@]}" \
+  --scanners vuln,secret \
+  --format json \
+  --output "$OUTPUT_FILE" \
+  "$TARGET"
+TRIVY_RC=$?
+set -e
+
+if [[ "$TRIVY_RC" -gt 1 ]]; then
+  err "Trivy technical error during image scan (rc=$TRIVY_RC): $TARGET"
   exit 1
 fi
 

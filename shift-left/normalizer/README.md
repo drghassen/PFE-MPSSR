@@ -1,45 +1,49 @@
 # CloudSentinel Normalizer
 
-Ce composant est le moteur de fusion et de normalisation du framework CloudSentinel. Il agrège les résultats des différents scanners de sécurité pour produire un rapport unique ("Golden Report") exploitable par OPA.
+Ce composant consolide les sorties de Gitleaks, Checkov et Trivy dans un Golden Report unique, consommable par OPA.
 
-## Fonctionnement
+## Role
 
-Le script `normalize.sh` effectue les étapes suivantes :
-1. **Extraction Git** : Récupère le contexte (branche, commit, auteur).
-2. **Collecte des rapports** : Lit les fichiers JSON de Gitleaks, Checkov et Trivy.
-3. **Résilience** : Si un rapport est absent, il est remplacé par un état `NOT_RUN`.
-4. **Moteur JQ** :
-   - Normalise le format des vulnérabilités.
-   - Injecte les SLAs de remédiation basés sur la sévérité.
-   - Génère des fingerprints pour la déduplication.
-   - Calcule les statistiques globales et par outil.
-5. **Sortie standard** : Produit un Golden Report prêt pour OPA.
+Le script `normalize.sh`:
+1. Lit les 3 rapports scanner dans `.cloudsentinel/`.
+2. Injecte un etat `NOT_RUN` si un rapport manque ou est invalide.
+3. Normalise chaque finding vers un schema unique (severity, category, resource, fingerprint).
+4. Genere les sections `summary`, `scanners`, `findings`, `quality_gate`.
+5. Ajoute la tracabilite des sources (`metadata.normalizer.source_reports`) et la provenance des findings (`context.traceability`).
 
 ## Usage
 
 ```bash
-# Rendre le script exécutable
-chmod +x shift-left/normalizer/normalize.sh
-
-# Exécuter la normalisation
-./shift-left/normalizer/normalize.sh
+bash shift-left/normalizer/normalize.sh
 ```
 
-## Structure du Rapport Final
+## Output
 
-Le rapport est généré dans `.cloudsentinel/golden_report.json`.
+Le fichier final est:
+- `.cloudsentinel/golden_report.json`
 
-- `metadata` : Infos sur la génération et le contexte Git.
-- `summary` : Vue d'ensemble des vulnérabilités.
-- `scanners` : Détails bruts par outil.
-- `findings` : Liste consolidée et normalisée de toutes les failles.
+Sections principales:
+- `metadata`: contexte git/execution + provenance des rapports source
+- `scanners`: etat et erreurs par scanner
+- `findings`: findings normalises et enrichis
+- `summary`: agregation globale, par outil et par categorie
+- `quality_gate`: seuils transmis a OPA (OPA reste le seul decisionnaire)
 
-## Modes d'exécution
-- **CI** : `CLOUDSENTINEL_EXECUTION_MODE=ci`
-- **Local** : `CLOUDSENTINEL_EXECUTION_MODE=local` (active `local-fast` par défaut)
+## Modes
 
-En mode `local-fast`, Checkov/Trivy peuvent être ignorés pour éviter le bruit.
+- `CLOUDSENTINEL_EXECUTION_MODE=ci`
+- `CLOUDSENTINEL_EXECUTION_MODE=local`
+- `CLOUDSENTINEL_EXECUTION_MODE=advisory`
 
-## Validation
+`CLOUDSENTINEL_LOCAL_FAST=true` permet d ignorer Checkov/Trivy en local pour un feedback rapide.
+`CLOUDSENTINEL_SCHEMA_STRICT=true` force la validation schema (echoue si python/jsonschema indisponible).
 
-Le rapport suit le schéma JSON défini dans `schema/cloudsentinel_report.schema.json`.
+## Schema
+
+Le contrat est defini dans:
+- `shift-left/normalizer/schema/cloudsentinel_report.schema.json`
+
+Le smoke test dedie:
+```bash
+make normalizer-test
+```

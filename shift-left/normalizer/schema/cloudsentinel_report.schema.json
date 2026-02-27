@@ -19,7 +19,15 @@
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "timestamp", "generation_duration_ms", "environment", "git"],
+      "required": [
+        "tool",
+        "timestamp",
+        "generation_duration_ms",
+        "environment",
+        "execution",
+        "git",
+        "normalizer"
+      ],
       "properties": {
         "tool": {
           "type": "string",
@@ -37,6 +45,17 @@
           "type": "string",
           "enum": ["dev", "test", "staging", "prod"]
         },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["ci", "local", "advisory"]
+            }
+          }
+        },
         "git": {
           "type": "object",
           "additionalProperties": false,
@@ -47,6 +66,27 @@
             "commit_date": { "type": "string", "format": "date-time" },
             "author_email": { "type": "string", "format": "email" },
             "pipeline_id": { "type": "string" }
+          }
+        },
+        "normalizer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "source_reports"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "source_reports": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["gitleaks", "checkov", "trivy"],
+              "properties": {
+                "gitleaks": { "$ref": "#/definitions/source_report_trace" },
+                "checkov": { "$ref": "#/definitions/source_report_trace" },
+                "trivy": { "$ref": "#/definitions/source_report_trace" }
+              }
+            }
           }
         }
       }
@@ -97,12 +137,12 @@
     },
     "quality_gate": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": ["decision", "reason", "thresholds"],
       "properties": {
         "decision": {
           "type": "string",
-          "enum": ["PASSED", "FAILED"]
+          "enum": ["PASSED", "FAILED", "NOT_EVALUATED"]
         },
         "reason": {
           "type": "string"
@@ -191,16 +231,37 @@
         }
       }
     },
+    "source_report_trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "path", "present", "valid_json", "status", "reason", "sha256"],
+      "properties": {
+        "tool": { "type": "string", "enum": ["gitleaks", "checkov", "trivy"] },
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "valid_json": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["PASSED", "FAILED", "NOT_RUN"] },
+        "reason": { "type": "string" },
+        "sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
     "scanner": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tool", "version", "status", "stats", "findings"],
+      "required": ["tool", "version", "status", "errors", "stats", "findings"],
       "properties": {
         "tool": { "type": "string" },
         "version": { "type": "string" },
         "status": {
           "type": "string",
           "enum": ["PASSED", "FAILED", "NOT_RUN"]
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" }
         },
         "stats": { "$ref": "#/definitions/stats_summary" },
         "findings": {
@@ -268,7 +329,7 @@
               "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
             },
             "original_severity": { "type": "string" },
-            "cvss_score": { "type": "number" }
+            "cvss_score": { "type": ["number", "null"] }
           }
         },
         "category": { "type": "string" },
@@ -292,7 +353,7 @@
         "context": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["git", "deduplication"],
+          "required": ["git", "deduplication", "traceability"],
           "properties": {
             "git": {
               "type": "object",
@@ -313,6 +374,16 @@
                 "duplicate_of": {
                   "type": ["string", "null"]
                 }
+              }
+            },
+            "traceability": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source_report", "source_index", "normalized_at"],
+              "properties": {
+                "source_report": { "type": "string" },
+                "source_index": { "type": "integer", "minimum": 0 },
+                "normalized_at": { "type": "string", "format": "date-time" }
               }
             }
           }

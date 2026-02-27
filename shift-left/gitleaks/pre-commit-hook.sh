@@ -12,7 +12,8 @@ SCRIPT_SCAN="$REPO_ROOT/shift-left/gitleaks/run-gitleaks.sh"
 echo "[CloudSentinel][pre-commit] Scanning staged files..."
 
 # Configuration locale forcée
-export USE_BASELINE="false"
+# USE_BASELINE=true : supprime les secrets déjà connus en baseline (évite l'alert fatigue)
+export USE_BASELINE="true"
 export SCAN_TARGET="staged"
 unset CI
 

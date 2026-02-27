@@ -62,7 +62,7 @@ log "Checkov OK: findings=$CHECKOV_TOTAL"
 log "Running Trivy config scan on Dockerfile fixture..."
 bash shift-left/trivy/scripts/run-trivy.sh "$DOCKER_FIXTURE" config
 
-TRIVY_REPORT="shift-left/trivy/reports/opa/trivy_opa.json"
+TRIVY_REPORT=".cloudsentinel/trivy_opa.json"
 [[ -f "$TRIVY_REPORT" ]] || fail "Trivy report not found: $TRIVY_REPORT"
 TRIVY_TOOL="$(jq -r '.tool // empty' "$TRIVY_REPORT")"
 [[ "$TRIVY_TOOL" == "trivy" ]] || fail "Unexpected Trivy report tool: '$TRIVY_TOOL'"
