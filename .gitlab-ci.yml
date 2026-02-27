@@ -94,15 +94,16 @@ checkov-scan:
   <<: *default_tools
   stage: scan
   script:
+    - mkdir -p .cloudsentinel
     - |
       if [ -z "${CHECKOV_WHEEL_SHA256}" ]; then
         echo "[checkov] Missing CHECKOV_WHEEL_SHA256 env var (set it in CI/CD settings)"; exit 1; fi
-    - CHECKOV_WHEEL_URL="https://files.pythonhosted.org/packages/py3/c/checkov/checkov-${CHECKOV_VERSION}-py3-none-any.whl"
-    - curl -sSL "${CHECKOV_WHEEL_URL}" -o /tmp/checkov.whl
-    - echo "${CHECKOV_WHEEL_SHA256}  /tmp/checkov.whl" | sha256sum -c -
-    - pip install --no-deps --no-cache-dir /tmp/checkov.whl
+    - CHECKOV_WHEEL_FILE="checkov-${CHECKOV_VERSION}-py3-none-any.whl"
+    - CHECKOV_WHEEL_URL="https://files.pythonhosted.org/packages/py3/c/checkov/${CHECKOV_WHEEL_FILE}"
+    - curl -sSL "${CHECKOV_WHEEL_URL}" -o "/tmp/${CHECKOV_WHEEL_FILE}"
+    - echo "${CHECKOV_WHEEL_SHA256}  /tmp/${CHECKOV_WHEEL_FILE}" | sha256sum -c -
+    - pip install --disable-pip-version-check --no-deps --no-cache-dir "/tmp/${CHECKOV_WHEEL_FILE}"
     - chmod +x shift-left/checkov/run-checkov.sh
-    - mkdir -p .cloudsentinel
     - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
     - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/checkov_opa.json
   artifacts:
