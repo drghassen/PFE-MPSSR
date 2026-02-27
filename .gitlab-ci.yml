@@ -2,15 +2,15 @@
 # CloudSentinel - GitLab CI/CD
 # Shift-Left scanners are advisory only. OPA is the single ALLOW/DENY gate.
 # ============================================================================
-#teste
+
 default:
   tags:
     - cloudsentinel
     - docker
 
 variables:
+  SECURITY_TOOLS_IMAGE: "$CI_REGISTRY_IMAGE/scan-tools:1.0.0"
   # Base images pinned by tag; override with digests via *_IMAGE_DIGEST in CI settings.
-  PYTHON_IMAGE_DIGEST: "python:3.11-bookworm"
   CURL_IMAGE_DIGEST: "curlimages/curl:8.12.1"
   # Recommended: override with immutable digest in CI/CD settings.
   # Example: $CI_REGISTRY_IMAGE/opa@sha256:<digest>
@@ -22,12 +22,6 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  CACHE_DIR: "$CI_PROJECT_DIR/.cache"
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-  # Supply chain pin for Checkov wheel (3.2.502). Override from CI/CD settings if needed.
-  CHECKOV_WHEEL_SHA256: "277aa51545c2b8ac4ffd747aa6d15bda75bed4ab0984ed1757d2c60abfdd343c"
-
   SCAN_TARGET: "infra/azure/dev"
   TRIVY_TARGET: "infra/azure/dev"
   TRIVY_SCAN_TYPE: "config"
@@ -36,6 +30,7 @@ variables:
   HIGH_MAX: "2"
 
 stages:
+  - prepare
   - scan
   - normalize
   - contract
@@ -44,42 +39,48 @@ stages:
   - deploy
 
 .default_tools: &default_tools
-  image: ${PYTHON_IMAGE_DIGEST}
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends bash ca-certificates curl git jq tar gzip
-    - rm -rf /var/lib/apt/lists/*
+  image: ${SECURITY_TOOLS_IMAGE}
+  before_script: []
   cache:
     key: "cloudsentinel-tools"
     policy: pull-push
     paths:
-      - .cache/pip
-      - .cache/gitleaks
-      - .cache/trivy
+      - .trivy-cache
+
+build-scan-tools-image:
+  stage: prepare
+  image: gcr.io/kaniko-project/executor:v1.23.2-debug
+  script:
+    - mkdir -p /kaniko/.docker
+    - >
+      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}'
+      "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/ci/images/scan-tools/Dockerfile"
+      --destination "${SECURITY_TOOLS_IMAGE}"
+      --build-arg "GITLEAKS_VERSION=${GITLEAKS_VERSION}"
+      --build-arg "CHECKOV_VERSION=${CHECKOV_VERSION}"
+      --build-arg "TRIVY_VERSION=${TRIVY_VERSION}"
+      --build-arg "JSONSCHEMA_VERSION=${JSONSCHEMA_VERSION}"
+      --cache=true
+      --cache-repo "${CI_REGISTRY_IMAGE}/cache/scan-tools"
+  rules:
+    - changes:
+        - ci/images/scan-tools/Dockerfile
+        - .gitlab-ci.yml
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+    - when: never
 
 gitleaks-scan:
   <<: *default_tools
   stage: scan
   script:
-    - mkdir -p "${CACHE_DIR}/gitleaks" .cloudsentinel
+    - gitleaks version
+    - mkdir -p .cloudsentinel
     - export USE_BASELINE="false"
-    - GITLEAKS_TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-    - GITLEAKS_CHECKSUMS="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-    - |
-      if [ ! -f "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}" ]; then
-        curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_TARBALL}" \
-          -o "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}"
-      fi
-    - |
-      if [ ! -f "${CACHE_DIR}/gitleaks/${GITLEAKS_CHECKSUMS}" ]; then
-        curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_CHECKSUMS}" \
-          -o "${CACHE_DIR}/gitleaks/${GITLEAKS_CHECKSUMS}"
-      fi
-    - |
-      cd "${CACHE_DIR}/gitleaks"
-      grep " ${GITLEAKS_TARBALL}$" "${GITLEAKS_CHECKSUMS}" | sha256sum -c -
-      cd -
-    - tar -xzf "${CACHE_DIR}/gitleaks/${GITLEAKS_TARBALL}" -C /usr/local/bin gitleaks
     - chmod +x shift-left/gitleaks/run-gitleaks.sh
     - bash shift-left/gitleaks/run-gitleaks.sh || true
     - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/gitleaks_opa.json
@@ -94,15 +95,8 @@ checkov-scan:
   <<: *default_tools
   stage: scan
   script:
+    - checkov --version
     - mkdir -p .cloudsentinel
-    - |
-      if [ -z "${CHECKOV_WHEEL_SHA256}" ]; then
-        echo "[checkov] Missing CHECKOV_WHEEL_SHA256 env var (set it in CI/CD settings)"; exit 1; fi
-    - CHECKOV_WHEEL_FILE="checkov-${CHECKOV_VERSION}-py3-none-any.whl"
-    - CHECKOV_WHEEL_URL="https://files.pythonhosted.org/packages/py3/c/checkov/${CHECKOV_WHEEL_FILE}"
-    - curl -sSL "${CHECKOV_WHEEL_URL}" -o "/tmp/${CHECKOV_WHEEL_FILE}"
-    - echo "${CHECKOV_WHEEL_SHA256}  /tmp/${CHECKOV_WHEEL_FILE}" | sha256sum -c -
-    - pip install --disable-pip-version-check --no-deps --no-cache-dir "/tmp/${CHECKOV_WHEEL_FILE}"
     - chmod +x shift-left/checkov/run-checkov.sh
     - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
     - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/checkov_opa.json
@@ -118,24 +112,8 @@ trivy-scan:
   <<: *default_tools
   stage: scan
   script:
-    - mkdir -p "${CACHE_DIR}/trivy" shift-left/trivy/reports/raw .cloudsentinel
-    - TRIVY_TARBALL="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-    - TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"
-    - |
-      if [ ! -f "${CACHE_DIR}/trivy/${TRIVY_TARBALL}" ]; then
-        curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_TARBALL}" \
-          -o "${CACHE_DIR}/trivy/${TRIVY_TARBALL}"
-      fi
-    - |
-      if [ ! -f "${CACHE_DIR}/trivy/${TRIVY_CHECKSUMS}" ]; then
-        curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_CHECKSUMS}" \
-          -o "${CACHE_DIR}/trivy/${TRIVY_CHECKSUMS}"
-      fi
-    - |
-      cd "${CACHE_DIR}/trivy"
-      grep " ${TRIVY_TARBALL}$" "${TRIVY_CHECKSUMS}" | sha256sum -c -
-      cd -
-    - tar -xzf "${CACHE_DIR}/trivy/${TRIVY_TARBALL}" -C /usr/local/bin trivy
+    - trivy --version
+    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
     - chmod +x shift-left/trivy/scripts/run-trivy.sh
     - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
     - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring)' .cloudsentinel/trivy_opa.json
@@ -157,7 +135,6 @@ normalize-reports:
     - job: trivy-scan
       artifacts: true
   script:
-    - pip install --no-cache-dir "jsonschema==${JSONSCHEMA_VERSION}"
     - chmod +x shift-left/normalizer/normalize.sh
     - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
     - export CLOUDSENTINEL_EXECUTION_MODE="ci"
@@ -181,7 +158,6 @@ contract-test:
     - job: normalize-reports
       artifacts: true
   script:
-    - pip install --no-cache-dir "jsonschema==${JSONSCHEMA_VERSION}"
     - test -f .cloudsentinel/gitleaks_opa.json
     - test -f .cloudsentinel/checkov_opa.json
     - test -f .cloudsentinel/trivy_opa.json
