@@ -49,7 +49,9 @@ stages:
 
 build-scan-tools-image:
   stage: prepare
-  image: gcr.io/kaniko-project/executor:v1.23.2-debug
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
   script:
     - mkdir -p /kaniko/.docker
     - >
