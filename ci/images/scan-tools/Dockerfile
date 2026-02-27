@@ -15,7 +15,7 @@ RUN set -eux; \
   gitleaks_sum="gitleaks_${GITLEAKS_VERSION}_checksums.txt"; \
   curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${gitleaks_tgz}" -o "/tmp/${gitleaks_tgz}"; \
   curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${gitleaks_sum}" -o "/tmp/${gitleaks_sum}"; \
-  grep " ${gitleaks_tgz}$" "/tmp/${gitleaks_sum}" | sha256sum -c -; \
+  (cd /tmp && grep " ${gitleaks_tgz}$" "${gitleaks_sum}" | sha256sum -c -); \
   tar -xzf "/tmp/${gitleaks_tgz}" -C /usr/local/bin gitleaks; \
   chmod +x /usr/local/bin/gitleaks; \
   rm -f "/tmp/${gitleaks_tgz}" "/tmp/${gitleaks_sum}"
@@ -25,7 +25,7 @@ RUN set -eux; \
   trivy_sum="trivy_${TRIVY_VERSION}_checksums.txt"; \
   curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${trivy_tgz}" -o "/tmp/${trivy_tgz}"; \
   curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${trivy_sum}" -o "/tmp/${trivy_sum}"; \
-  grep " ${trivy_tgz}$" "/tmp/${trivy_sum}" | sha256sum -c -; \
+  (cd /tmp && grep " ${trivy_tgz}$" "${trivy_sum}" | sha256sum -c -); \
   tar -xzf "/tmp/${trivy_tgz}" -C /usr/local/bin trivy; \
   chmod +x /usr/local/bin/trivy; \
   rm -f "/tmp/${trivy_tgz}" "/tmp/${trivy_sum}"
