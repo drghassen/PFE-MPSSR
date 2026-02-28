@@ -75,6 +75,31 @@ build-scan-tools-image:
       allow_failure: true
     - when: never
 
+build-opa-image:
+  stage: prepare
+  timeout: 1h
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - >
+      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}'
+      "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" > /kaniko/.docker/config.json
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}/ci/images/opa"
+      --dockerfile "${CI_PROJECT_DIR}/ci/images/opa/Dockerfile"
+      --destination "${OPA_IMAGE}"
+      --build-arg "OPA_VERSION=${OPA_VERSION}"
+      --snapshot-mode=redo
+      --cache=true
+      --cache-repo "${CI_REGISTRY_IMAGE}/cache/opa"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+    - when: never
+
 gitleaks-scan:
   <<: *default_tools
   stage: scan
@@ -176,7 +201,9 @@ contract-test:
       python3 /tmp/contract_validate.py
 
 opa-image-smoke:
-  image: "$OPA_IMAGE"
+  image: 
+    name: "$OPA_IMAGE"
+    entrypoint: [""]
   stage: contract
   script:
     - mkdir -p .cloudsentinel
@@ -202,7 +229,9 @@ opa-image-smoke:
       - .cloudsentinel/opa-image-smoke.log
 
 opa-decision:
-  image: "$OPA_IMAGE"
+  image: 
+    name: "$OPA_IMAGE"
+    entrypoint: [""]
   stage: decide
   needs:
     - job: normalize-reports
