@@ -31,7 +31,7 @@ REPO_ROOT="$(cs_get_repo_root)"
 
 # Dossier de sortie centralisé pour OPA
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
-mkdir -p "$OUT_DIR" 
+mkdir -p "$OUT_DIR"
 
 # Fichiers de configuration
 POLICIES_DIR="${SCRIPT_DIR}/policies"
@@ -119,8 +119,8 @@ jq -n \
     or (id | startswith("CKV_K8S_"));
 
   ($raw | flatten | map(.results.failed_checks // []) | flatten) as $findings
-  | ($findings 
-    | map(select(allowed_check(.check_id))) 
+  | ($findings
+    | map(select(allowed_check(.check_id)))
     | map({
         id: .check_id,
         resource: {
@@ -139,7 +139,7 @@ jq -n \
         )
       })
     ) as $normalized
-    
+
   # ---------------------------------------------------------------------------
   # NOTE: has_findings is a SCAN OBSERVATION, not a gate decision.
   # The block/allow decision is EXCLUSIVELY made by OPA (run-opa.sh).

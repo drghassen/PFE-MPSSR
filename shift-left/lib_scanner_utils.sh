@@ -34,12 +34,12 @@ cs_emit_not_run() {
     local repo_root="$4"
     local branch
     local commit
-    
+
     branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
     commit="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
 
     cs_log_warn "Scanner '$tool_name' marked as NOT_RUN: $reason"
-    
+
     jq -n \
       --arg tool "$tool_name" \
       --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \

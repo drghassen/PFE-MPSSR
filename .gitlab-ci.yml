@@ -22,9 +22,9 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  SCAN_TARGET: "infra/azure/dev"
-  TRIVY_TARGET: "infra/azure/dev"
-  TRIVY_SCAN_TYPE: "config"
+  SCAN_TARGET: "."
+  TRIVY_TARGET: "."
+  TRIVY_SCAN_TYPE: "fs"
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "2"
@@ -123,6 +123,7 @@ trivy-scan:
     expire_in: 7 days
     paths:
       - shift-left/trivy/reports/raw/
+      - shift-left/trivy/reports/sbom/
       - .cloudsentinel/trivy_opa.json
 
 normalize-reports:
@@ -136,11 +137,11 @@ normalize-reports:
     - job: trivy-scan
       artifacts: true
   script:
-    - chmod +x shift-left/normalizer/normalize.sh
+    - chmod +x shift-left/normalizer/normalize.py
     - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
     - export CLOUDSENTINEL_EXECUTION_MODE="ci"
     - export CLOUDSENTINEL_SCHEMA_STRICT="true"
-    - bash shift-left/normalizer/normalize.sh
+    - python3 shift-left/normalizer/normalize.py
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
   artifacts:
@@ -176,7 +177,7 @@ contract-test:
       python3 /tmp/contract_validate.py
 
 opa-image-smoke:
-  image: 
+  image:
     name: "$OPA_IMAGE"
     entrypoint: [""]
   stage: contract
@@ -204,7 +205,7 @@ opa-image-smoke:
       - .cloudsentinel/opa-image-smoke.log
 
 opa-decision:
-  image: 
+  image:
     name: "$OPA_IMAGE"
     entrypoint: [""]
   stage: decide
