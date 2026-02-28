@@ -196,11 +196,11 @@ custodian run -s output/ \
 
 ## 🔑 Points Clés
 
-✅ Surveillance **continue** 24/7  
-✅ Détection **drift** vs IaC  
-✅ **Remédiation graduée** (notify → isolate → fix)  
-✅ Audit **CIS Benchmarks** automatisé  
-✅ **Zero Trust** : vérification permanente  
+✅ Surveillance **continue** 24/7
+✅ Détection **drift** vs IaC
+✅ **Remédiation graduée** (notify → isolate → fix)
+✅ Audit **CIS Benchmarks** automatisé
+✅ **Zero Trust** : vérification permanente
 
 ## 📚 Documentation Associée
 

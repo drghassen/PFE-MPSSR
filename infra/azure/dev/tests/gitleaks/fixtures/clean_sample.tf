@@ -33,9 +33,9 @@ resource "azurerm_resource_group" "main" {
 # Bonne pratique : référence à une variable d'env externe (pas de valeur)
 locals {
   app_settings = {
-    AZURE_CLIENT_ID     = var.client_id
-    AZURE_TENANT_ID     = var.tenant_id
-    KEY_VAULT_URL       = "https://kv-cloudsentinel.vault.azure.net/"
+    AZURE_CLIENT_ID = var.client_id
+    AZURE_TENANT_ID = var.tenant_id
+    KEY_VAULT_URL   = "https://kv-cloudsentinel.vault.azure.net/"
     # Pas de secret en clair ici
   }
 }

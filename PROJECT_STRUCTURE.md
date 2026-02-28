@@ -177,10 +177,10 @@ make status              # État des services
 
 ## 📚 Documentation
 
-Voir [`README.md`](../README.md) pour l'aperçu général.  
+Voir [`README.md`](../README.md) pour l'aperçu général.
 Voir [`docs/README.md`](../docs/README.md) pour l'index de documentation.
 
 ---
 
-**Structure créée le** : 09 Février 2026  
+**Structure créée le** : 09 Février 2026
 **Projet** : CloudSentinel PFE - M2MPSSR ISI Hammam Sousse

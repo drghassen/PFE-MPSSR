@@ -98,7 +98,7 @@ invoke_opa_server() {
   local input_json
   local http_code
   local curl_err
-  
+
   # Inline the golden_report as the OPA input document
   input_json="$(jq -c '.' "$GOLDEN_REPORT")"
 
@@ -125,7 +125,7 @@ invoke_opa_server() {
       [[ -s "$DECISION_FILE" ]] && log_err "Server Response: $(cat "$DECISION_FILE")"
       return 1
   fi
-  
+
   return 0
 }
 

@@ -104,9 +104,9 @@ Guides de conception globaux (dans `docs/`):
 
 Projet développé avec des standards de production avancés (Immuabilité CI, PEP/PDP, Supply Chain Security).
 
-**Étudiant** : Ghassen DRIDI  
-**Encadrant** : Mr Moez HACHEM  
-**Formation** : Master 2MPSSR — ISICOM Hammam Sousse  
+**Étudiant** : Ghassen DRIDI
+**Encadrant** : Mr Moez HACHEM
+**Formation** : Master 2MPSSR — ISICOM Hammam Sousse
 **Année** : 2025-2026
 
 **CloudSentinel** — *De la prévention à la gouvernance continue* 🛡️

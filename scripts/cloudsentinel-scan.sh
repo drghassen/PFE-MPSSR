@@ -28,19 +28,19 @@ cd "$REPO_ROOT"
 log_step "Exécution des Scanners (Détection)"
 
 echo -e "${CYAN}[1/3] Gitleaks (Secrets)...${NC}"
-bash shift-left/gitleaks/run-gitleaks.sh
+bash shift-left/gitleaks/run-gitleaks.sh || true
 
 echo -e "\n${CYAN}[2/3] Checkov (IaC)...${NC}"
 # On scanne un dossier de test ou l'infra par défaut
-bash shift-left/checkov/run-checkov.sh infra/azure/dev
+bash shift-left/checkov/run-checkov.sh . || true
 
 echo -e "\n${CYAN}[3/3] Trivy (Vulnerabilities)...${NC}"
 # On scanne en mode config par défaut
-(cd shift-left/trivy && bash scripts/run-trivy.sh ../../infra/azure/dev config)
+(cd shift-left/trivy && bash scripts/run-trivy.sh ../../ fs) || true
 
 # --- 2. NORMALIZATION ---
 log_step "Normalisation (Fusion & Standardisation)"
-bash shift-left/normalizer/normalize.sh
+python3 shift-left/normalizer/normalize.py
 
 # --- 3. OPA DECISION ---
 log_step "OPA Decision (Gouvernance & Quality Gate)"

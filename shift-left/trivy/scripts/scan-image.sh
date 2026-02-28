@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_DIR="$BASE_DIR/configs"
 REPORT_DIR="$BASE_DIR/reports/raw"
+SBOM_DIR="$BASE_DIR/reports/sbom"
 IGNORE_FILE="$BASE_DIR/.trivyignore"
 IGNORE_ARGS=()
 if [[ -f "$IGNORE_FILE" ]]; then
@@ -37,13 +38,23 @@ CONFIG_FILE="$CONFIG_DIR/trivy.yaml"
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 mkdir -p "$REPORT_DIR"
+mkdir -p "$SBOM_DIR"
 OUTPUT_FILE="$REPORT_DIR/trivy-image-raw.json"
+SBOM_FILE="$SBOM_DIR/trivy-image.cdx.json"
 
 log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
 log "Output    : $OUTPUT_FILE"
+log "SBOM      : $SBOM_FILE"
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
+
+# ── SBOM Generation ──────────────────────────────────────────────────────────
+log "Generating SBOM (CycloneDX)..."
+trivy image \
+  --format cyclonedx \
+  --output "$SBOM_FILE" \
+  "$TARGET" || warn "Failed to generate SBOM, continuing scan."
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 # --scanners: vuln covers OS+lib, secret covers embedded secrets
