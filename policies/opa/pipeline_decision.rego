@@ -1,6 +1,6 @@
 package cloudsentinel.gate
-
 import rego.v1
+#rego 0.69.1
 
 scanners := object.get(input, "scanners", {})
 thresholds := object.get(object.get(input, "quality_gate", {}), "thresholds", {})
