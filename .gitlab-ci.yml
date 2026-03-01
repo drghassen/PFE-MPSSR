@@ -84,6 +84,7 @@ gitleaks-scan:
     - export USE_BASELINE="false"
     - chmod +x shift-left/gitleaks/run-gitleaks.sh
     - bash shift-left/gitleaks/run-gitleaks.sh || true
+    - chmod a+r .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_opa.json 2>/dev/null || true
     - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/gitleaks_opa.json
   artifacts:
     when: always
@@ -100,6 +101,7 @@ checkov-scan:
     - mkdir -p .cloudsentinel
     - chmod +x shift-left/checkov/run-checkov.sh
     - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
+    - chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_opa.json .cloudsentinel/checkov_scan.log 2>/dev/null || true
     - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/checkov_opa.json
   artifacts:
     when: always
@@ -117,6 +119,7 @@ trivy-scan:
     - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
     - chmod +x shift-left/trivy/scripts/run-trivy.sh
     - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
+    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_opa.json 2>/dev/null || true
     - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring)' .cloudsentinel/trivy_opa.json
   artifacts:
     when: always
@@ -272,35 +275,44 @@ upload-to-defectdojo:
         exit 0
       fi
 
-      if [ -f ".cloudsentinel/gitleaks_raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
-          -F "file=@.cloudsentinel/gitleaks_raw.json" \
-          -F "scan_type=Gitleaks Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
-          -F "active=true" -F "verified=false" >/dev/null
-        echo "[dojo] Gitleaks uploaded"
-      fi
+      # Some scanners create artifacts with 600 permissions. Ensure readability for this job user.
+      chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
 
-      if [ -f ".cloudsentinel/checkov_raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
-          -F "file=@.cloudsentinel/checkov_raw.json" \
-          -F "scan_type=Checkov Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
-          -F "active=true" -F "verified=false" >/dev/null
-        echo "[dojo] Checkov uploaded"
-      fi
+      upload_scan() {
+        local file_path="$1"
+        local scan_type="$2"
+        local label="$3"
 
-      if [ -f "shift-left/trivy/reports/raw/trivy-fs-raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+        if [ ! -f "${file_path}" ]; then
+          echo "[dojo] ${label}: report not found (${file_path}), skipping."
+          return 0
+        fi
+
+        if [ ! -r "${file_path}" ]; then
+          echo "[dojo] ${label}: report exists but is not readable (${file_path})."
+          ls -l "${file_path}" || true
+          return 0
+        fi
+
+        if curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
-          -F "file=@shift-left/trivy/reports/raw/trivy-fs-raw.json" \
-          -F "scan_type=Trivy Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
-          -F "active=true" -F "verified=false" >/dev/null
-        echo "[dojo] Trivy (FS/SCA) uploaded"
-      fi
+          -F "file=@${file_path}" \
+          -F "scan_type=${scan_type}" \
+          --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+          --form-string "active=true" \
+          --form-string "verified=false" \
+          >/dev/null; then
+          echo "[dojo] ${label} uploaded"
+        else
+          echo "[dojo] ${label} upload failed (curl exit $?)"
+          ls -l "${file_path}" || true
+          return 1
+        fi
+      }
+
+      upload_scan ".cloudsentinel/gitleaks_raw.json" "Gitleaks Scan" "Gitleaks"
+      upload_scan ".cloudsentinel/checkov_raw.json" "Checkov Scan" "Checkov"
+      upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json" "Trivy Scan" "Trivy (FS/SCA)"
   when: always
   allow_failure: true
 
