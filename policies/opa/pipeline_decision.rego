@@ -26,6 +26,11 @@ high_max_raw := object.get(thresholds, "high_max", 2)
 critical_max := to_number(critical_max_raw)
 high_max := to_number(high_max_raw)
 
+thresholds_valid if {
+  to_number(critical_max_raw)
+  to_number(high_max_raw)
+}
+
 severity_rank := {
   "INFO": 1,
   "LOW": 2,
@@ -55,20 +60,50 @@ exception_rule_match(ex, f) if {
   upper(trim_space(alias)) == target_rule
 }
 
+valid_rule_aliases(ex) if {
+  aliases := object.get(ex, "rule_id_aliases", null)
+  aliases == null
+}
+
+alias_valid(alias) if {
+  type_name(alias) == "string"
+  trim_space(alias) != ""
+}
+
+valid_rule_aliases(ex) if {
+  aliases := object.get(ex, "rule_id_aliases", null)
+  type_name(aliases) == "array"
+  count([alias |
+    alias := aliases[_]
+    not alias_valid(alias)
+  ]) == 0
+}
+
+has_resource_selector(ex) if {
+  trim_space(object.get(ex, "resource_path", "")) != ""
+}
+
+has_resource_selector(ex) if {
+  trim_space(object.get(ex, "resource_name", "")) != ""
+}
+
 # Core Presence Validation (Schema validation)
 has_required_exception_fields(ex) if {
   object.get(ex, "id", "") != ""
   object.get(ex, "tool", "") != ""
   object.get(ex, "rule_id", "") != ""
-  object.get(ex, "resource_path", "") != ""
+  has_resource_selector(ex)
   count(object.get(ex, "environments", [])) > 0
   object.get(ex, "max_severity", "") != ""
+  object.get(ex, "requested_by", "") != ""
   object.get(ex, "approved_by", "") != ""
   object.get(ex, "expires_at", "") != ""
 }
 
 valid_exception_definition(ex) if {
   has_required_exception_fields(ex)
+  allowed_tools[lower(object.get(ex, "tool", ""))]
+  valid_rule_aliases(ex)
   
   # Ensure environments are correctly typed strings 
   envs := object.get(ex, "environments", [])
@@ -91,9 +126,51 @@ exception_env_match(ex) if {
   lower(envs[i]) == environment
 }
 
+normalize_path(path) := normalized if {
+  type_name(path) == "string"
+  p1 := replace(path, "\\", "/")
+  p2 := replace(p1, "/./", "/")
+  p3 := replace(p2, "//", "/")
+  p4 := trim_prefix(p3, "./")
+  normalized := trim(p4, "/")
+}
+
+normalize_path(path) := "" if {
+  type_name(path) != "string"
+}
+
+path_selector_match(selector_path, finding_path) if {
+  sp := normalize_path(selector_path)
+  fp := normalize_path(finding_path)
+  sp != ""
+  fp != ""
+  sp == fp
+}
+
+path_selector_match(selector_path, finding_path) if {
+  sp := normalize_path(selector_path)
+  fp := normalize_path(finding_path)
+  sp != ""
+  fp != ""
+  endswith(fp, sprintf("/%s", [sp]))
+}
+
 resource_selector_match(ex, f) if {
-  # Direct string equality (Shift-Left on Data)
-  object.get(ex, "resource_path", "") == object.get(object.get(f, "resource", {}), "path", "")
+  selector_path := object.get(ex, "resource_path", "")
+  finding_path := object.get(object.get(f, "resource", {}), "path", "")
+  path_selector_match(selector_path, finding_path)
+}
+
+resource_selector_match(ex, f) if {
+  selector_name := trim_space(object.get(ex, "resource_name", ""))
+  selector_name != ""
+  selector_name == trim_space(object.get(object.get(f, "resource", {}), "name", ""))
+}
+
+exception_not_expired(ex) if {
+  expires_at := object.get(ex, "expires_at", "")
+  expires_ns := time.parse_rfc3339_ns(expires_at)
+  time.now_ns() <= expires_ns
 }
 
 exception_severity_allowed(ex, f) if {
@@ -108,6 +185,7 @@ exception_matches_finding(ex, f) if {
   resource_selector_match(ex, f)
   exception_env_match(ex)
   exception_severity_allowed(ex, f)
+  exception_not_expired(ex)
   valid_exception_definition(ex)
   object.get(ex, "enabled", false)
 }
@@ -185,6 +263,11 @@ scanner_not_run[name] if {
 deny[msg] if {
   scanner_not_run[name]
   msg := sprintf("Scanner %s did not run or report is invalid", [name])
+}
+
+deny[msg] if {
+  not thresholds_valid
+  msg := "Invalid threshold configuration: critical_max/high_max must be numeric"
 }
 
 deny[msg] if {
