@@ -141,6 +141,9 @@ normalize-reports:
     - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
     - export CLOUDSENTINEL_EXECUTION_MODE="ci"
     - export CLOUDSENTINEL_SCHEMA_STRICT="true"
+    # Backward compatibility: allow either DOJO_* or DEFECTDOJO_* CI variable names.
+    - export DOJO_URL="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
+    - export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
     - python3 shift-left/normalizer/normalize.py
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
@@ -256,37 +259,45 @@ upload-to-defectdojo:
       artifacts: true
   script:
     - |
-      if [ -z "${DOJO_URL:-}" ] || [ -z "${DOJO_API_KEY:-}" ] || [ -z "${DOJO_ENGAGEMENT_ID:-}" ]; then
-        echo "[dojo] Missing DOJO_URL / DOJO_API_KEY / DOJO_ENGAGEMENT_ID. Skipping upload."
+      DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
+      DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
+      DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID:-}}"
+
+      if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
+        echo "[dojo] Missing Dojo vars. Accepted names:"
+        echo "[dojo] URL: DOJO_URL or DEFECTDOJO_URL"
+        echo "[dojo] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
+        echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID"
+        echo "[dojo] Skipping upload."
         exit 0
       fi
 
       if [ -f ".cloudsentinel/gitleaks_raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY}" \
+        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@.cloudsentinel/gitleaks_raw.json" \
           -F "scan_type=Gitleaks Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
           -F "active=true" -F "verified=false" >/dev/null
         echo "[dojo] Gitleaks uploaded"
       fi
 
       if [ -f ".cloudsentinel/checkov_raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY}" \
+        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@.cloudsentinel/checkov_raw.json" \
           -F "scan_type=Checkov Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
           -F "active=true" -F "verified=false" >/dev/null
         echo "[dojo] Checkov uploaded"
       fi
 
       if [ -f "shift-left/trivy/reports/raw/trivy-fs-raw.json" ]; then
-        curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY}" \
+        curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@shift-left/trivy/reports/raw/trivy-fs-raw.json" \
           -F "scan_type=Trivy Scan" \
-          -F "engagement=${DOJO_ENGAGEMENT_ID}" \
+          -F "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
           -F "active=true" -F "verified=false" >/dev/null
         echo "[dojo] Trivy (FS/SCA) uploaded"
       fi
