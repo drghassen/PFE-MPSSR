@@ -144,6 +144,7 @@ normalize-reports:
     - python3 shift-left/normalizer/normalize.py
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
+    - python3 shift-left/opa/fetch-exceptions.py
   artifacts:
     when: always
     expire_in: 30 days
@@ -152,6 +153,8 @@ normalize-reports:
       - .cloudsentinel/gitleaks_opa.json
       - .cloudsentinel/checkov_opa.json
       - .cloudsentinel/trivy_opa.json
+      - .cloudsentinel/exceptions.json
+      - .cloudsentinel/dropped_exceptions.json
 
 contract-test:
   <<: *default_tools
@@ -164,6 +167,7 @@ contract-test:
     - test -f .cloudsentinel/checkov_opa.json
     - test -f .cloudsentinel/trivy_opa.json
     - test -f .cloudsentinel/golden_report.json
+    - test -f .cloudsentinel/exceptions.json
     - |
       printf '%s\n' \
         'import json, sys' \
@@ -181,6 +185,9 @@ opa-image-smoke:
     name: "$OPA_IMAGE"
     entrypoint: [""]
   stage: contract
+  needs:
+    - job: normalize-reports
+      artifacts: true
   script:
     - mkdir -p .cloudsentinel
     - opa version
@@ -193,10 +200,16 @@ opa-image-smoke:
         --log-level=error \
         --set=decision_logs.console=true \
         policies/opa/pipeline_decision.rego \
-        policies/opa/exceptions.json \
+        .cloudsentinel/exceptions.json \
         > .cloudsentinel/opa-image-smoke.log 2>&1 &
-    - sleep 1
-    - curl -sf "http://127.0.0.1:8181/health" >/dev/null
+    - |
+      for i in {1..10}; do
+        if curl -sf "http://127.0.0.1:8181/health"; then
+          echo "[smoke] OPA server is UP"; break;
+        fi
+        echo "[smoke] Waiting for OPA... ($i/10)"
+        sleep 2
+      done
     - curl -sf "http://127.0.0.1:8181/v1/policies" >/dev/null
   artifacts:
     when: on_failure
@@ -220,7 +233,7 @@ opa-decision:
         --log-format=json \
         --set=decision_logs.console=true \
         policies/opa/pipeline_decision.rego \
-        policies/opa/exceptions.json \
+        .cloudsentinel/exceptions.json \
         > /tmp/opa-server.log 2>&1 &
     - sleep 1
     - curl -sf "http://127.0.0.1:8181/health" >/dev/null
@@ -268,14 +281,14 @@ upload-to-defectdojo:
         echo "[dojo] Checkov uploaded"
       fi
 
-      if [ -f "shift-left/trivy/reports/raw/trivy-config-raw.json" ]; then
+      if [ -f "shift-left/trivy/reports/raw/trivy-fs-raw.json" ]; then
         curl -sS -X POST "${DOJO_URL}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY}" \
-          -F "file=@shift-left/trivy/reports/raw/trivy-config-raw.json" \
+          -F "file=@shift-left/trivy/reports/raw/trivy-fs-raw.json" \
           -F "scan_type=Trivy Scan" \
           -F "engagement=${DOJO_ENGAGEMENT_ID}" \
           -F "active=true" -F "verified=false" >/dev/null
-        echo "[dojo] Trivy uploaded"
+        echo "[dojo] Trivy (FS/SCA) uploaded"
       fi
   when: always
   allow_failure: true
