@@ -47,8 +47,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 # --- Paths (all overridable via env) ---
 GOLDEN_REPORT="${REPO_ROOT}/.cloudsentinel/golden_report.json"
 POLICY_FILE="${REPO_ROOT}/policies/opa/pipeline_decision.rego"
-EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${REPO_ROOT}/policies/opa/exceptions.json}"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
+EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${OUTPUT_DIR}/exceptions.json}"
 DECISION_FILE="${OPA_DECISION_FILE:-${OUTPUT_DIR}/opa_decision.json}"
 
 OPA_SERVER_URL="${OPA_SERVER_URL:-http://localhost:8181}"
@@ -301,7 +301,7 @@ fi
 if [[ "$MODE" == "--enforce" ]]; then
   echo ""
   log_deny "${BOLD}Pipeline BLOCKED by OPA Quality Gate.${NC}"
-  log_deny "Fix violations or submit an exception request (see policies/opa/exceptions.json)."
+  log_deny "Fix violations or submit an exception request using scripts/create-risk-acceptance.sh."
   exit 1
 else
   log_warn "Advisory mode: deny detected but pipeline continues."

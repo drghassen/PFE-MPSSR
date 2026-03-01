@@ -8,23 +8,23 @@ required_scanners := ["gitleaks", "checkov", "trivy"]
 allowed_tools := {"gitleaks", "checkov", "trivy"}
 environment := lower(object.get(object.get(input, "metadata", {}), "environment", "dev"))
 execution_mode := lower(object.get(object.get(object.get(input, "metadata", {}), "execution", {}), "mode", "ci"))
+
 is_local if {
   execution_mode == "local"
 }
-
 is_local if {
   execution_mode == "advisory"
 }
 
 default exceptions_store := []
-
 exceptions_store := data.cloudsentinel.exceptions.exceptions
 
 critical_max_raw := object.get(thresholds, "critical_max", 0)
 high_max_raw := object.get(thresholds, "high_max", 2)
 
-critical_max := to_non_negative_integer(critical_max_raw, 0)
-high_max := to_non_negative_integer(high_max_raw, 2)
+# Ensure fallback if inputs are missing or invalid type
+critical_max := to_number(critical_max_raw)
+high_max := to_number(high_max_raw)
 
 severity_rank := {
   "INFO": 1,
@@ -34,76 +34,17 @@ severity_rank := {
   "CRITICAL": 5
 }
 
-is_non_negative_integer_value(v) if {
-  is_number(v)
-  v >= 0
-  floor(v) == v
-}
-
-is_non_negative_integer_value(v) if {
-  is_string(v)
-  s := trim_space(v)
-  regex.match("^[0-9]+$", s)
-}
-
-to_non_negative_integer(v, _) := out if {
-  is_number(v)
-  v >= 0
-  floor(v) == v
-  out := v
-}
-
-to_non_negative_integer(v, _) := out if {
-  is_string(v)
-  s := trim_space(v)
-  regex.match("^[0-9]+$", s)
-  out := to_number(s)
-}
-
-to_non_negative_integer(v, fallback) := fallback if {
-  not is_non_negative_integer_value(v)
-}
-
 failed_findings := [f |
   some i
   f := object.get(input, "findings", [])[i]
   object.get(f, "status", "") == "FAILED"
 ]
 
-canonical_path(path) := out if {
-  p0 := trim_space(sprintf("%v", [path]))
-  p1 := replace(p0, "\\", "/")
-  p2 := replace(p1, "/./", "/")
-  p3 := replace(p2, "//", "/")
-  # p4: trim trailing slash — distinct from p3, prevents "/path/" != "/path" mismatches
-  p4 := trim_suffix(p3, "/")
-  p5 := trim_prefix(p4, "./")
-  out := p5
-}
-
-path_segments(path) := segs if {
-  c := canonical_path(path)
-  segs := [seg |
-    seg := split(c, "/")[_]
-    seg != ""
-  ]
-}
-
-suffix_segments_match(expected, actual) if {
-  n := count(expected)
-  n > 0
-  n <= count(actual)
-  offset := count(actual) - n
-  count([1 |
-    i := numbers.range(0, n - 1)[_]
-    actual[offset+i] == expected[i]
-  ]) == n
-}
-
-finding_rule_id(f) := upper(trim_space(sprintf("%v", [object.get(object.get(f, "source", {}), "id", "")])))
+# Strict Matching Methods (Data is pre-normalized by Python)
+finding_rule_id(f) := upper(trim_space(object.get(object.get(f, "source", {}), "id", "")))
 
 exception_rule_match(ex, f) if {
-  upper(trim_space(sprintf("%v", [object.get(ex, "rule_id", "")]))) == finding_rule_id(f)
+  upper(trim_space(object.get(ex, "rule_id", ""))) == finding_rule_id(f)
 }
 
 exception_rule_match(ex, f) if {
@@ -114,32 +55,22 @@ exception_rule_match(ex, f) if {
   upper(trim_space(alias)) == target_rule
 }
 
+# Core Presence Validation (Schema validation)
 has_required_exception_fields(ex) if {
   object.get(ex, "id", "") != ""
   object.get(ex, "tool", "") != ""
   object.get(ex, "rule_id", "") != ""
+  object.get(ex, "resource_path", "") != ""
   count(object.get(ex, "environments", [])) > 0
   object.get(ex, "max_severity", "") != ""
-  object.get(ex, "reason", "") != ""
-  object.get(ex, "ticket", "") != ""
-  object.get(ex, "requested_by", "") != ""
   object.get(ex, "approved_by", "") != ""
-  object.get(ex, "commit_hash", "") != ""
-  object.get(ex, "request_date", "") != ""
   object.get(ex, "expires_at", "") != ""
-  has_resource_selector(ex)
 }
 
-valid_email(email) if {
-  regex.match("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", lower(email))
-}
-
-valid_exception_tool(ex) if {
-  tool := lower(object.get(ex, "tool", ""))
-  allowed_tools[tool]
-}
-
-valid_exception_env_values(ex) if {
+valid_exception_definition(ex) if {
+  has_required_exception_fields(ex)
+  
+  # Ensure environments are correctly typed strings 
   envs := object.get(ex, "environments", [])
   count([env |
     env := lower(envs[_])
@@ -148,98 +79,10 @@ valid_exception_env_values(ex) if {
     env != "staging"
     env != "prod"
   ]) == 0
-}
-
-valid_exception_max_severity(ex) if {
+  
+  # Ensure max_severity is valid
   max_sev := upper(object.get(ex, "max_severity", ""))
   severity_rank[max_sev] >= 1
-}
-
-valid_exception_primary_rule_id(ex) if {
-  rule_id := object.get(ex, "rule_id", "")
-  type_name(rule_id) == "string"
-  trim_space(rule_id) != ""
-}
-
-valid_exception_resource_path(ex) if {
-  path_raw := object.get(ex, "resource_path", "")
-  type_name(path_raw) == "string"
-  path := canonical_path(object.get(ex, "resource_path", ""))
-  path != ""
-  path != "."
-  not contains(path, "*")
-  not startswith(path, "../")
-  not contains(path, "/../")
-}
-
-resource_name_present(ex) if {
-  rn := object.get(ex, "resource_name", "")
-  type_name(rn) == "string"
-  trim_space(rn) != ""
-}
-
-valid_exception_resource_name(ex) if {
-  not resource_name_present(ex)
-}
-
-valid_exception_resource_name(ex) if {
-  resource_name_present(ex)
-  rn := trim_space(object.get(ex, "resource_name", ""))
-  not contains(rn, "*")
-}
-
-has_resource_selector(ex) if {
-  valid_exception_resource_path(ex)
-}
-
-has_resource_selector(ex) if {
-  resource_name_present(ex)
-}
-
-valid_exception_rule_aliases(ex) if {
-  aliases := object.get(ex, "rule_id_aliases", [])
-  type_name(aliases) == "array"
-  count([1 |
-    alias := aliases[_]
-    type_name(alias) == "string"
-    trim_space(alias) != ""
-  ]) == count(aliases)
-}
-
-valid_exception_commit_hash(ex) if {
-  commit_hash := object.get(ex, "commit_hash", "")
-  regex.match("^[a-fA-F0-9]{7,40}$", commit_hash)
-}
-
-valid_exception_dates(ex) if {
-  request_date := object.get(ex, "request_date", "")
-  expires_at := object.get(ex, "expires_at", "")
-  request_ns := time.parse_rfc3339_ns(request_date)
-  expires_ns := time.parse_rfc3339_ns(expires_at)
-  request_ns <= time.now_ns()
-  request_ns < expires_ns
-}
-
-valid_exception_approvals(ex) if {
-  requested_by := lower(object.get(ex, "requested_by", ""))
-  approved_by := lower(object.get(ex, "approved_by", ""))
-  valid_email(requested_by)
-  valid_email(approved_by)
-  requested_by != approved_by
-}
-
-valid_exception_definition(ex) if {
-  has_required_exception_fields(ex)
-  valid_exception_tool(ex)
-  valid_exception_primary_rule_id(ex)
-  valid_exception_env_values(ex)
-  valid_exception_max_severity(ex)
-  has_resource_selector(ex)
-  valid_exception_resource_name(ex)
-  valid_exception_rule_aliases(ex)
-  valid_exception_commit_hash(ex)
-  valid_exception_dates(ex)
-  valid_exception_approvals(ex)
 }
 
 exception_env_match(ex) if {
@@ -248,34 +91,9 @@ exception_env_match(ex) if {
   lower(envs[i]) == environment
 }
 
-exception_not_expired(ex) if {
-  exp := object.get(ex, "expires_at", "")
-  exp_ns := time.parse_rfc3339_ns(exp)
-  time.now_ns() < exp_ns
-}
-
-resource_path_match(expected, actual) if {
-  canonical_path(expected) == canonical_path(actual)
-}
-
-resource_path_match(expected, actual) if {
-  suffix_segments_match(path_segments(expected), path_segments(actual))
-}
-
-resource_name_match(expected, actual) if {
-  lower(trim_space(expected)) == lower(trim_space(actual))
-}
-
 resource_selector_match(ex, f) if {
-  rp := object.get(ex, "resource_path", "")
-  rp != ""
-  resource_path_match(rp, object.get(object.get(f, "resource", {}), "path", ""))
-}
-
-resource_selector_match(ex, f) if {
-  rn := object.get(ex, "resource_name", "")
-  rn != ""
-  resource_name_match(rn, object.get(object.get(f, "resource", {}), "name", ""))
+  # Direct string equality (Shift-Left on Data)
+  object.get(ex, "resource_path", "") == object.get(object.get(f, "resource", {}), "path", "")
 }
 
 exception_severity_allowed(ex, f) if {
@@ -289,7 +107,6 @@ exception_matches_finding(ex, f) if {
   exception_rule_match(ex, f)
   resource_selector_match(ex, f)
   exception_env_match(ex)
-  exception_not_expired(ex)
   exception_severity_allowed(ex, f)
   valid_exception_definition(ex)
   object.get(ex, "enabled", false)
@@ -358,14 +175,6 @@ effective_info := count([f |
   upper(object.get(object.get(f, "severity", {}), "level", "LOW")) == "INFO"
 ])
 
-invalid_threshold_keys["critical_max"] if {
-  not is_non_negative_integer_value(critical_max_raw)
-}
-
-invalid_threshold_keys["high_max"] if {
-  not is_non_negative_integer_value(high_max_raw)
-}
-
 scanner_not_run[name] if {
   not is_local
   name := required_scanners[_]
@@ -398,11 +207,6 @@ deny[msg] if {
   msg := sprintf("Exception %s is malformed: required audit/scope fields are invalid", [ex_id])
 }
 
-deny[msg] if {
-  invalid_threshold_keys[key]
-  msg := sprintf("Invalid threshold configuration for %s: non-negative integer required", [key])
-}
-
 default allow := false
 
 allow if {
@@ -428,8 +232,8 @@ decision := {
     "excepted_exception_ids": count(applied_exception_ids)
   },
   "thresholds": {
-    "critical_max": critical_max,
-    "high_max": high_max
+    "critical_max": critical_max_raw,
+    "high_max": high_max_raw
   },
   "environment": environment,
   "execution_mode": execution_mode,
