@@ -219,16 +219,11 @@ contract-test:
         'print("[contract] exceptions schema validation passed")' \
         > /tmp/contract_validate_exceptions.py
       python3 /tmp/contract_validate_exceptions.py
-    - python3 -m unittest discover \
-      -s shift-left/opa/tests \
-      -p "test_fetch_exceptions.py"
-    - python3 -m unittest discover \
-      -s shift-left/normalizer/tests \
-      -p "test_normalize.py"
+    - python3 -m unittest discover -s shift-left/opa/tests -p "test_fetch_exceptions.py"
+    - python3 -m unittest discover -s shift-left/normalizer/tests -p "test_normalize.py"
     - bash shift-left/checkov/tests/smoke.sh
     - bash shift-left/gitleaks/tests/smoke.sh
     - bash shift-left/normalizer/tests/smoke.sh
-
 opa-image-smoke:
   image:
     name: "$OPA_IMAGE"
