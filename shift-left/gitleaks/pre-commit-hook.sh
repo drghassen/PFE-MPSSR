@@ -2,36 +2,17 @@
 set -euo pipefail
 
 ############################################
-# CloudSentinel Pre-Commit Hook v5.0 (PFE)
+# CloudSentinel Pre-Commit Hook v5.1 (PFE)
+# Thin wrapper delegating to the advisory orchestrator.
 ############################################
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
-REPORT="$REPO_ROOT/.cloudsentinel/gitleaks_opa.json"
-SCRIPT_SCAN="$REPO_ROOT/shift-left/gitleaks/run-gitleaks.sh"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+ORCHESTRATOR="${REPO_ROOT}/shift-left/pre-commit/pre-commit.sh"
 
-echo "[CloudSentinel][pre-commit] Scanning staged files..."
-
-# Configuration locale forcée
-# USE_BASELINE=true : supprime les secrets déjà connus en baseline (évite l'alert fatigue)
-export USE_BASELINE="true"
-export SCAN_TARGET="staged"
-unset CI
-
-# Execution du scan
-bash "$SCRIPT_SCAN"
-
-[[ -f "$REPORT" ]] || { echo "[Error] Report not found"; exit 0; }
-
-# Extraction performante des variables en une seule lecture JQ
-read -r CRITICAL HIGH TOTAL < <(jq -r '[.stats.CRITICAL // 0, .stats.HIGH // 0, .stats.TOTAL // 0] | @tsv' "$REPORT")
-
-if [[ "$TOTAL" -gt 0 ]]; then
-  echo -e "\n⚠️  [CloudSentinel] $TOTAL finding(s) detected (CRITICAL=$CRITICAL, HIGH=$HIGH)"
-  echo "-------------------------------------------------------"
-  jq -r '.findings[] | "[\(.severity)] \(.file):\(.start_line) | \(.description)"' "$REPORT"
-  echo "-------------------------------------------------------"
-  echo "Advisory: Please review secrets. OPA will enforce rules in CI/CD."
-  echo ""
+# Advisory contract: never block commits due to missing local tooling/scripts.
+if [[ ! -f "$ORCHESTRATOR" ]]; then
+  echo "[CloudSentinel][pre-commit][WARN] Orchestrator not found: $ORCHESTRATOR. Skipping."
+  exit 0
 fi
 
-exit 0
+exec bash "$ORCHESTRATOR"

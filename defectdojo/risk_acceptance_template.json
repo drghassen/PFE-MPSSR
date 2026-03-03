@@ -1,0 +1,18 @@
+{
+  "defaults": {
+    "rule_id": "CKV2_CS_AZ_021",
+    "scanner": "checkov",
+    "scope_type": "branch",
+    "severity": "CRITICAL",
+    "requested_by": "dev-system@example.com",
+    "approved_by": "appsec-system@example.com",
+    "approved_by_role": "APPSEC_L2",
+    "break_glass": false,
+    "incident_id": ""
+  },
+  "defectdojo": {
+    "name_prefix": "Accept",
+    "is_active": true
+  }
+}
+

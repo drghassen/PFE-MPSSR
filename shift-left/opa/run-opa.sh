@@ -50,6 +50,7 @@ POLICY_FILE="${REPO_ROOT}/policies/opa/pipeline_decision.rego"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
 EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${OUTPUT_DIR}/exceptions.json}"
 DECISION_FILE="${OPA_DECISION_FILE:-${OUTPUT_DIR}/opa_decision.json}"
+DECISION_AUDIT_LOG_FILE="${CLOUDSENTINEL_DECISION_AUDIT_LOG:-${OUTPUT_DIR}/decision_audit_events.jsonl}"
 
 OPA_SERVER_URL="${OPA_SERVER_URL:-http://localhost:8181}"
 OPA_API_PATH="/v1/data/cloudsentinel/gate/decision"
@@ -72,6 +73,34 @@ log_ok()     { echo -e "${GREEN}[OPA]${NC} ${BOLD}ALLOW${NC} $*"; }
 log_warn()   { echo -e "${YELLOW}[OPA]${NC} ${BOLD}WARN${NC}  $*" >&2; }
 log_deny()   { echo -e "${RED}[OPA]${NC} ${BOLD}DENY${NC}  $*"; }
 log_err()    { echo -e "${RED}[OPA]${NC} ${BOLD}ERROR${NC} $*" >&2; }
+
+emit_decision_audit_applied_exceptions() {
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$(dirname "$DECISION_AUDIT_LOG_FILE")"
+
+  jq -c \
+    --arg ts "$ts" \
+    --arg mode "$MODE" \
+    --arg env "$ENVIRONMENT" \
+    --argjson allow "$( [[ "$ALLOW" == "true" ]] && echo true || echo false )" \
+    '
+      (.result.exceptions.applied_audit // [])[]
+      | {
+          timestamp: $ts,
+          component: "run-opa",
+          event_type: "exception_applied",
+          mode: $mode,
+          environment: $env,
+          allow: $allow,
+          exception_id: (.exception_id // "unknown"),
+          scope_type: (.scope_type // "unknown"),
+          commit_sha: (.commit_sha // ""),
+          rule_id: (.rule_id // ""),
+          matching_method: (.matching_method // "")
+        }
+    ' "$DECISION_FILE" >> "$DECISION_AUDIT_LOG_FILE" 2>/dev/null || true
+}
 
 # --- Prerequisites ---
 command -v jq >/dev/null 2>&1 || { log_err "jq is required. Install with: apt-get install jq"; exit 2; }
@@ -223,6 +252,7 @@ LOW="$(jq -r      '.result.metrics.low      // 0'    "$DECISION_FILE")"
 EFFECTIVE="$(jq -r '.result.metrics.failed_effective // 0' "$DECISION_FILE")"
 EXCEPTED="$(jq -r  '.result.metrics.excepted     // 0'    "$DECISION_FILE")"
 APPLIED_IDS="$(jq -r '.result.exceptions.applied_ids // [] | join(", ")' "$DECISION_FILE")"
+APPLIED_COUNT="$(jq -r '.result.exceptions.applied_count // 0' "$DECISION_FILE")"
 INVALID_IDS="$(jq -r '.result.exceptions.invalid_enabled_ids // [] | join(", ")' "$DECISION_FILE")"
 DENY_COUNT="$(jq -r  '.result.deny // [] | length'           "$DECISION_FILE")"
 
@@ -256,6 +286,10 @@ echo ""
 echo "  ──────────────────────────────"
 
 if [[ "$ALLOW" == "true" ]]; then
+  if [[ "$APPLIED_COUNT" -gt 0 ]]; then
+    emit_decision_audit_applied_exceptions
+    log_info "Applied exception decision_audit log appended to ${DECISION_AUDIT_LOG_FILE}"
+  fi
   log_ok "DECISION → ${BOLD}${GREEN}ALLOW ✓${NC}"
 else
   log_deny "DECISION → ${BOLD}${RED}DENY ✗${NC}  (${DENY_COUNT} reason(s))"

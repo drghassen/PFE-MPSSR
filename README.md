@@ -110,3 +110,37 @@ Projet développé avec des standards de production avancés (Immuabilité CI, P
 **Année** : 2025-2026
 
 **CloudSentinel** — *De la prévention à la gouvernance continue* 🛡️
+
+---
+
+## Fetch Exceptions Refactor (Modular)
+
+The entrypoint remains unchanged:
+
+```bash
+python3 shift-left/opa/fetch-exceptions.py
+```
+
+Implementation was split into internal modules under:
+
+```text
+shift-left/opa/fetch_exceptions/
+├── __init__.py
+├── fetch_utils.py
+├── fetch_defectdojo.py
+├── fetch_validation.py
+├── fetch_mapping.py
+└── main.py
+```
+
+Compatibility guarantees:
+- `shift-left/opa/fetch-exceptions.py` is still the public CLI/script path used by CI.
+- Existing unit tests that import `fetch-exceptions.py` continue to work unchanged.
+- Output contracts are preserved:
+  - `.cloudsentinel/exceptions.json`
+  - `.cloudsentinel/dropped_exceptions.json`
+  - `.cloudsentinel/audit_events.jsonl`
+
+CI script consolidation:
+- Canonical guard implementations are in `shift-left/ci/`.
+- `.gitlab-ci.yml` guard paths remain unchanged.

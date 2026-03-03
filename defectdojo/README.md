@@ -38,3 +38,84 @@ curl -X POST "$DEFECTDOJO_URL/api/v2/findings/" \
      -H "Authorization: Token $DEFECTDOJO_API_TOKEN" \
      ...
 ```
+
+---
+
+## CloudSentinel Risk Acceptance Template (Once-For-All)
+
+Pour eviter de remplir les memes champs a chaque exception, utilisez:
+- template versionne: `defectdojo/risk_acceptance_template.json`
+- generateur payload/API: `scripts/cloudsentinel_ra_template.py`
+
+Le script produit un payload DefectDojo compatible `fetch-exceptions.py` (champs CloudSentinel dans `custom_fields` + fallback top-level).
+
+### Champs a modifier a chaque exception
+- `resource_id`
+- `repo`
+- `branch_scope`
+- `justification`
+- `expires_at`
+
+### Generation d'un payload JSON
+```bash
+python3 scripts/cloudsentinel_ra_template.py \
+  --resource-id azurerm_network_security_rule.rdp_any_allow \
+  --repo mygroup/myproject \
+  --branch-scope main \
+  --justification "Temporary exception with compensating controls" \
+  --expires-at 2026-03-20T00:00:00Z \
+  --output .cloudsentinel/dojo_ra_payload.json
+```
+
+### Creation directe dans DefectDojo (API POST)
+```bash
+export DOJO_URL="https://dojo.example.com"
+export DOJO_API_KEY="xxxxxxxx"
+
+python3 scripts/cloudsentinel_ra_template.py \
+  --resource-id azurerm_network_security_rule.rdp_any_allow \
+  --repo mygroup/myproject \
+  --branch-scope main \
+  --justification "Temporary exception with compensating controls" \
+  --expires-at 2026-03-20T00:00:00Z \
+  --post
+```
+
+### Notes importantes
+- Le script cherche d'abord un fingerprint exact dans:
+  - `.cloudsentinel/checkov_opa.json`
+  - `.cloudsentinel/golden_report.json`
+- Si introuvable, il genere un fingerprint deterministe `sha256(rule_id:resource_id)`:
+  - utile pour creer la RA
+  - peut ne pas matcher OPA en mode `fingerprint_exact`
+
+### Mapping UX DefectDojo -> CloudSentinel (mode standard)
+- `Name` -> `rule_id` (format conseille: `CKV2_CS_AZ_021`)
+- `Accepted findings` -> source de traceabilite + resolution `resource_id` via `component_name` du finding
+- `Security Recommendation Details` -> `fingerprint` / `resource_hash` (mettre uniquement la valeur base64)
+- `Accepted By` -> `approved_by` (email)
+- `Owner` -> `requested_by` (fallback system si owner non-email)
+- `Expiration date` -> `expires_at`
+- `Decision details` -> `justification`
+
+Template de saisie UX recommande:
+- `Name`: `CKV2_CS_AZ_021`
+- `Security Recommendation`: `Accept`
+- `Security Recommendation Details`: fingerprint exact (base64)
+- `Decision`: `Accept`
+- `Decision details`: justification metier/technique
+- `Accepted By`: email AppSec
+- `Owner`: owner DefectDojo
+- `Expiration date`: date future
+
+### One-time setup recommande dans DefectDojo
+Creez ces `custom_fields` (modele Risk Acceptance) une seule fois:
+- `rule_id`, `check_id`
+- `scanner`, `tool`
+- `resource_id`, `resource_name`
+- `fingerprint`, `resource_hash`
+- `scope_type`, `branch_scope`, `repo`
+- `severity`
+- `requested_by`, `approved_by`, `approved_by_role`
+- `justification`, `expires_at`
+- `break_glass`, `incident_id`

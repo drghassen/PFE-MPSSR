@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CloudSentinel Enterprise Exceptions v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cloudsentinel"],
+  "properties": {
+    "cloudsentinel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exceptions"],
+      "properties": {
+        "exceptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "generated_at", "exceptions"],
+          "properties": {
+            "schema_version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "generated_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "legacy_compatibility": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "sunset_date"],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "sunset_date": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "metadata": {
+              "type": "object"
+            },
+            "exceptions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/exception_v2"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "exception_v2": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "exception_id",
+        "scanner",
+        "rule_id",
+        "resource_id",
+        "repo",
+        "branch_scope",
+        "scope_type",
+        "severity",
+        "break_glass",
+        "approved_by_role",
+        "requested_by",
+        "approved_by",
+        "justification",
+        "expires_at",
+        "created_at",
+        "schema_version"
+      ],
+      "properties": {
+        "exception_id": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F-]{36}$"
+        },
+        "scanner": {
+          "type": "string",
+          "enum": ["gitleaks", "checkov", "trivy"]
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "resource_hash": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch_scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope_type": {
+          "type": "string",
+          "enum": ["commit", "branch", "repo", "global"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+        },
+        "break_glass": {
+          "type": "boolean"
+        },
+        "incident_id": {
+          "type": "string"
+        },
+        "approved_by_role": {
+          "type": "string"
+        },
+        "requested_by": {
+          "type": "string",
+          "format": "email"
+        },
+        "approved_by": {
+          "type": "string",
+          "format": "email"
+        },
+        "justification": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "approved_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "commit_sha": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        }
+      }
+    }
+  }
+}

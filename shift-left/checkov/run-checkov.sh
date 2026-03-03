@@ -72,6 +72,17 @@ fi
 log_info "Using config: $CONFIG_FILE"
 checkov_cmd+=("--config-file" "$CONFIG_FILE")
 
+# CI noise reduction (optional): allow explicit skip-path list without impacting local/e2e scans.
+if [[ -n "${CHECKOV_SKIP_PATHS:-}" ]]; then
+    IFS=',' read -r -a skip_paths <<< "$CHECKOV_SKIP_PATHS"
+    for skip_path in "${skip_paths[@]}"; do
+        skip_path="$(echo "$skip_path" | xargs)"
+        [[ -z "$skip_path" ]] && continue
+        checkov_cmd+=("--skip-path" "$skip_path")
+    done
+    log_info "Applied CHECKOV_SKIP_PATHS: $CHECKOV_SKIP_PATHS"
+fi
+
 # --- Exécution ---
 set +e
 "${checkov_cmd[@]}" > "$REPORT_RAW" 2> "$REPORT_LOG"
