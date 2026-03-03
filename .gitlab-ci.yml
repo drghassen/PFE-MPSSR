@@ -220,6 +220,10 @@ contract-test:
         > /tmp/contract_validate_exceptions.py
       python3 /tmp/contract_validate_exceptions.py
     - python3 -m unittest shift-left/opa/tests/test_fetch_exceptions.py
+    - python3 -m unittest shift-left/normalizer/tests/test_normalize.py
+    - bash shift-left/checkov/tests/smoke.sh
+    - bash shift-left/gitleaks/tests/smoke.sh
+    - bash shift-left/normalizer/tests/smoke.sh
 
 opa-image-smoke:
   image:
