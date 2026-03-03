@@ -219,8 +219,12 @@ contract-test:
         'print("[contract] exceptions schema validation passed")' \
         > /tmp/contract_validate_exceptions.py
       python3 /tmp/contract_validate_exceptions.py
-    - python3 -m unittest shift-left/opa/tests/test_fetch_exceptions.py
-    - python3 -m unittest shift-left/normalizer/tests/test_normalize.py
+    - python3 -m unittest discover \
+      -s shift-left/opa/tests \
+      -p "test_fetch_exceptions.py"
+    - python3 -m unittest discover \
+      -s shift-left/normalizer/tests \
+      -p "test_normalize.py"
     - bash shift-left/checkov/tests/smoke.sh
     - bash shift-left/gitleaks/tests/smoke.sh
     - bash shift-left/normalizer/tests/smoke.sh
@@ -270,6 +274,8 @@ opa-decision:
   needs:
     - job: normalize-reports
       artifacts: true
+    - job: contract-test
+    - job: opa-image-smoke
   script:
     - opa test policies/opa -v
     - |
@@ -341,7 +347,7 @@ upload-to-defectdojo:
           -F "scan_type=${scan_type}" \
           --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
           --form-string "active=true" \
-          --form-string "verified=false" \
+          --form-string "verified=true" \
           --form-string "close_old_findings=true" \
           --form-string "close_old_findings_product_scope=false" \
           --form-string "deduplication_on_engagement=true" \
