@@ -302,6 +302,157 @@ test_deny_when_exception_aliases_are_invalid if {
   contains(result.deny[0], "malformed")
 }
 
+test_deny_when_requested_by_equals_approved_by if {
+  exceptions := [{
+    "id": "EXC-SELF-APPROVE",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Self-approval attempt",
+    "ticket": "SEC-SA-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "dev@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "EXC-SELF-APPROVE"
+  contains(result.deny[0], "malformed")
+}
+
+test_deny_when_four_eyes_violated_case_insensitive if {
+  exceptions := [{
+    "id": "EXC-CASE-1",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Case insensitive self-approval",
+    "ticket": "SEC-CASE-1",
+    "requested_by": "Dev@Example.COM",
+    "approved_by": "dev@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "EXC-CASE-1"
+}
+
+test_deny_when_commit_hash_invalid if {
+  exceptions := [{
+    "id": "EXC-BADHASH",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Bad commit hash",
+    "ticket": "SEC-HASH-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "NOT-A-HASH",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "EXC-BADHASH"
+}
+
+test_deny_when_request_date_after_expires_at if {
+  exceptions := [{
+    "id": "EXC-BADDATE",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Request date after expiry",
+    "ticket": "SEC-DATE-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "abc1234",
+    "request_date": "2099-01-02T00:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "EXC-BADDATE"
+}
+
+test_allow_when_four_eyes_respected if {
+  exceptions := [{
+    "id": "EXC-VALID-4EYES",
+    "enabled": true,
+    "tool": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "environments": ["dev"],
+    "max_severity": "HIGH",
+    "reason": "Valid four-eyes approval",
+    "ticket": "SEC-4EYES-1",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "commit_hash": "abc1234def",
+    "request_date": "2026-02-21T08:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "findings": [{
+        "status": "FAILED",
+        "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+        "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+        "severity": {"level": "HIGH"}
+      }]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  result.allow
+  result.metrics.excepted == 1
+  result.exceptions.applied_ids[0] == "EXC-VALID-4EYES"
+}
+
 test_metrics_excepted_counts_findings_not_exception_ids if {
   exceptions := [{
     "id": "EXC-MULTI-1",
@@ -447,4 +598,187 @@ test_allow_when_exception_path_suffix_matches if {
   result.allow
   result.metrics.excepted == 1
   result.exceptions.applied_ids[0] == "EXC-SUFFIX-1"
+}
+
+test_v2_allow_when_fingerprint_matches_exactly if {
+  exceptions := [{
+    "exception_id": "11111111-1111-4111-8111-111111111111",
+    "schema_version": "2.0.0",
+    "enabled": true,
+    "scanner": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_id": "different.resource.id",
+    "fingerprint": "fp-enterprise-001",
+    "resource_hash": "fp-enterprise-001",
+    "repo": "cloud-infra",
+    "branch_scope": "main",
+    "scope_type": "repo",
+    "severity": "HIGH",
+    "break_glass": false,
+    "approved_by_role": "APPSEC_L2",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "justification": "Fingerprint-based precise waiver",
+    "created_at": "2026-03-01T00:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "metadata": {
+        "environment": "dev",
+        "git": {
+          "repository": "cloud-infra",
+          "branch": "main",
+          "commit": "abcdef1234567890abcdef1234567890abcdef12"
+        }
+      },
+      "findings": [{
+        "status": "FAILED",
+        "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/dev/state_storage.tf"},
+        "severity": {"level": "HIGH"},
+        "context": {"deduplication": {"fingerprint": "fp-enterprise-001"}}
+      }]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  result.allow
+  result.metrics.excepted == 1
+  result.exceptions.applied_ids[_] == "11111111-1111-4111-8111-111111111111"
+}
+
+test_v2_deny_break_glass_when_ttl_exceeds_7_days if {
+  exceptions := [{
+    "exception_id": "22222222-2222-4222-8222-222222222222",
+    "schema_version": "2.0.0",
+    "enabled": true,
+    "scanner": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_id": "azurerm_storage_account.insecure",
+    "fingerprint": "fp-breakglass-001",
+    "resource_hash": "fp-breakglass-001",
+    "repo": "cloud-infra",
+    "branch_scope": "main",
+    "scope_type": "repo",
+    "severity": "HIGH",
+    "break_glass": true,
+    "incident_id": "INC-1001",
+    "approved_by_role": "APPSEC_L3",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "justification": "Emergency unblock with invalid TTL",
+    "created_at": "2026-03-01T00:00:00Z",
+    "expires_at": "2026-03-20T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "metadata": {
+        "environment": "dev",
+        "git": {
+          "repository": "cloud-infra",
+          "branch": "main",
+          "commit": "abcdef1234567890abcdef1234567890abcdef12"
+        }
+      },
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+    with time.now_ns as 1772409600000000000
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "22222222-2222-4222-8222-222222222222"
+}
+
+test_v2_allow_break_glass_when_strict_constraints_met if {
+  exceptions := [{
+    "exception_id": "33333333-3333-4333-8333-333333333333",
+    "schema_version": "2.0.0",
+    "enabled": true,
+    "scanner": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_id": "azurerm_storage_account.insecure",
+    "fingerprint": "fp-breakglass-002",
+    "resource_hash": "fp-breakglass-002",
+    "repo": "cloud-infra",
+    "branch_scope": "main",
+    "scope_type": "repo",
+    "severity": "HIGH",
+    "break_glass": true,
+    "incident_id": "INC-2001",
+    "approved_by_role": "APPSEC_L3",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "justification": "Emergency unblock with compensating controls",
+    "created_at": "2026-03-01T00:00:00Z",
+    "expires_at": "2026-03-05T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "metadata": {
+        "environment": "dev",
+        "git": {
+          "repository": "cloud-infra",
+          "branch": "main",
+          "commit": "abcdef1234567890abcdef1234567890abcdef12"
+        }
+      },
+      "findings": [{
+        "status": "FAILED",
+        "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
+        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/dev/state_storage.tf"},
+        "severity": {"level": "HIGH"},
+        "context": {"deduplication": {"fingerprint": "fp-breakglass-002"}}
+      }]
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+    with time.now_ns as 1772409600000000000
+
+  result.allow
+  result.metrics.excepted == 1
+  result.metrics.governance.active_break_glass == 1
+  result.exceptions.applied_ids[_] == "33333333-3333-4333-8333-333333333333"
+}
+
+test_v2_deny_global_scope_without_authorized_role if {
+  exceptions := [{
+    "exception_id": "44444444-4444-4444-8444-444444444444",
+    "schema_version": "2.0.0",
+    "enabled": true,
+    "scanner": "checkov",
+    "rule_id": "CKV2_CS_AZ_001",
+    "resource_id": "azurerm_storage_account.insecure",
+    "fingerprint": "fp-global-001",
+    "resource_hash": "fp-global-001",
+    "repo": "cloud-infra",
+    "branch_scope": "*",
+    "scope_type": "global",
+    "severity": "HIGH",
+    "break_glass": false,
+    "approved_by_role": "APPSEC_L2",
+    "requested_by": "dev@example.com",
+    "approved_by": "security@example.com",
+    "justification": "Invalid global scope approval level",
+    "created_at": "2026-03-01T00:00:00Z",
+    "expires_at": "2099-01-01T00:00:00Z"
+  }]
+
+  result := decision
+    with input as object.union(base_input, {
+      "metadata": {
+        "environment": "dev",
+        "git": {
+          "repository": "cloud-infra",
+          "branch": "main",
+          "commit": "abcdef1234567890abcdef1234567890abcdef12"
+        }
+      },
+      "findings": []
+    })
+    with data.cloudsentinel.exceptions.exceptions as exceptions
+
+  not result.allow
+  result.exceptions.invalid_enabled_ids[_] == "44444444-4444-4444-8444-444444444444"
 }

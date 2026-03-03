@@ -21,6 +21,17 @@ if [[ -f "$IGNORE_FILE" ]]; then
   IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
 fi
 
+SKIP_ARGS=()
+SKIP_DIRS_CSV="${TRIVY_SKIP_DIRS:-}"
+if [[ -n "$SKIP_DIRS_CSV" ]]; then
+  IFS=',' read -r -a _skip_dirs <<< "$SKIP_DIRS_CSV"
+  for _dir in "${_skip_dirs[@]}"; do
+    _dir="$(echo "$_dir" | xargs)"
+    [[ -z "$_dir" ]] && continue
+    SKIP_ARGS+=(--skip-dirs "$_dir")
+  done
+fi
+
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy][FS]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[CloudSentinel][Trivy][FS][WARN]\033[0m $*" >&2; }
 err()  { echo -e "\033[1;31m[CloudSentinel][Trivy][FS][ERROR]\033[0m $*" >&2; }
@@ -50,6 +61,7 @@ log "Target    : $TARGET"
 log "Output    : $OUTPUT_FILE"
 log "SBOM      : $SBOM_FILE"
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
+[[ ${#SKIP_ARGS[@]} -gt 0 ]] && log "Skip dirs: $SKIP_DIRS_CSV"
 
 # ── SBOM Generation ──────────────────────────────────────────────────────────
 log "Generating SBOM (CycloneDX)..."
@@ -67,6 +79,7 @@ set +e
 trivy fs \
   --config "$CONFIG_FILE" \
   "${IGNORE_ARGS[@]}" \
+  "${SKIP_ARGS[@]}" \
   --scanners vuln,secret \
   --format json \
   --output "$OUTPUT_FILE" \

@@ -1,247 +1,147 @@
 #!/usr/bin/env python3
 # ==============================================================================
-# CloudSentinel Risk Acceptance Fetcher (Anti-Corruption Layer)
-# Description: Fetches approved Risk Acceptances from DefectDojo API and
-#              transforms them into the strict schema expected by OPA.
-#              Fails closed (returns valid empty JSON) on network or auth errors.
+# CloudSentinel Risk Acceptance Fetcher (Enterprise Engine)
+# Compatibility wrapper for legacy entrypoint path.
+# Modular implementation is now located under shift-left/opa/fetch_exceptions/.
 # ==============================================================================
 
-import os
+from __future__ import annotations
+
+import pathlib
 import sys
-import json
-import logging
-import urllib.request
-import urllib.error
-from datetime import datetime, timezone, timedelta
-import re
+from typing import Any, Dict, List, Optional, Tuple
 
-# Structured Logging Setup
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"time": "%(asctime)s", "level": "%(levelname)s", "component": "fetch-exceptions", "message": "%(message)s"}',
-    datefmt='%Y-%m-%dT%H:%M:%SZ',
-    stream=sys.stderr
+# Ensure `shift-left/opa` is importable even when this file is loaded dynamically
+# by tests via importlib.util.spec_from_file_location.
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from fetch_exceptions.fetch_defectdojo import fetch_risk_acceptances as _fetch_risk_acceptances
+from fetch_exceptions.fetch_mapping import (
+    drop as _drop,
+    emit_audit_event as _emit_audit_event,
+    json_payload as _json_payload,
+    map_risk_acceptances as _map_risk_acceptances,
+    save_outputs as _save_outputs,
 )
-logger = logging.getLogger(__name__)
+from fetch_exceptions.fetch_utils import (
+    cf,
+    ensure_dir,
+    first_non_empty,
+    get_custom_fields,
+    normalize_path,
+    normalize_role,
+    normalize_scope as _normalize_scope,
+    normalize_severity as _normalize_severity,
+    now_utc,
+    parse_bool,
+    parse_datetime,
+    role_rank as _role_rank,
+    safe_str,
+    save_json,
+    to_rfc3339,
+    valid_email,
+)
+from fetch_exceptions.fetch_validation import (
+    extract_v2_exception as _extract_v2_exception,
+    generate_exception_uuid as _generate_exception_uuid,
+    guess_scanner,
+    is_active_accepted,
+    legacy_window_open as _legacy_window_open,
+    parse_approved_at,
+    parse_created_at,
+    parse_expires_at,
+    resolve_break_glass,
+)
+from fetch_exceptions.main import build_context, emit_empty as _emit_empty, execute
 
-DEFECTDOJO_URL = os.environ.get("DOJO_URL", "").rstrip("/")
-DEFECTDOJO_API_KEY = os.environ.get("DOJO_API_KEY", "")
-CI_PROJECT_NAME = os.environ.get("CI_PROJECT_NAME", "unknown")
+CTX = build_context()
 
-# Always save to the artifact location so OPA can find it safely
-# In CI, we run from the repository root.
-REPO_ROOT = os.getcwd()
-OUTPUT_FILE = os.environ.get("OPA_EXCEPTIONS_FILE", os.path.join(REPO_ROOT, ".cloudsentinel", "exceptions.json"))
-DROPPED_FILE = os.path.join(REPO_ROOT, ".cloudsentinel", "dropped_exceptions.json")
+# Preserve legacy module-level symbols for backward compatibility.
+logger = CTX.logger
+DOJO_URL = CTX.dojo_url
+DOJO_API_KEY = CTX.dojo_api_key
+REPO_ROOT = CTX.repo_root
+CI_PROJECT_NAME = CTX.ci_project_name
+CI_PROJECT_PATH = CTX.ci_project_path
+CI_COMMIT_REF_NAME = CTX.ci_commit_ref_name
+CI_COMMIT_SHA = CTX.ci_commit_sha
+OUTPUT_FILE = CTX.output_file
+DROPPED_FILE = CTX.dropped_file
+AUDIT_LOG_FILE = CTX.audit_log_file
+LEGACY_COMPAT = CTX.legacy_compat
+LEGACY_SUNSET_DATE = CTX.legacy_sunset_date
+ALLOWED_APPROVER_ROLES = CTX.allowed_approver_roles
+GLOBAL_SCOPE_ALLOWED_ROLES = CTX.global_scope_allowed_roles
+BREAK_GLASS_MAX_DAYS = CTX.break_glass_max_days
+ALLOWED_SCOPE_TYPES = CTX.allowed_scope_types
+SEVERITY_ENUM = CTX.severity_enum
+ROLE_RANK = CTX.role_ranks
+SCHEMA_VERSION = CTX.schema_version
+DROPPED = CTX.dropped
 
-# Global list for audit trail
-dropped_exceptions = []
 
-def record_drop(ra_id, reason):
-    """Logs and records a dropped exception for the audit trail."""
-    logger.error(f"Dropping RA {ra_id}: {reason}")
-    dropped_exceptions.append({
-        "id": f"RA-{ra_id}",
-        "reason": reason,
-        "dropped_at": format_rfc3339()
-    })
+def normalize_severity(value: str) -> str:
+    return _normalize_severity(value, SEVERITY_ENUM)
 
-def generate_empty_payload(reason):
-    """Generates a valid empty exceptions payload (Fail-Closed)."""
-    logger.warning(f"Generating empty exceptions payload (Fail-Secure). Reason: {reason}")
-    payload = {
-        "cloudsentinel": {
-            "exceptions": {
-                "exceptions": []
-            }
-        }
-    }
-    save_payload(payload)
-    save_dropped_payload()
-    sys.exit(0)
 
-def save_dropped_payload():
-    """Saves the audit trail of dropped exceptions."""
-    os.makedirs(os.path.dirname(DROPPED_FILE), exist_ok=True)
-    with open(DROPPED_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"dropped_exceptions": dropped_exceptions}, f, indent=2)
-    logger.info(f"Audit trail saved to {DROPPED_FILE}")
+def normalize_scope(scope_type: str) -> str:
+    return _normalize_scope(scope_type, ALLOWED_SCOPE_TYPES)
 
-def save_payload(payload):
-    """Saves the JSON payload to the artifact directory."""
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, indent=2)
-    logger.info(f"Exceptions saved to {OUTPUT_FILE}")
 
-def is_valid_email(email):
-    return re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.lower()) is not None
+def role_rank(role: str) -> int:
+    return _role_rank(role, ROLE_RANK)
 
-def format_rfc3339(dt=None):
-    if dt is None:
-        dt = datetime.now(timezone.utc)
-    return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-def norm_path(path):
-    """Canonicalize path to match exactly with normalizer output"""
-    if not path: return "unknown"
-    p = str(path).replace("\\", "/").replace("/./", "/")
-    while "//" in p: p = p.replace("//", "/")
-    if p.startswith("./"): p = p[2:]
-    return p if p else "unknown"
+def emit_audit_event(event_type: str, payload: Dict[str, Any]) -> None:
+    _emit_audit_event(CTX, event_type, payload)
 
-def fetch_from_dojo():
-    """Fetches Risk Acceptances from DefectDojo API v2"""
-    if not DEFECTDOJO_URL or not DEFECTDOJO_API_KEY:
-        logger.warning("DefectDojo URL or API Key missing. Skipping fetch.")
-        return []
 
-    # DefectDojo API v2 Risk Acceptance endpoint
-    endpoint = f"{DEFECTDOJO_URL}/api/v2/risk_acceptance/"
-    logger.info(f"Querying DefectDojo: {endpoint}")
-    
-    req = urllib.request.Request(endpoint, headers={
-        "Authorization": f"Token {DEFECTDOJO_API_KEY}",
-        "Accept": "application/json"
-    })
-    
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if response.getcode() != 200:
-                logger.error(f"DefectDojo returned HTTP {response.getcode()}")
-                return []
-            data = json.loads(response.read().decode('utf-8'))
-            return data.get('results', [])
-    except urllib.error.URLError as e:
-        logger.error(f"Network error while calling DefectDojo: {str(e)}")
-        return []
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON response from DefectDojo")
-        return []
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return []
+def generate_exception_uuid(ra: Dict[str, Any]) -> str:
+    return _generate_exception_uuid(CTX, ra)
 
-def map_risk_acceptance_to_opa(ra):
-    """
-    Anti-Corruption Layer: Maps DefectDojo RA to OPA schema.
-    Applies defensive values for fields that might be missing in Dojo.
-    """
-    # 1. Extraction and strict validation of expiration date
-    expiration_date_str = ra.get("expiration_date", "")
-    try:
-        # Expected format from DefectDojo
-        if len(expiration_date_str) >= 10:
-            expiration_dt = datetime.strptime(expiration_date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        else:
-            expiration_dt = datetime.now(timezone.utc) - timedelta(days=1)
-    except ValueError:
-        reason = f"Failed to parse expiration_date '{expiration_date_str}'"
-        record_drop(ra.get('id'), reason)
-        return None
-    
-    now = datetime.now(timezone.utc)
-    
-    # Fail-Secure: Drop if expired
-    if now > expiration_dt:
-        reason = f"Already expired (Expires: {expiration_dt.strftime('%Y-%m-%d')} < Today)"
-        record_drop(ra.get('id'), reason)
-        return None
-    
-    # 2. Advanced warnings (Race Condition Buffer)
-    time_left = expiration_dt - now
-    if time_left.days < 7:
-        logger.warning(f"RA {ra.get('id')} expires in less than 7 days ({time_left.days} days).")
 
-    # 3. Defensive mapping of complex rules
-    # Natively, Dojo risk acceptances apply to findings. We map the name to rule_id.
-    rule_id = str(ra.get("name", "")).strip()
-    if not rule_id:
-        record_drop(ra.get('id'), "Missing required rule_id (in 'name' field)")
-        return None
+def json_payload(exceptions: List[Dict[str, Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
+    return _json_payload(CTX, exceptions, meta)
 
-    # Defensive contact values
-    requested_by = str(ra.get("owner", "dev-system@example.com")).strip()
-    approved_by = str(ra.get("approver", "appsec-system@example.com")).strip()
-    
-    if not is_valid_email(requested_by):
-        requested_by = "dev-system@example.com"
-    if not is_valid_email(approved_by):
-        approved_by = "appsec-system@example.com"
-        
-    # Separation of Duties (SoD) Assertion
-    if requested_by.lower() == approved_by.lower():
-        record_drop(ra.get('id'), f"Self-approval detected ({requested_by}). Violates SoD.")
-        return None
 
-    mapped = {
-        "id": f"RA-{ra.get('id', 'unknown')}",
-        "enabled": True,
-        "tool": "checkov", # Can be extracted dynamically if stored in Dojo custom fields
-        "rule_id": rule_id,
-        "resource_path": norm_path(ra.get("path", "/")), # Canonicalized path
-        "environments": ["dev", "test", "staging", "prod"], # Broad application Default
-        "max_severity": "CRITICAL",
-        "reason": ra.get("description", "Approved via DefectDojo API"),
-        "ticket": f"DOJO-RA-{ra.get('id', 'unknown')}",
-        "requested_by": requested_by,
-        "approved_by": approved_by,
-        "commit_hash": "a1b2c3d", # Native API doesn't hold this; placeholder mapping
-        "request_date": ra.get("created", format_rfc3339()),
-        "expires_at": format_rfc3339(expiration_dt)
-    }
+def drop(ra: Dict[str, Any], reason: str) -> None:
+    _drop(CTX, ra, reason)
 
-    # 4. Final strict schema assertion before returning
-    required_fields = ["id", "tool", "rule_id", "environments", "max_severity", 
-                       "reason", "ticket", "requested_by", "approved_by", 
-                       "commit_hash", "request_date", "expires_at", "resource_path"]
-    
-    for field in required_fields:
-        val = mapped.get(field)
-        if val == "" or val is None or (isinstance(val, list) and len(val) == 0):
-            record_drop(ra.get('id'), f"Missing required field '{field}' after mapping")
-            return None
 
-    return mapped
+def save_outputs(payload: Dict[str, Any]) -> None:
+    _save_outputs(CTX, payload)
 
-def main():
-    logger.info("Starting exception fetching process...")
-    
-    if not DEFECTDOJO_URL:
-        logger.info("No DOJO_URL provided. Running in standalone secure mode.")
-        generate_empty_payload("Standalone mode enabled (no Dojo URL)")
-        
-    raw_ras = fetch_from_dojo()
-    
-    if not raw_ras:
-        # Network down, unauthorized, or empty array.
-        generate_empty_payload("Zero Risk Acceptances found or API unreachable.")
-        return
 
-    valid_exceptions = []
-    for ra in raw_ras:
-        # Check standard DefectDojo active flag
-        if not ra.get('is_active', True):
-            continue
-            
-        mapped = map_risk_acceptance_to_opa(ra)
-        if mapped:
-            valid_exceptions.append(mapped)
+def emit_empty(reason: str) -> None:
+    _emit_empty(CTX, reason)
 
-    payload = {
-        "cloudsentinel": {
-            "exceptions": {
-                "exceptions": valid_exceptions
-            }
-        }
-    }
-    
-    save_payload(payload)
-    save_dropped_payload()
-    logger.info(f"Successfully processed {len(valid_exceptions)} active risk acceptances from Dojo.")
-    
+
+def fetch_risk_acceptances() -> List[Dict[str, Any]]:
+    return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, logger)
+
+
+def legacy_window_open() -> bool:
+    return _legacy_window_open(CTX)
+
+
+def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    return _extract_v2_exception(CTX, ra)
+
+
+def map_risk_acceptances(raw_ras: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    return _map_risk_acceptances(CTX, raw_ras)
+
+
+def main() -> None:
+    execute(CTX)
+
+
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
-        generate_empty_payload(f"Unhandled exception in script: {str(e)}")
+    except Exception as exc:
+        logger.exception(f"Unhandled error in fetch-exceptions: {exc}")
+        emit_empty(f"Unhandled exception: {exc}")
+

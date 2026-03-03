@@ -42,7 +42,10 @@ mkdir -p "$OUT_DIR"
 
 REPORT_RAW_TMP="$(mktemp -t gitleaks-raw.XXXXXX.json)"
 REPORT_NORM_TMP="$(mktemp -t gitleaks-findings.XXXXXX.json)"
-trap 'rm -f "$REPORT_RAW_TMP" "$REPORT_NORM_TMP"' EXIT
+# Rule severity mapping artifacts (built from gitleaks.toml at runtime).
+RULE_SEV_TSV_TMP="$(mktemp -t gitleaks-rule-sev.XXXXXX.tsv)"
+RULE_SEV_MAP_TMP="$(mktemp -t gitleaks-rule-sev-map.XXXXXX.json)"
+trap 'rm -f "$REPORT_RAW_TMP" "$REPORT_NORM_TMP" "$RULE_SEV_TSV_TMP" "$RULE_SEV_MAP_TMP"' EXIT
 
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
 REPORT_OUT="$OUT_DIR/gitleaks_opa.json"
@@ -55,6 +58,68 @@ emit_not_run() {
 
 command -v gitleaks >/dev/null 2>&1 || { emit_not_run "gitleaks_binary_missing"; exit 0; }
 [[ -f "$CONFIG_PATH" ]] || { emit_not_run "gitleaks_config_missing:$CONFIG_PATH"; exit 0; }
+
+# Build an authoritative rule_id -> severity lookup directly from gitleaks.toml.
+# This prevents downgrading findings when raw Gitleaks output omits `.Severity`.
+awk '
+  function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+  function unquote(s) { s=trim(s); sub(/^"/, "", s); sub(/"$/, "", s); return s }
+  function emit_rule(  sev_norm,tags_norm) {
+    if (rule_id == "") { return }
+    sev_norm = toupper(trim(rule_sev))
+    tags_norm = tolower(rule_tags)
+
+    # Severity is authoritative when defined in the rule.
+    # If absent, infer from tags (critical/high/medium/low/info) to keep policy intent.
+    if (sev_norm == "") {
+      if (tags_norm ~ /critical/) sev_norm = "CRITICAL"
+      else if (tags_norm ~ /high/) sev_norm = "HIGH"
+      else if (tags_norm ~ /medium/) sev_norm = "MEDIUM"
+      else if (tags_norm ~ /low/) sev_norm = "LOW"
+      else if (tags_norm ~ /info|informational/) sev_norm = "INFO"
+      else sev_norm = "MEDIUM"
+    }
+
+    # Enforce CloudSentinel severity enum values only.
+    if (sev_norm != "CRITICAL" && sev_norm != "HIGH" && sev_norm != "MEDIUM" && sev_norm != "LOW" && sev_norm != "INFO") {
+      sev_norm = "MEDIUM"
+    }
+    printf "%s\t%s\n", rule_id, sev_norm
+  }
+
+  /^\[\[rules\]\]/ {
+    if (in_rules_block) emit_rule()
+    in_rules_block = 1
+    rule_id = ""
+    rule_sev = ""
+    rule_tags = ""
+    next
+  }
+
+  in_rules_block {
+    if ($0 ~ /^[[:space:]]*id[[:space:]]*=/) {
+      split($0, p, "=")
+      rule_id = unquote(substr($0, index($0, "=") + 1))
+    } else if ($0 ~ /^[[:space:]]*severity[[:space:]]*=/) {
+      split($0, p, "=")
+      rule_sev = unquote(substr($0, index($0, "=") + 1))
+    } else if ($0 ~ /^[[:space:]]*tags[[:space:]]*=/) {
+      # Keep raw tags line for keyword inference when severity is not set.
+      rule_tags = substr($0, index($0, "=") + 1)
+    }
+  }
+
+  END {
+    if (in_rules_block) emit_rule()
+  }
+' "$CONFIG_PATH" > "$RULE_SEV_TSV_TMP"
+
+jq -Rn '
+  reduce inputs as $line ({};
+    ($line | split("\t")) as $parts
+    | if ($parts | length) == 2 then . + { ($parts[0]): ($parts[1]) } else . end
+  )
+' "$RULE_SEV_TSV_TMP" > "$RULE_SEV_MAP_TMP"
 
 GITLEAKS_VERSION="$(gitleaks version 2>/dev/null | head -n 1 | tr -d '\r' || echo unknown)"
 [[ -z "$GITLEAKS_VERSION" ]] && GITLEAKS_VERSION="unknown"
@@ -124,8 +189,33 @@ jq -e 'type=="array"' "$REPORT_RAW_TMP" >/dev/null 2>&1 || { echo "[]" > "$REPOR
 cp "$REPORT_RAW_TMP" "$REPORT_RAW_OUT"
 
 # Normalisation et Enrichissement (Auteur, Date, Commit)
-jq '
-  def norm_sev(x): if (x|type)=="string" and (x|length)>0 then (x|ascii_upcase) else "MEDIUM" end;
+jq --argjson rule_sev_map "$(cat "$RULE_SEV_MAP_TMP")" '
+  def norm_sev(x):
+    if (x|type)!="string" or (x|length)==0 then ""
+    else
+      (x
+       | ascii_upcase
+       | gsub("[^A-Z0-9_]"; ""))
+      | if . == "CRITICAL" or . == "CRIT" or . == "SEV5" or . == "SEVERITY5" or . == "VERY_HIGH" then "CRITICAL"
+        elif . == "HIGH" or . == "SEV4" or . == "SEVERITY4" then "HIGH"
+        elif . == "MEDIUM" or . == "MODERATE" or . == "SEV3" or . == "SEVERITY3" then "MEDIUM"
+        elif . == "LOW" or . == "MINOR" or . == "SEV2" or . == "SEVERITY2" then "LOW"
+        elif . == "INFO" or . == "INFORMATIONAL" or . == "SEV1" or . == "SEVERITY1" or . == "UNKNOWN" then "INFO"
+        else "" end
+    end;
+
+  # Resolve severity with strict precedence:
+  # 1) gitleaks.toml rule mapping (authoritative for known rule_id)
+  # 2) raw finding severity
+  # 3) MEDIUM fallback for unknown/unmapped values
+  def resolve_sev(x):
+    (x.RuleID // "unknown") as $rule_id
+    | (norm_sev($rule_sev_map[$rule_id] // "")) as $from_rule
+    | (norm_sev(x.Severity // "")) as $from_finding
+    | if $from_rule != "" then $from_rule
+      elif $from_finding != "" then $from_finding
+      else "MEDIUM" end;
+
   def mk_fp(x):
     if (x.Fingerprint? and (x.Fingerprint|type)=="string" and (x.Fingerprint|length)>0) then x.Fingerprint
     else "fp:" + ([ (x.RuleID // "unknown"), (x.File // "unknown"), ((x.StartLine // 0)|tostring) ] | join("|")) end;
@@ -135,7 +225,7 @@ jq '
     description: (.Description // "unknown"),
     file: (.File // "unknown"),
     start_line: (.StartLine // 0),
-    severity: norm_sev(.Severity // "MEDIUM"),
+    severity: resolve_sev(.),
     fingerprint: mk_fp(.),
     secret: "REDACTED",
     author: (.Email // "unknown"),

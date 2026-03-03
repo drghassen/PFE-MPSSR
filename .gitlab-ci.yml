@@ -22,21 +22,27 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  SCAN_TARGET: "."
-  TRIVY_TARGET: "."
+  SCAN_TARGET: "infra"
+  CHECKOV_SKIP_PATHS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
+  TRIVY_TARGET: "infra"
   TRIVY_SCAN_TYPE: "fs"
+  TRIVY_SKIP_DIRS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "2"
+  RETRY_GUARD_MAX_RETRIES: "3"
+  RETRY_GUARD_MIN_INTERVAL_SEC: "120"
+  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin,security-admin"
 
 stages:
+  - guard
   - prepare
   - scan
   - normalize
   - contract
   - decide
   - report
-  - deploy
+  # - deploy
 
 .default_tools: &default_tools
   image: ${SECURITY_TOOLS_IMAGE}
@@ -46,6 +52,22 @@ stages:
     policy: pull-push
     paths:
       - .trivy-cache
+
+retry-guard:
+  <<: *default_tools
+  stage: guard
+  script:
+    - chmod +x shift-left/ci/retry-guard.sh
+    - bash shift-left/ci/retry-guard.sh
+  allow_failure: false
+
+exceptions-immutability:
+  <<: *default_tools
+  stage: guard
+  script:
+    - chmod +x shift-left/ci/enforce-exceptions-immutability.sh
+    - bash shift-left/ci/enforce-exceptions-immutability.sh
+  allow_failure: false
 
 build-scan-tools-image:
   stage: prepare
@@ -161,6 +183,7 @@ normalize-reports:
       - .cloudsentinel/trivy_opa.json
       - .cloudsentinel/exceptions.json
       - .cloudsentinel/dropped_exceptions.json
+      - .cloudsentinel/audit_events.jsonl
 
 contract-test:
   <<: *default_tools
@@ -185,6 +208,18 @@ contract-test:
         'print("[contract] schema validation passed")' \
         > /tmp/contract_validate.py
       python3 /tmp/contract_validate.py
+    - |
+      printf '%s\n' \
+        'import json, sys' \
+        'from jsonschema import validate, Draft7Validator' \
+        'doc    = json.load(open(".cloudsentinel/exceptions.json"))' \
+        'schema = json.load(open("shift-left/opa/schema/exceptions_v2.schema.json"))' \
+        'Draft7Validator.check_schema(schema)' \
+        'validate(doc, schema)' \
+        'print("[contract] exceptions schema validation passed")' \
+        > /tmp/contract_validate_exceptions.py
+      python3 /tmp/contract_validate_exceptions.py
+    - python3 -m unittest shift-left/opa/tests/test_fetch_exceptions.py
 
 opa-image-smoke:
   image:
@@ -249,6 +284,8 @@ opa-decision:
     expire_in: 30 days
     paths:
       - .cloudsentinel/opa_decision.json
+      - .cloudsentinel/decision_audit_events.jsonl
+      - .cloudsentinel/audit_events.jsonl
 
 upload-to-defectdojo:
   stage: report
@@ -316,27 +353,27 @@ upload-to-defectdojo:
   when: always
   allow_failure: true
 
-deploy-infrastructure:
-  stage: deploy
-  <<: *default_tools
-  needs:
-    - job: opa-decision
-  before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends gpg
-    - rm -rf /var/lib/apt/lists/*
-    - curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
-    - chmod +x /tmp/install-opentofu.sh
-    - /tmp/install-opentofu.sh --install-method standalone --install-path /usr/local/bin
-    - tofu version
-    - cd infra/azure/dev
-  script:
-    - tofu init
-    - tofu plan -out=tfplan
-    - tofu apply -auto-approve tfplan
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+# deploy-infrastructure:
+#   stage: deploy
+#   <<: *default_tools
+#   needs:
+#     - job: opa-decision
+#   before_script:
+#     - apt-get update
+#     - apt-get install -y --no-install-recommends gpg
+#     - rm -rf /var/lib/apt/lists/*
+#     - curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
+#     - chmod +x /tmp/install-opentofu.sh
+#     - /tmp/install-opentofu.sh --install-method standalone --install-path /usr/local/bin
+#     - tofu version
+#     - cd infra/azure/dev
+#   script:
+#     - tofu init
+#     - tofu plan -out=tfplan
+#     - tofu apply -auto-approve tfplan
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH == "main"'
+#     - if: '$CI_COMMIT_BRANCH == "develop"'
 
 # workflow: controls which pipelines are created.
 # Only MR events, main, and develop branches trigger the pipeline.

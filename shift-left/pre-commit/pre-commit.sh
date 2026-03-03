@@ -22,7 +22,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 GITLEAKS_RUNNER="${REPO_ROOT}/shift-left/gitleaks/run-gitleaks.sh"
 GITLEAKS_REPORT="${REPO_ROOT}/.cloudsentinel/gitleaks_opa.json"
-NORMALIZER="${REPO_ROOT}/shift-left/normalizer/normalize.sh"
+NORMALIZER_SH="${REPO_ROOT}/shift-left/normalizer/normalize.sh"
+NORMALIZER_PY="${REPO_ROOT}/shift-left/normalizer/normalize.py"
 OPA_RUNNER="${REPO_ROOT}/shift-left/opa/run-opa.sh"
 OPA_DECISION_FILE="${REPO_ROOT}/.cloudsentinel/opa_decision_precommit.json"
 
@@ -66,14 +67,26 @@ else
 fi
 
 # 2) Build golden report (fast, uses existing scanner outputs if any)
-if [[ -f "$NORMALIZER" ]]; then
-  if ! CLOUDSENTINEL_EXECUTION_MODE="advisory" CLOUDSENTINEL_LOCAL_FAST="true" bash "$NORMALIZER"; then
+if [[ -f "$NORMALIZER_SH" ]]; then
+  if ! CLOUDSENTINEL_EXECUTION_MODE="advisory" CLOUDSENTINEL_LOCAL_FAST="true" bash "$NORMALIZER_SH"; then
+    warn "Normalizer failed. Skipping OPA advisory."
+    log "Pre-commit completed (advisory only)."
+    exit 0
+  fi
+elif [[ -f "$NORMALIZER_PY" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn "Normalizer python entrypoint found but python3 is missing: ${NORMALIZER_PY}"
+    log "Pre-commit completed (advisory only)."
+    exit 0
+  fi
+
+  if ! CLOUDSENTINEL_EXECUTION_MODE="advisory" CLOUDSENTINEL_LOCAL_FAST="true" python3 "$NORMALIZER_PY"; then
     warn "Normalizer failed. Skipping OPA advisory."
     log "Pre-commit completed (advisory only)."
     exit 0
   fi
 else
-  warn "Normalizer not found: ${NORMALIZER}"
+  warn "Normalizer not found: ${NORMALIZER_SH} or ${NORMALIZER_PY}"
   log "Pre-commit completed (advisory only)."
   exit 0
 fi
