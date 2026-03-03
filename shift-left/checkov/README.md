@@ -36,4 +36,4 @@ bash shift-left/checkov/run-checkov.sh "infra/azure/dev"
 
 ## 🚫 Rappel sur les Exemptions
 **N'utilisez jamais `#checkov:skip` dans le code Terraform.**
-Toutes les exceptions d'infrastructure doivent être auditées et justifiées dans le registre centralisé `policies/opa/exceptions.json` (Four-Eyes Principle). Le Checkov d'origine remontera l'erreur, et c'est le PDP OPA qui la contournera légalement.
+Toutes les exceptions d'infrastructure doivent être auditées et justifiées dans DefectDojo, puis synchronisées dans `.cloudsentinel/exceptions.json` (Four-Eyes Principle). Le Checkov d'origine remontera l'erreur, et c'est le PDP OPA qui la contournera légalement.

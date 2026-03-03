@@ -32,7 +32,6 @@ variables:
   HIGH_MAX: "2"
   RETRY_GUARD_MAX_RETRIES: "3"
   RETRY_GUARD_MIN_INTERVAL_SEC: "120"
-  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin,security-admin,drghassen"
 
 stages:
   - guard
@@ -61,13 +60,6 @@ retry-guard:
     - bash shift-left/ci/retry-guard.sh
   allow_failure: false
 
-exceptions-immutability:
-  <<: *default_tools
-  stage: guard
-  script:
-    - chmod +x shift-left/ci/enforce-exceptions-immutability.sh
-    - bash shift-left/ci/enforce-exceptions-immutability.sh
-  allow_failure: false
 
 build-scan-tools-image:
   stage: prepare
@@ -336,7 +328,7 @@ upload-to-defectdojo:
           return 0
         fi
 
-        if curl -sS -X POST "${DOJO_URL_EFF}/api/v2/reimport-scan/" \
+        if curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@${file_path}" \
           -F "scan_type=${scan_type}" \

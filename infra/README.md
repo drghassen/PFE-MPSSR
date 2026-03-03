@@ -33,7 +33,7 @@ infra/
 
 2.  **Gestion des Exceptions Terraform**
     *   Les exemptions de sécurité **ne doivent pas** être écrites dans ce code via `#checkov:skip`.
-    *   Elles doivent être actées par un comité de sécurité via l'enregistrement dans `policies/opa/exceptions.json`. Le code restera "vulnérable" mais sciemment toléré (et tracé).
+    *   Elles doivent être actées dans DefectDojo puis synchronisées dans `.cloudsentinel/exceptions.json` via `fetch-exceptions.py`. Le code restera "vulnérable" mais sciemment toléré (et tracé).
 
 ---
 

@@ -131,7 +131,7 @@ opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.dec
 	@opa eval \
 		--input .cloudsentinel/golden_report.json \
 		--data policies/opa/pipeline_decision.rego \
-		--data policies/opa/exceptions.json \
+		--data .cloudsentinel/exceptions.json \
 		"data.cloudsentinel.gate.decision" \
 		--format pretty
 

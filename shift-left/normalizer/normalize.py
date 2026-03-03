@@ -36,8 +36,14 @@ class CloudSentinelNormalizer:
             
         self.schema_strict = os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT", "false").lower() == "true"
         
-        self.critical_max = self._parse_int(os.environ.get("CRITICAL_MAX"), 0)
-        self.high_max = self._parse_int(os.environ.get("HIGH_MAX"), 2)
+        # Security hardening:
+        # In CI, enforce fixed gate thresholds to prevent bypass via CI variable overrides.
+        if os.environ.get("CI"):
+            self.critical_max = 0
+            self.high_max = 2
+        else:
+            self.critical_max = self._parse_int(os.environ.get("CRITICAL_MAX"), 0)
+            self.high_max = self._parse_int(os.environ.get("HIGH_MAX"), 2)
         
         self.timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         self.git_branch = self._run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], "unknown")
