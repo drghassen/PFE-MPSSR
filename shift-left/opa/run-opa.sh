@@ -44,11 +44,20 @@ NC='\033[0m'
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-# --- Paths (all overridable via env) ---
+# --- Paths ---
 GOLDEN_REPORT="${REPO_ROOT}/.cloudsentinel/golden_report.json"
 POLICY_FILE="${REPO_ROOT}/policies/opa/pipeline_decision.rego"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
-EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${OUTPUT_DIR}/exceptions.json}"
+
+# Security hardening:
+# In CI, always use the runtime exceptions artifact generated in the same pipeline.
+# Ignore OPA_EXCEPTIONS_FILE override to prevent path tampering via CI variables.
+if [[ -n "${CI:-}" ]]; then
+  EXCEPTIONS_FILE="${OUTPUT_DIR}/exceptions.json"
+else
+  EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${OUTPUT_DIR}/exceptions.json}"
+fi
+
 DECISION_FILE="${OPA_DECISION_FILE:-${OUTPUT_DIR}/opa_decision.json}"
 DECISION_AUDIT_LOG_FILE="${CLOUDSENTINEL_DECISION_AUDIT_LOG:-${OUTPUT_DIR}/decision_audit_events.jsonl}"
 

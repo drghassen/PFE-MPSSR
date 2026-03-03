@@ -1,0 +1,10 @@
+# ---------------------------------------------------------------------------
+# CloudSentinel CODEOWNERS (Least Privilege Governance)
+# The paths below are security-critical and require mandatory AppSec approval
+# on every merge request.
+# ---------------------------------------------------------------------------
+
+/policies/opa/ @appsec-team
+/shift-left/opa/ @appsec-team
+/shift-left/normalizer/ @appsec-team
+/.gitlab-ci.yml @appsec-team

@@ -16,7 +16,6 @@ policies/
 │   ├── README.md                   # Documentation OPA détaillée
 │   ├── pipeline_decision.rego      # Le Policy Decision Point (PDP) principal
 │   ├── test_pipeline_decision.rego # Suite de tests unitaires OPA
-│   ├── exceptions.json             # Fichier de gouvernance (Exemptions auditées)
 │   └── examples/                   # Cas d'usage et inputs factices pour tests
 │
 └── custodian/                      # Phase 2 : Shift-Right (Post-déploiement)
