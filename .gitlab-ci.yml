@@ -342,6 +342,9 @@ upload-to-defectdojo:
           --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
           --form-string "active=true" \
           --form-string "verified=false" \
+          --form-string "close_old_findings=true" \
+          --form-string "close_old_findings_product_scope=false" \
+          --form-string "deduplication_on_engagement=true" \
           >/dev/null; then
           echo "[dojo] ${label} uploaded"
         else
