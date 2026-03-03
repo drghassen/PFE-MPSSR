@@ -142,20 +142,19 @@ if [[ "$SCAN_MODE" != "ci" && "$SCAN_MODE" != "local" ]]; then
 fi
 
 USE_RANGE="false"
-BASE=""
-HEAD=""
+BEFORE=""
+CURRENT=""
+ZERO_SHA="0000000000000000000000000000000000000000"
 
 if [[ "$SCAN_MODE" == "ci" ]]; then
-  if [[ -n "${GITHUB_BASE_SHA:-}" && -n "${GITHUB_SHA:-}" ]]; then
-    BASE="$GITHUB_BASE_SHA"; HEAD="$GITHUB_SHA"; USE_RANGE="true"
-  elif [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}" && -n "${CI_COMMIT_SHA:-}" ]]; then
-    BASE="$CI_MERGE_REQUEST_TARGET_BRANCH_SHA"; HEAD="$CI_COMMIT_SHA"; USE_RANGE="true"
-  fi
+  BEFORE="${CI_COMMIT_BEFORE_SHA:-}"
+  CURRENT="${CI_COMMIT_SHA:-HEAD}"
 
-  if [[ "$USE_RANGE" == "true" ]]; then
-    if ! git cat-file -e "$BASE^{commit}" 2>/dev/null || ! git cat-file -e "$HEAD^{commit}" 2>/dev/null; then
+  if [[ -n "$BEFORE" && "$BEFORE" != "$ZERO_SHA" ]]; then
+    if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
+      USE_RANGE="true"
+    else
       warn "Commits missing (shallow clone). Fallback to full scan."
-      USE_RANGE="false"
     fi
   fi
 fi
@@ -171,8 +170,10 @@ if [[ "$SCAN_MODE" == "local" ]]; then
   fi
 else
   if [[ "$USE_RANGE" == "true" ]]; then
-    run_cmd gitleaks detect --source "$REPO_ROOT" --commit-range "$BASE...$HEAD" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_TMP" --max-target-megabytes "$MAX_SIZE_MB"
+    log "Gitleaks mode: last commit only (${BEFORE}..${CURRENT})"
+    run_cmd gitleaks detect --source "$REPO_ROOT" --log-opts="${BEFORE}..${CURRENT}" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_TMP" --max-target-megabytes "$MAX_SIZE_MB"
   else
+    log "Gitleaks mode: full scan (bootstrap)"
     run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_TMP" --max-target-megabytes "$MAX_SIZE_MB"
   fi
 fi
