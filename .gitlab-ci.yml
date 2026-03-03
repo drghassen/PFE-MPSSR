@@ -336,7 +336,7 @@ upload-to-defectdojo:
           return 0
         fi
 
-        if curl -sS -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+        if curl -sS -X POST "${DOJO_URL_EFF}/api/v2/reimport-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@${file_path}" \
           -F "scan_type=${scan_type}" \
