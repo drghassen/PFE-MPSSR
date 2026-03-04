@@ -4,7 +4,8 @@
 # on every merge request.
 # ---------------------------------------------------------------------------
 
-/policies/opa/ @appsec-team
-/shift-left/opa/ @appsec-team
-/shift-left/normalizer/ @appsec-team
-/.gitlab-ci.yml @appsec-team
+/policies/opa/ @appsec-team @drghassen
+/shift-left/opa/ @appsec-team @drghassen
+/shift-left/normalizer/ @appsec-team @drghassen
+/shift-left/ci/ @appsec-team @drghassen
+/.gitlab-ci.yml @appsec-team @drghassen

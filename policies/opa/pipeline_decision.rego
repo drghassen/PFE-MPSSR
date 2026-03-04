@@ -714,10 +714,10 @@ deny[msg] if {
   msg := "Invalid threshold configuration: critical_max/high_max must be numeric"
 }
 
-# deny[msg] if {
-#   effective_critical > critical_max
-#   msg := sprintf("CRITICAL findings (%d) exceed threshold (%d)", [effective_critical, critical_max])
-# }
+deny[msg] if {
+  effective_critical > critical_max
+  msg := sprintf("CRITICAL findings (%d) exceed threshold (%d)", [effective_critical, critical_max])
+}
 
 deny[msg] if {
   effective_high > high_max
