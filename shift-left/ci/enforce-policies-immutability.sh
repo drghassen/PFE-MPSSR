@@ -19,8 +19,8 @@ HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 
 if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
-  log "No valid base SHA found; skipping policies immutability check."
-  exit 0
+  BASE_SHA="$(git merge-base "$HEAD_SHA" "origin/${CI_DEFAULT_BRANCH:-main}" 2>/dev/null || true)"
+  [[ -n "$BASE_SHA" ]] || { err "Unable to resolve BASE_SHA"; exit 2; }
 fi
 
 if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then

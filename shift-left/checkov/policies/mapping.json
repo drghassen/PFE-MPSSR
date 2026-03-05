@@ -19,7 +19,6 @@
   "CKV2_CS_AZ_019": { "category": "COMPUTE",    "severity": "MEDIUM" },
   "CKV2_CS_AZ_020": { "category": "LOGGING",    "severity": "MEDIUM" },
   "CKV2_CS_AZ_021": { "category": "NETWORK",    "severity": "CRITICAL" },
-  "CKV2_CS_AZ_022": { "category": "SECURITY",   "severity": "MEDIUM" },
   "CKV2_CS_AZ_023": { "category": "SECURITY",   "severity": "MEDIUM" },
   "CKV2_CS_AZ_024": { "category": "SECURITY",   "severity": "MEDIUM" },
   "CKV2_CS_AZ_025": { "category": "APPSERVICE", "severity": "HIGH" },

@@ -12,6 +12,10 @@ export TRIVY_TARGET="."
 export TRIVY_SCAN_TYPE="fs"
 export SECURITY_TOOLS_IMAGE="cloudsentinel-tools:local" # Not used in script but for context
 
+# Simulate GitLab CI commit-range variables for Gitleaks
+export CI_COMMIT_SHA="$(git rev-parse HEAD)"
+export CI_COMMIT_BEFORE_SHA="$(git rev-parse HEAD~1 2>/dev/null || echo '0000000000000000000000000000000000000000')"
+
 safe_kill() {
     local pid="${1:-}"
     if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then

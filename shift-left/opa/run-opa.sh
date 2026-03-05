@@ -294,6 +294,9 @@ fi
 echo ""
 echo "  ──────────────────────────────"
 
+mkdir -p "$(dirname "$DECISION_AUDIT_LOG_FILE")"
+: > "$DECISION_AUDIT_LOG_FILE"
+
 if [[ "$ALLOW" == "true" ]]; then
   if [[ "$APPLIED_COUNT" -gt 0 ]]; then
     emit_decision_audit_applied_exceptions

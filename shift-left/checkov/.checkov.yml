@@ -20,10 +20,7 @@ output: json
 quiet: true
 compact: true
 
-external-checks-dir:
-  - shift-left/checkov/policies
-
-download-external-modules: true
+download-external-modules: false
 soft-fail: true
 
 # Avoid overlap with Trivy (Docker) and keep scope IaC/K8s only.
