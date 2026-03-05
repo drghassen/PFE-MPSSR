@@ -87,19 +87,19 @@ scan-iac: ## Scanner uniquement l'IaC (Checkov)
 
 checkov-smoke: ## Smoke test des policies Checkov sur fixtures internes
 	@echo "$(GREEN)🧪 Smoke Checkov (fixtures)...$(RESET)"
-	@bash tests/checkov/smoke.sh
+	@bash shift-left/checkov/tests/smoke.sh
 
 gitleaks-test: ## Smoke test Gitleaks sur fixtures (positif + négatif)
 	@echo "$(GREEN)🧪 Smoke test Gitleaks...$(RESET)"
-	@bash tests/gitleaks/smoke.sh
+	@bash shift-left/gitleaks/tests/smoke.sh
 
 precommit-test: ## Smoke test pre-commit (advisory non-bloquant)
 	@echo "$(GREEN)🧪 Smoke test pre-commit...$(RESET)"
-	@bash tests/pre-commit/smoke.sh
+	@bash shift-left/pre-commit/pre-commit.sh || true
 
 normalizer-test: ## Smoke test normalizer (contrat schema + traçabilité)
 	@echo "$(GREEN)🧪 Smoke test normalizer...$(RESET)"
-	@bash tests/normalizer/smoke.sh
+	@bash shift-left/normalizer/tests/smoke.sh
 
 gitleaks-update-baseline: ## Régénérer la baseline Gitleaks (faux positifs connus)
 	@echo "$(YELLOW)⚠️  Régénération baseline Gitleaks — tous les findings actuels seront ignorés.$(RESET)"

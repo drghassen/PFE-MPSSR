@@ -71,6 +71,7 @@ fi
 
 log_info "Using config: $CONFIG_FILE"
 checkov_cmd+=("--config-file" "$CONFIG_FILE")
+checkov_cmd+=("--external-checks-dir" "$POLICIES_DIR")
 
 # CI noise reduction (optional): allow explicit skip-path list without impacting local/e2e scans.
 if [[ -n "${CHECKOV_SKIP_PATHS:-}" ]]; then
@@ -127,7 +128,9 @@ jq -n \
   def allowed_check(id):
     (id | startswith("CKV2_CS_AZ_"))
     or (id | startswith("CKV_AZURE_"))
-    or (id | startswith("CKV_K8S_"));
+    or (id | startswith("CKV2_AZURE_"))
+    or (id | startswith("CKV_K8S_"))
+    or (id | startswith("CKV2_K8S_"));
 
   ($raw | flatten | map(.results.failed_checks // []) | flatten) as $findings
   | ($findings
@@ -173,6 +176,11 @@ jq -n \
         TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
         EXEMPTED: 0,
         FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
+        # NOTE: PASSED is always 0 by design.
+        # $normalized contains only failed_checks.
+        # Passed checks are not loaded for OPA normalization:
+        # OPA decisions are based exclusively on failures.
+        # Loading passed_checks is out of scope (post-soutenance roadmap).
         PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
       },
       findings: $normalized

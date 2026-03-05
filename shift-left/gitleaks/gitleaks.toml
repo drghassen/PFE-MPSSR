@@ -15,11 +15,16 @@ paths = [
   '''(^|/)\.terraform/''',
   '''(^|/)\.terragrunt-cache/''',
   '''(^|/)\.git/''',
-  # '''(^|/)tests?/fixtures/''',
-  # '''(^|/)__tests__/fixtures/''',
-  # '''(^|/)test/fixtures/''',
+  '''(^|/)tests?/fixtures/''',
+  '''(^|/)__tests__/fixtures/''',
+  '''(^|/)test/fixtures/''',
+  '''(^|/)infra/azure/dev/tests/''',
+  '''(^|/)shift-left/checkov/tests/fixtures/''',
+  '''(^|/)shift-left/gitleaks/tests/fixtures/''',
+  '''(^|/)shift-left/trivy/tests/fixtures/''',
   '''(^|/)gitleaks\.toml$'''
 ]
+
 files = [
   '''.*\.lock$''',
   '''package-lock\.json$''',

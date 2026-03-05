@@ -9,6 +9,10 @@ definition:
   cond_type: "attribute"
   resource_types:
     - "azurerm_key_vault"
+  # NOTE (E3): kept for CIS 8.3 traceability.
+  # On recent AzureRM versions, soft delete is generally enforced by platform
+  # and this check may stay permanently PASSED.
+  # Do not remove without an explicit governance decision.
   attribute: "soft_delete_enabled"
   operator: "equals"
   value: true

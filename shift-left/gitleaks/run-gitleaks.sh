@@ -151,13 +151,21 @@ if [[ "$SCAN_MODE" == "ci" ]]; then
   CURRENT="${CI_COMMIT_SHA:-HEAD}"
 
   if [[ -n "$BEFORE" && "$BEFORE" != "$ZERO_SHA" ]]; then
+    if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || ! git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
+      warn "Commits missing (shallow clone). Trying targeted fetch..."
+      if git remote get-url origin >/dev/null 2>&1; then
+        git fetch --no-tags --depth="${GITLEAKS_FETCH_DEPTH:-200}" origin "$CURRENT" "$BEFORE" >/dev/null 2>&1 || true
+      fi
+    fi
+
     if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
       USE_RANGE="true"
     else
-      warn "Commits missing (shallow clone). Fallback to full scan."
+      warn "Commits still missing after fetch. Fallback to full scan."
     fi
   fi
 fi
+
 
 log "Starting scan (mode=$SCAN_MODE, max_size=${MAX_SIZE_MB}MB)..."
 
