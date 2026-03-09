@@ -22,9 +22,9 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  SCAN_TARGET: "infra"
+  SCAN_TARGET: "."
   CHECKOV_SKIP_PATHS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
-  TRIVY_TARGET: "infra"
+  TRIVY_TARGET: "."
   TRIVY_SCAN_TYPE: "fs"
   TRIVY_SKIP_DIRS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
 
@@ -173,7 +173,7 @@ normalize-reports:
     - python3 shift-left/normalizer/normalize.py
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
-    - python3 shift-left/opa/fetch-exceptions.py
+    - timeout 30 python3 shift-left/opa/fetch-exceptions.py || true
   artifacts:
     when: always
     expire_in: 30 days
@@ -282,8 +282,14 @@ opa-decision:
         policies/opa/pipeline_decision.rego \
         .cloudsentinel/exceptions.json \
         > /tmp/opa-server.log 2>&1 &
-    - sleep 1
-    - curl -sf "http://127.0.0.1:8181/health" >/dev/null
+    - |
+      for i in {1..10}; do
+        if curl -sf "http://127.0.0.1:8181/health" >/dev/null; then
+          echo "[opa] OPA server is UP"; break
+        fi
+        echo "[opa] Waiting for OPA... ($i/10)"
+        sleep 2
+      done
     - OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
   artifacts:
     when: always
@@ -296,6 +302,7 @@ opa-decision:
 upload-to-defectdojo:
   stage: report
   image: ${CURL_IMAGE_DIGEST}
+  retry: 2
   needs:
     - job: gitleaks-scan
       artifacts: true
@@ -320,11 +327,13 @@ upload-to-defectdojo:
 
       # Some scanners create artifacts with 600 permissions. Ensure readability for this job user.
       chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
+      mkdir -p .cloudsentinel/dojo-responses
 
       upload_scan() {
         local file_path="$1"
         local scan_type="$2"
         local label="$3"
+        local response_file=".cloudsentinel/dojo-responses/${label}.json"
 
         if [ ! -f "${file_path}" ]; then
           echo "[dojo] ${label}: report not found (${file_path}), skipping."
@@ -334,10 +343,11 @@ upload-to-defectdojo:
         if [ ! -r "${file_path}" ]; then
           echo "[dojo] ${label}: report exists but is not readable (${file_path})."
           ls -l "${file_path}" || true
-          return 0
+          return 1
         fi
 
-        if curl -sS --fail-with-body -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+        HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
+          -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
           -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
           -F "file=@${file_path}" \
           -F "scan_type=${scan_type}" \
@@ -346,12 +356,13 @@ upload-to-defectdojo:
           --form-string "verified=true" \
           --form-string "close_old_findings=true" \
           --form-string "close_old_findings_product_scope=false" \
-          --form-string "deduplication_on_engagement=true" \
-          >/dev/null; then
-          echo "[dojo] ${label} uploaded"
+          --form-string "deduplication_on_engagement=true")
+
+        if [ "${HTTP_CODE}" = "201" ]; then
+          echo "[dojo] ${label} uploaded HTTP=201"
         else
-          echo "[dojo] ${label} upload failed (curl exit $?)"
-          ls -l "${file_path}" || true
+          echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
+          cat "${response_file}" || true
           return 1
         fi
       }
@@ -359,8 +370,13 @@ upload-to-defectdojo:
       upload_scan ".cloudsentinel/gitleaks_raw.json" "Gitleaks Scan" "Gitleaks"
       upload_scan ".cloudsentinel/checkov_raw.json" "Checkov Scan" "Checkov"
       upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json" "Trivy Scan" "Trivy (FS/SCA)"
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - .cloudsentinel/dojo-responses/
   when: always
-  allow_failure: true
+  allow_failure: false
 
 # deploy-infrastructure:
 #   stage: deploy
