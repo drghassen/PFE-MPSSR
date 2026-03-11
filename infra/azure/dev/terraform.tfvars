@@ -11,3 +11,8 @@ common_tags = {
   CostCenter  = "PFE-SSR-2026"
   Compliance  = "AS-CODE"
 }
+
+admin_username = "cloudadmin"
+# Intentionally weak and hardcoded to emulate credential hygiene issues in test scans.
+admin_password = "Password123!"
+vm_size        = "Standard_B1s"
