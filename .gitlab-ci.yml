@@ -32,7 +32,7 @@ variables:
   HIGH_MAX: "2"
   RETRY_GUARD_MAX_RETRIES: "3"
   RETRY_GUARD_MIN_INTERVAL_SEC: "120"
-  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin,drghassen"
+  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin"
 
 stages:
   - guard

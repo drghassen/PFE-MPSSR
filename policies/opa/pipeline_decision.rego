@@ -136,10 +136,10 @@ finding_fingerprint(f) := fp if {
   fp != ""
 }
 
-finding_fingerprint(f) := fp if {
-  fp := trim_space(object.get(f, "fingerprint", ""))
-  fp != ""
-}
+# finding_fingerprint(f) := fp if {
+#   fp := trim_space(object.get(f, "fingerprint", ""))
+#   fp != ""
+# }
 
 finding_fingerprint(f) := "" if {
   trim_space(object.get(object.get(object.get(f, "context", {}), "deduplication", {}), "fingerprint", "")) == ""
