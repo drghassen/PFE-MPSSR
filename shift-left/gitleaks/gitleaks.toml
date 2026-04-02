@@ -1,13 +1,17 @@
+# ADR-0005: Hybrid secret-detection model for enterprise cloud security.
+# Decision (2026-04-02): enable Gitleaks defaults and retain CloudSentinel custom rules.
+# Rationale: defaults prevent maintenance blind spots; custom Azure rules add high-fidelity cloud coverage.
+
 title = "CloudSentinel Enterprise v5.0 - PFE Edition"
-description = "Enterprise-grade secret detection - PFE optimized (15 rules, full control, low noise)"
-version = "5.0.0-pfe"
+description = "Enterprise-grade secret detection - Hybrid model (custom Azure rules + upstream defaults)"
+version = "5.0.1-hybrid"
 author = "CloudSentinel Security Team"
 
 [extend]
-useDefault = false
+useDefault = true
 
 [allowlist]
-description = "Non-exploitable patterns - PFE optimized"
+description = "Non-exploitable patterns - PFE optimized (Azure samples/dev placeholders)"
 paths = [
   '''(^|/)vendor/''',
   '''(^|/)node_modules/''',
@@ -22,6 +26,8 @@ paths = [
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
   '''(^|/)shift-left/trivy/tests/fixtures/''',
+  '''(^|/)(?:infra|terraform|iac)/.*(?:examples?|samples?)/''',
+  '''(^|/)docs/(?:examples?|samples?|learn)/''',
   '''(^|/)gitleaks\.toml$'''
 ]
 
@@ -35,12 +41,13 @@ files = [
   '''.*\.map$''',
   '''.*\.(test|spec)\.(js|ts|py|go)$'''
 ]
+
 regexes = [
   '''^[a-f0-9]{40}$''',
   '''^sha256:[a-f0-9]{64}$''',
   '''^YOUR?_?(API|SECRET|KEY|TOKEN|PASSWORD)$''',
-  '''^EXAMPLE$''',
-  '''^PLACEHOLDER$''',
+  '''(?i)^example$''',
+  '''(?i)^placeholder$''',
   '''^xxx+$''',
   '''^XXX+$''',
   '''^test123$''',
@@ -51,9 +58,18 @@ regexes = [
   '''^wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY$''',
   '''^id_[a-z0-9]{10,}$''',
   '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@(localhost|127\.0\.0\.1)(:\d+)?([/\?#][^\s]*)?$''',
-  '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@(\[::1\]|::1)(:\d+)?([/\?#][^\s]*)?$'''
+  '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@(\[::1\]|::1)(:\d+)?([/\?#][^\s]*)?$''',
+  '''(?i)\bAccountKey=YOUR_ACCOUNT_KEY\b''',
+  '''(?i)\b(?:YOUR_AZURE_KEY|your-azure-key)\b''',
+  '''(?i)\bUseDevelopmentStorage=true\b''',
+  '''^Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==$''',
+  '''^00000000-0000-0000-0000-000000000000$''',
+  '''(?i)\bclient_secret\s*=\s*"(?:YOUR[_-]?CLIENT[_-]?SECRET|<client_secret>|example|changeme|your-azure-key)"'''
 ]
 
+# Targets AWS IAM access key IDs exposed in code/config.
+# Prefix + fixed 16-char suffix mirrors AWS key-id format and limits false positives.
+# Example catch: AKIA****************.
 [[rules]]
 id = "aws-access-key-id"
 description = "AWS Access Key ID"
@@ -61,6 +77,9 @@ regex = '''(A3T[A-Z0-9]|AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)[A-Z0-9]{16}'''
 severity = "CRITICAL"
 tags = ["cloud", "aws", "iam", "credential"]
 
+# Targets explicit AWS secret access key assignments in env/config files.
+# Context key names + 40-char base64-like value reduce random-string matches.
+# Example catch: aws_secret_access_key="********************************".
 [[rules]]
 id = "aws-secret-access-key"
 description = "AWS Secret Access Key"
@@ -68,6 +87,9 @@ regex = '''(?i)\baws[_-]?(secret[_-]?access[_-]?key|secret[_-]?key|secret)\b\s*[
 severity = "CRITICAL"
 tags = ["cloud", "aws", "iam", "credential"]
 
+# Targets GCP service-account JSON private keys committed as blobs.
+# Bounded dotall window prevents runaway matching while preserving multiline key coverage.
+# Example catch: {"type":"service_account", "private_key":"-----BEGIN PRIVATE KEY-----..."}.
 [[rules]]
 id = "gcp-service-account-key"
 description = "GCP Service Account JSON Key"
@@ -75,20 +97,49 @@ regex = '''(?s)"type"\s*:\s*"service_account".{0,800}?"private_key"\s*:\s*"(?:--
 severity = "CRITICAL"
 tags = ["cloud", "gcp", "service-account", "credential"]
 
+# Targets Azure AD / Entra app secrets in env vars and IaC variables.
+# Includes ARM_/AZURE_ prefixes and generic client_secret assignments with 32-80 charset bounds.
+# Example catch: ARM_CLIENT_SECRET="********************************".
 [[rules]]
 id = "azure-client-secret"
 description = "Azure AD Client Secret"
-regex = '''(?i)\b(azure|aad|entra|microsoft)[_-]?client[_-]?secret\b\s*[:=]\s*["']?[A-Za-z0-9~._-]{32,80}["']?'''
+regex = '''(?i)\b(?:ARM_CLIENT_SECRET|AZURE_CLIENT_SECRET|(?:azure|aad|entra|microsoft|arm)[_-]?client[_-]?secret|client_secret)\b\s*[:=]\s*["']?(?!YOUR[_-]?(?:AZURE[_-]?)?(?:CLIENT[_-]?)?SECRET\b|EXAMPLE\b|PLACEHOLDER\b)[A-Za-z0-9~._-]{32,80}["']?'''
 severity = "CRITICAL"
 tags = ["cloud", "azure", "aad", "credential"]
 
+# Targets Azure Storage connection strings carrying AccountKey material.
+# Requires storage connection-string keys and base64 AccountKey value to reduce generic hits.
+# Example catch: DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...==;EndpointSuffix=core.windows.net.
 [[rules]]
 id = "azure-storage-connection"
 description = "Azure Storage Connection String"
-regex = '''(?i)\b(DefaultEndpointsProtocol|BlobEndpoint)=https?;.*\bAccountName=[^;]+;.*\bAccountKey=[A-Za-z0-9+/=]{40,}\b'''
+regex = '''(?i)\b(DefaultEndpointsProtocol|BlobEndpoint)=https?;[^\n\r]{0,400}?\bAccountName=[^;\s]+;[^\n\r]{0,400}?\bAccountKey=[A-Za-z0-9+/=]{40,}\b'''
 severity = "CRITICAL"
 tags = ["cloud", "azure", "storage", "credential"]
 
+# Targets standalone Azure Storage account keys outside connection strings.
+# Anchored assignment pattern reduces scan cost on large files while preserving precision.
+# Example catch: AZURE_STORAGE_KEY="***************************************==".
+[[rules]]
+id = "azure-storage-account-key-standalone"
+description = "Azure Storage Account Key (Standalone)"
+regex = '''(?im)^\s*(?:export\s+)?(?:AZURE_STORAGE(?:ACCOUNT)?(?:_KEY|_ACCESS_KEY)?|ACCOUNTKEY|storage[_-]?account[_-]?key)\s*[:=]\s*["']?(?:[A-Za-z0-9+/]{86}==|[A-Za-z0-9+/]{87}=)["']?\s*$'''
+severity = "CRITICAL"
+tags = ["cloud", "azure", "storage", "credential", "standalone-key"]
+
+# Targets Azure Cosmos DB connection strings with AccountEndpoint + AccountKey (master key exposure).
+# Contextual key/value pattern minimizes noise versus generic long base64 detection.
+# Example catch: AccountEndpoint=https://contoso.documents.azure.com:443/;AccountKey=<redacted>==;
+[[rules]]
+id = "azure-cosmos-db-connection-key"
+description = "Azure Cosmos DB AccountEndpoint + AccountKey"
+regex = '''(?i)\bAccountEndpoint=https?://[^;\s]+;\s*AccountKey=[A-Za-z0-9+/]{64,128}==;?'''
+severity = "CRITICAL"
+tags = ["cloud", "azure", "cosmosdb", "credential", "connection-string"]
+
+# Targets GitHub classic PAT credentials.
+# Fixed ghp_ prefix + 36-char body keeps precision high.
+# Example catch: ghp_************************************.
 [[rules]]
 id = "github-pat-classic"
 description = "GitHub Personal Access Token (Classic)"
@@ -96,6 +147,9 @@ regex = '''\bghp_[A-Za-z0-9]{36}\b'''
 severity = "CRITICAL"
 tags = ["scm", "github", "pat", "credential"]
 
+# Targets GitHub fine-grained PAT credentials.
+# github_pat_ prefix and long token length distinguish from random identifiers.
+# Example catch: github_pat_********************************....
 [[rules]]
 id = "github-pat-finegrained"
 description = "GitHub Fine-grained Personal Access Token"
@@ -103,6 +157,9 @@ regex = '''\bgithub_pat_[A-Za-z0-9_]{40,255}\b'''
 severity = "CRITICAL"
 tags = ["scm", "github", "pat", "fine-grained", "credential"]
 
+# Targets GitLab PAT credentials.
+# glpat- prefix plus minimum token length reflects GitLab PAT format.
+# Example catch: glpat-****************************.
 [[rules]]
 id = "gitlab-pat"
 description = "GitLab Personal Access Token"
@@ -110,6 +167,19 @@ regex = '''\bglpat-[A-Za-z0-9-]{20,}\b'''
 severity = "CRITICAL"
 tags = ["scm", "gitlab", "pat", "credential"]
 
+# Targets Azure DevOps PATs in pipeline/developer environment variables.
+# Uses Azure DevOps variable context and 52-char base36 core format (plus legacy 72-char compatibility).
+# Example catch: export AZURE_DEVOPS_EXT_PAT=************************************.
+[[rules]]
+id = "azure-devops-pat"
+description = "Azure DevOps Personal Access Token"
+regex = '''(?i)\b(?:AZURE_DEVOPS_EXT_PAT|AZURE_DEVOPS_PAT|ADO_PAT|AZDO_PAT|SYSTEM_ACCESSTOKEN)\b\s*[:=]\s*["']?(?:[a-z0-9]{52}|[a-z0-9]{72})["']?'''
+severity = "CRITICAL"
+tags = ["scm", "azure", "azure-devops", "pat", "credential"]
+
+# Targets Slack incoming webhooks with write capability.
+# Full hooks.slack.com path structure avoids generic URL matches.
+# Example catch: https://hooks.slack.com/services/T.../B.../....
 [[rules]]
 id = "slack-webhook"
 description = "Slack Incoming Webhook URL"
@@ -117,6 +187,9 @@ regex = '''(?i)https://hooks\.slack\.com/services/T[A-Z0-9]{8,12}/B[A-Z0-9]{8,12
 severity = "CRITICAL"
 tags = ["saas", "slack", "webhook", "write-access"]
 
+# Targets PEM/OpenSSH/PGP private key blocks in plaintext.
+# BEGIN/END guards and minimum payload reduce accidental binary/text collisions.
+# Example catch: -----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----.
 [[rules]]
 id = "private-key-block"
 description = "Private Key Block (RSA/EC/DSA/OpenSSH/PGP)"
@@ -124,13 +197,19 @@ regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----(?:[A-Za-z
 severity = "CRITICAL"
 tags = ["crypto", "pki", "private-key", "credential"]
 
+# Targets Azure SAS tokens used for delegated storage access.
+# Requires service version and signature parameters to separate from generic query strings.
+# Example catch: sv=2024-08-04&...&sig=....
 [[rules]]
 id = "azure-sas-token"
 description = "Azure Shared Access Signature Token"
-regex = '''(?i)\bsv=\d{4}-\d{2}-\d{2}.*\bsig=[A-Za-z0-9%/+._=-]{20,}\b'''
+regex = '''(?i)\bsv=\d{4}-\d{2}-\d{2}[^\n\r]{0,800}?\bsig=[A-Za-z0-9%/+._=-]{20,}\b'''
 severity = "HIGH"
 tags = ["cloud", "azure", "sas", "token"]
 
+# Targets Google API keys.
+# AIza prefix + fixed-length body mirrors official key shape.
+# Example catch: AIza***********************************.
 [[rules]]
 id = "gcp-api-key"
 description = "Google Cloud API Key"
@@ -138,6 +217,9 @@ regex = '''\bAIza[0-9A-Za-z_\-]{35}\b'''
 severity = "HIGH"
 tags = ["cloud", "gcp", "api-key", "quota-risk"]
 
+# Targets explicit HashiCorp Vault token assignments.
+# Supports legacy s. and newer hvs./hvb. token prefixes.
+# Example catch: vault_token="hvs.************************".
 [[rules]]
 id = "vault-token-explicit"
 description = "HashiCorp Vault Token"
@@ -145,6 +227,9 @@ regex = '''(?i)\bvault[_-]?token\b\s*[:=]\s*["']?(?:s\.[A-Za-z0-9]{20,}|hvs\.[A-
 severity = "HIGH"
 tags = ["vault", "hashicorp", "token", "secrets-management"]
 
+# Targets Kubernetes Secret manifests where base64 data is inline.
+# Bounded multiline YAML matcher focuses on kind: Secret plus data keys.
+# Example catch: kind: Secret\n...\ndata:\n  password: c2VjcmV0...
 [[rules]]
 id = "kubernetes-secret-yaml"
 description = "Kubernetes Secret with Base64 data"
@@ -152,6 +237,9 @@ regex = '''(?is)\bkind:\s*Secret\b.{0,800}?\bdata:\s*(?:\n\s+[A-Za-z0-9_.-]+\s*:
 severity = "HIGH"
 tags = ["kubernetes", "k8s", "secret", "base64"]
 
+# Targets production-style DB URLs embedding credentials.
+# Scheme + user:pass@host structure detects high-risk credentialed DSNs.
+# Example catch: postgres://user:pass@prod-db.internal:5432/app.
 [[rules]]
 id = "database-connection-prod"
 description = "Database Connection String with credentials (Host reviewed by allowlist)"
@@ -159,23 +247,33 @@ regex = '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@[^/
 severity = "MEDIUM"
 tags = ["database", "connection-string", "credential"]
 
+# Targets Azure API Management subscription key headers/variables.
+# Context key names and constrained alnum length reduce generic token noise.
+# Example catch: Ocp-Apim-Subscription-Key: ********************************.
 [[rules]]
 id = "azure-apim-subscription-key"
 description = "Azure API Management Subscription Key"
-regex = '''(?i)\b(ocp-apim-subscription-key|apim[_-]?key|subscription[_-]?key)\s*[:=]\s*[\"']?[A-Za-z0-9]{32,64}[\"']?'''
+regex = '''(?i)\b(ocp-apim-subscription-key|apim[_-]?key|subscription[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9]{32,64}["']?'''
 severity = "HIGH"
 tags = ["cloud", "azure", "apim", "api-management", "credential"]
 
+# Targets Terraform Cloud/Enterprise API tokens in CI and IaC.
+# Known env var names + minimum token length capture real operator patterns.
+# Example catch: TFC_TOKEN="*******************************".
 [[rules]]
 id = "terraform-cloud-token"
 description = "Terraform Cloud / Terraform Enterprise API Token"
-regex = '''(?i)\b(TFE_TOKEN|TFC_TOKEN|TERRAFORM_TOKEN|terraform[_-]?cloud[_-]?token)\s*[:=]\s*[\"']?[A-Za-z0-9._-]{32,}[\"']?'''
+regex = '''(?i)\b(TFE_TOKEN|TFC_TOKEN|TERRAFORM_TOKEN|terraform[_-]?cloud[_-]?token)\s*[:=]\s*["']?[A-Za-z0-9._-]{32,}["']?'''
 severity = "CRITICAL"
 tags = ["iac", "terraform", "ci", "credential", "infra-access"]
 
+# Targets hardcoded JWT signing material in source/config.
+# Secret-like key names plus 16+ char value catches insecure embedded signing secrets.
+# Example catch: JWT_SECRET="************************".
 [[rules]]
 id = "jwt-hardcoded-secret"
 description = "JWT signing secret hardcoded in code or config"
-regex = '''(?i)\b(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret|signing[_-]?secret)\b\s*[:=]\s*[\"']?[A-Za-z0-9!@#$%^&*_\-+=./]{16,}[\"']?'''
+regex = '''(?i)\b(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret|signing[_-]?secret)\b\s*[:=]\s*["']?[A-Za-z0-9!@#$%^&*_\-+=./]{16,}["']?'''
 severity = "HIGH"
 tags = ["auth", "jwt", "signing-key", "credential"]
+
