@@ -20,7 +20,7 @@ resource "azurerm_subnet" "private" {
   virtual_network_name                      = azurerm_virtual_network.this.name
   address_prefixes                          = [var.private_subnet_cidr]
   service_endpoints                         = ["Microsoft.Storage", "Microsoft.KeyVault"]
-  private_endpoint_network_policies_enabled = false
+  private_endpoint_network_policies         = "Disabled"
 }
 
 resource "azurerm_subnet" "db" {
