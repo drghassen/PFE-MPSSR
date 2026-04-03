@@ -561,6 +561,7 @@ deploy-infrastructure:
         TFSTATE_RESOURCE_GROUP
         TFSTATE_STORAGE_ACCOUNT
         TFSTATE_CONTAINER
+        TF_VAR_admin_ssh_public_key
       )
       for name in "${required_vars[@]}"; do
         if [ -z "${!name:-}" ]; then
@@ -568,6 +569,11 @@ deploy-infrastructure:
           exit 2
         fi
       done
+      if ! printf '%s' "${TF_VAR_admin_ssh_public_key}" | grep -Eq '^ssh-rsa[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$'; then
+        echo "[deploy][ERROR] TF_VAR_admin_ssh_public_key must be RSA format (starts with 'ssh-rsa ')." >&2
+        echo "[deploy][ERROR] Generate with: ssh-keygen -t rsa -b 4096 -C \"gitlab-ci\" -f ~/.ssh/student_secure_rsa" >&2
+        exit 2
+      fi
     - mkdir -p .cloudsentinel /tmp/tofu-bin
     - |
       if command -v tofu >/dev/null 2>&1; then

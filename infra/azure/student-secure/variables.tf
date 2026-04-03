@@ -40,6 +40,11 @@ variable "admin_username" {
 variable "admin_ssh_public_key" {
   description = "SSH public key for VM admin access."
   type        = string
+
+  validation {
+    condition     = can(regex("^ssh-rsa\\s+[A-Za-z0-9+/=]+(?:\\s+.*)?$", trimspace(var.admin_ssh_public_key)))
+    error_message = "admin_ssh_public_key must be an RSA public key in OpenSSH format (starts with 'ssh-rsa ')."
+  }
 }
 
 variable "admin_allowed_cidr" {
