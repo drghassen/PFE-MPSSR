@@ -7,37 +7,6 @@ resource "azurerm_log_analytics_workspace" "this" {
   tags                = var.tags
 }
 
-data "azurerm_network_watcher" "existing" {
-  name                = var.network_watcher_name
-  resource_group_name = var.network_watcher_resource_group_name
-}
-
-resource "azurerm_network_watcher_flow_log" "nsg" {
-  for_each = var.network_security_ids
-
-  name                 = "flow-${each.key}-${replace(var.base_name, "-", "")}"
-  network_watcher_name = data.azurerm_network_watcher.existing.name
-  resource_group_name  = data.azurerm_network_watcher.existing.resource_group_name
-  network_security_group_id = each.value
-  storage_account_id        = var.storage_account_id
-  enabled                   = true
-  version                   = 2
-  tags                      = var.tags
-
-  retention_policy {
-    enabled = true
-    days    = 90
-  }
-
-  traffic_analytics {
-    enabled               = true
-    workspace_id          = azurerm_log_analytics_workspace.this.workspace_id
-    workspace_region      = var.location
-    workspace_resource_id = azurerm_log_analytics_workspace.this.id
-    interval_in_minutes   = 10
-  }
-}
-
 resource "azurerm_monitor_log_profile" "activity" {
   name = "activity-log-profile-${replace(var.base_name, "-", "")}"
   storage_account_id = var.storage_account_id
@@ -65,19 +34,11 @@ resource "azurerm_monitor_diagnostic_setting" "storage" {
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 
   enabled_log {
-    category = "StorageRead"
-  }
-
-  enabled_log {
-    category = "StorageWrite"
-  }
-
-  enabled_log {
-    category = "StorageDelete"
+    category_group = "allLogs"
   }
 
   metric {
-    category = "Transaction"
+    category = "AllMetrics"
   }
 }
 

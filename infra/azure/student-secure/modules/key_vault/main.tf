@@ -25,9 +25,7 @@ resource "azurerm_key_vault" "this" {
   resource_group_name           = var.resource_group_name
   tenant_id                     = var.tenant_id
   sku_name                      = "premium"
-  # Student subscriptions often run with limited IAM permissions in CI;
-  # access policies avoid roleAssignments/write requirements.
-  enable_rbac_authorization     = false
+  enable_rbac_authorization     = true
   purge_protection_enabled      = true
   soft_delete_retention_days    = 90
   public_network_access_enabled = false
@@ -40,35 +38,6 @@ resource "azurerm_key_vault" "this" {
     virtual_network_subnet_ids = [var.private_subnet_id]
   }
 
-  access_policy {
-    tenant_id = var.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
-
-    key_permissions = [
-      "Get",
-      "Create",
-      "Delete",
-      "List",
-      "Update",
-      "Recover",
-      "Purge",
-      "Encrypt",
-      "Decrypt",
-      "Sign",
-      "Verify",
-      "WrapKey",
-      "UnwrapKey"
-    ]
-
-    secret_permissions = [
-      "Get",
-      "List",
-      "Set",
-      "Delete",
-      "Recover",
-      "Purge"
-    ]
-  }
 }
 
 resource "azurerm_key_vault_key" "storage_cmk" {

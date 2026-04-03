@@ -585,6 +585,8 @@ deploy-infrastructure:
         export PATH="/tmp/tofu-bin:$PATH"
       fi
     - tofu version
+    - export ARM_USE_AZUREAD=true
+    - export ARM_STORAGE_USE_AZUREAD=true
     - |
       tofu -chdir=infra/azure/student-secure init -input=false \
         -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
