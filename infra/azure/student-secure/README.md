@@ -52,6 +52,10 @@ Important:
 cd infra/azure/student-secure
 cp terraform.tfvars.example terraform.tfvars
 # renseigner admin_ssh_public_key et cidr admin
+# important: Azure VM attend une clé RSA (pas ed25519) pour cette configuration
+# exemple:
+# ssh-keygen -t rsa -b 4096 -C "student-secure" -f ~/.ssh/student_secure_rsa
+# puis utiliser le contenu de ~/.ssh/student_secure_rsa.pub
 
 tofu init \
   -backend-config="resource_group_name=<tfstate-rg>" \
