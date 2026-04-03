@@ -62,6 +62,8 @@ module "monitoring" {
   base_name            = local.base_name
   location             = module.resource_group.location
   resource_group_name  = module.resource_group.name
+  network_watcher_name = "NetworkWatcher_${lower(module.resource_group.location)}"
+  network_watcher_resource_group_name = "NetworkWatcherRG"
   storage_account_id   = module.storage.id
   key_vault_id         = module.key_vault.id
   network_security_ids = module.network.nsg_ids

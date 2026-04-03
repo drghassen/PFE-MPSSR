@@ -11,6 +11,7 @@ resource "azurerm_subnet" "public" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.public_subnet_cidr]
+  service_endpoints    = ["Microsoft.Storage"]
 }
 
 resource "azurerm_subnet" "private" {
@@ -18,6 +19,7 @@ resource "azurerm_subnet" "private" {
   resource_group_name                       = var.resource_group_name
   virtual_network_name                      = azurerm_virtual_network.this.name
   address_prefixes                          = [var.private_subnet_cidr]
+  service_endpoints                         = ["Microsoft.Storage", "Microsoft.KeyVault"]
   private_endpoint_network_policies_enabled = false
 }
 
@@ -26,6 +28,7 @@ resource "azurerm_subnet" "db" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.db_subnet_cidr]
+  service_endpoints    = ["Microsoft.Storage"]
 
   delegation {
     name = "mysql-flexible-delegation"

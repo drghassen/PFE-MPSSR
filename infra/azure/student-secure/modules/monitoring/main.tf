@@ -7,19 +7,17 @@ resource "azurerm_log_analytics_workspace" "this" {
   tags                = var.tags
 }
 
-resource "azurerm_network_watcher" "this" {
-  name                = "nw-${replace(var.base_name, "-", "")}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags                = var.tags
+data "azurerm_network_watcher" "existing" {
+  name                = var.network_watcher_name
+  resource_group_name = var.network_watcher_resource_group_name
 }
 
 resource "azurerm_network_watcher_flow_log" "nsg" {
   for_each = var.network_security_ids
 
   name                 = "flow-${each.key}-${replace(var.base_name, "-", "")}"
-  network_watcher_name = azurerm_network_watcher.this.name
-  resource_group_name  = var.resource_group_name
+  network_watcher_name = data.azurerm_network_watcher.existing.name
+  resource_group_name  = data.azurerm_network_watcher.existing.resource_group_name
   network_security_group_id = each.value
   storage_account_id        = var.storage_account_id
   enabled                   = true
@@ -42,6 +40,7 @@ resource "azurerm_network_watcher_flow_log" "nsg" {
 
 resource "azurerm_monitor_log_profile" "activity" {
   name = "activity-log-profile-${replace(var.base_name, "-", "")}"
+  storage_account_id = var.storage_account_id
 
   categories = [
     "Action",

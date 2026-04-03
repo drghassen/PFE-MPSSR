@@ -20,7 +20,8 @@ resource "azurerm_linux_virtual_machine" "this" {
   admin_username                  = var.admin_username
   disable_password_authentication = true
   allow_extension_operations      = false
-  encryption_at_host_enabled      = true
+  # Azure Student subscriptions often do not have EncryptionAtHost feature enabled.
+  encryption_at_host_enabled      = false
   secure_boot_enabled             = true
   vtpm_enabled                    = true
   tags                            = var.tags
