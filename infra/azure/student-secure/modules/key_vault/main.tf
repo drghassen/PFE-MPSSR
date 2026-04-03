@@ -40,23 +40,6 @@ resource "azurerm_key_vault" "this" {
 
 }
 
-resource "azurerm_key_vault_key" "storage_cmk" {
-  name            = "key-storage-cmk-${replace(var.base_name, "-", "")}"
-  key_vault_id    = azurerm_key_vault.this.id
-  key_type        = "RSA-HSM"
-  key_size        = 2048
-  expiration_date = var.key_expiration_date
-  key_opts = [
-    "decrypt",
-    "encrypt",
-    "sign",
-    "unwrapKey",
-    "verify",
-    "wrapKey"
-  ]
-
-}
-
 resource "azurerm_private_endpoint" "key_vault" {
   name                = "pep-kv-${replace(var.base_name, "-", "")}"
   location            = var.location
