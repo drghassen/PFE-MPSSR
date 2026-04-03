@@ -9,13 +9,9 @@ default:
     - docker
 
 variables:
-  SECURITY_TOOLS_IMAGE: "$CI_REGISTRY_IMAGE/scan-tools@${SECURITY_TOOLS_IMAGE_DIGEST}"
   SECURITY_TOOLS_IMAGE_DIGEST: "${SECURITY_TOOLS_IMAGE_DIGEST}"
-  CURL_IMAGE: "curlimages/curl@${CURL_IMAGE_DIGEST}"
   CURL_IMAGE_DIGEST: "${CURL_IMAGE_DIGEST}"
-  OPA_IMAGE: "$CI_REGISTRY_IMAGE/opa@${OPA_IMAGE_DIGEST}"
   OPA_IMAGE_DIGEST: "${OPA_IMAGE_DIGEST}"
-  KANIKO_IMAGE: "gcr.io/kaniko-project/executor@${KANIKO_IMAGE_DIGEST}"
   KANIKO_IMAGE_DIGEST: "${KANIKO_IMAGE_DIGEST}"
 
   GITLEAKS_VERSION: "8.21.2"
@@ -47,7 +43,7 @@ stages:
   - deploy
 
 .default_tools: &default_tools
-  image: ${SECURITY_TOOLS_IMAGE}
+  image: "$CI_REGISTRY_IMAGE/scan-tools@$SECURITY_TOOLS_IMAGE_DIGEST"
   before_script: []
   cache:
     key: "cloudsentinel-tools"
@@ -76,7 +72,7 @@ build-scan-tools-image:
   stage: prepare
   timeout: 2h
   image:
-    name: "$KANIKO_IMAGE"
+    name: "gcr.io/kaniko-project/executor@$KANIKO_IMAGE_DIGEST"
     entrypoint: [""]
   script:
     - mkdir -p /kaniko/.docker
@@ -385,7 +381,7 @@ contract-test:
     - bash shift-left/normalizer/tests/smoke.sh
 opa-image-smoke:
   image:
-    name: "$OPA_IMAGE"
+    name: "$CI_REGISTRY_IMAGE/opa@$OPA_IMAGE_DIGEST"
     entrypoint: [""]
   stage: contract
   needs:
@@ -422,7 +418,7 @@ opa-image-smoke:
 
 opa-decision:
   image:
-    name: "$OPA_IMAGE"
+    name: "$CI_REGISTRY_IMAGE/opa@$OPA_IMAGE_DIGEST"
     entrypoint: [""]
   stage: decide
   needs:
@@ -459,7 +455,7 @@ opa-decision:
 
 upload-to-defectdojo:
   stage: report
-  image: ${CURL_IMAGE}
+  image: "curlimages/curl@$CURL_IMAGE_DIGEST"
   retry: 2
   needs:
     - job: gitleaks-scan
@@ -638,3 +634,5 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
+
+#test deploy
