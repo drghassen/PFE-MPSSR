@@ -95,6 +95,18 @@ variable "mysql_admin_username" {
   default     = "mysqladmin"
 }
 
+variable "enable_database" {
+  description = "Enable managed MySQL deployment. Disable for Azure Student regions with capacity restrictions."
+  type        = bool
+  default     = false
+}
+
+variable "manage_database_secrets_in_key_vault" {
+  description = "Write MySQL admin credentials to Key Vault from IaC. Disable when CI principal lacks Key Vault data-plane rights."
+  type        = bool
+  default     = false
+}
+
 variable "db_secret_expiration_date" {
   description = "Expiration date for database credentials stored in Key Vault (RFC3339)."
   type        = string

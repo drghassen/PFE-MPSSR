@@ -73,6 +73,8 @@ module "monitoring" {
 module "database" {
   source = "./modules/database"
 
+  enabled              = var.enable_database
+  manage_key_vault_secrets = var.manage_database_secrets_in_key_vault
   base_name            = local.base_name
   location             = module.resource_group.location
   resource_group_name  = module.resource_group.name
