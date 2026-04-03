@@ -1,6 +1,6 @@
 # CloudSentinel - Azure Student Secure Stack
 
-Stack Terraform sécurisé et modulaire pour Azure Student, avec intégration CI/CD fail-closed.
+Stack OpenTofu sécurisé et modulaire pour Azure Student, avec intégration CI/CD fail-closed.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Stack Terraform sécurisé et modulaire pour Azure Student, avec intégration CI
 
 - Pas d’exposition publique directe de la base de données.
 - Chiffrement data-plane et contrôle réseau strict sur Storage et Key Vault.
-- Outputs Terraform limités aux informations non sensibles (IDs, endpoints, IP privée VM).
+- Outputs OpenTofu limités aux informations non sensibles (IDs, endpoints, IP privée VM).
 - Contrat scanner strict:
   - `status = OK | NOT_RUN`
   - en cas d’erreur technique, propagation `NOT_RUN` jusqu’à OPA.
@@ -40,10 +40,10 @@ Stack Terraform sécurisé et modulaire pour Azure Student, avec intégration CI
   - `mysql-admin-password-<suffix>`
 - Aucun secret en output Terraform.
 - Les rapports scanners sont redacted/sanitized avant normalisation et artifacts OPA.
-- Le backend Terraform est `azurerm` (state distant Azure Blob), à configurer via CI vars.
+- Le backend OpenTofu est `azurerm` (state distant Azure Blob), à configurer via CI vars.
 
 Important:
-- Terraform garde des attributs sensibles dans le state (comportement Terraform standard).
+- OpenTofu garde des attributs sensibles dans le state (comportement standard IaC).
 - La protection repose sur backend distant Azure chiffré + RBAC strict + stockage privé.
 
 ## Déploiement Local
@@ -53,15 +53,15 @@ cd infra/azure/student-secure
 cp terraform.tfvars.example terraform.tfvars
 # renseigner admin_ssh_public_key et cidr admin
 
-terraform init \
+tofu init \
   -backend-config="resource_group_name=<tfstate-rg>" \
   -backend-config="storage_account_name=<tfstate-storage>" \
   -backend-config="container_name=<tfstate-container>" \
   -backend-config="key=student-secure-dev.tfstate" \
   -backend-config="use_azuread_auth=true"
 
-terraform plan -out=tfplan
-terraform apply tfplan
+tofu plan -out=tfplan
+tofu apply tfplan
 ```
 
 ## CI/CD (Git Push -> Scan -> OPA -> Deploy)
@@ -73,7 +73,7 @@ Le pipeline GitLab est déclenché sur `push` et exécute:
 3. Normalizer -> `golden_report.json` (schema strict).
 4. OPA `--enforce`.
 5. Gate de déploiement stricte (`0 finding` + aucun scanner `NOT_RUN`).
-6. `terraform init/plan/apply` sur `infra/azure/student-secure`.
+6. `tofu init/plan/apply` sur `infra/azure/student-secure`.
 7. Vérification post-déploiement automatisée.
 
 Variables CI requises pour deploy:

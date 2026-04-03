@@ -14,6 +14,7 @@ variables:
   TRIVY_VERSION: "0.69.1"
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
+  TOFU_VERSION: "1.8.8"
 
   SCAN_TARGET: "infra/azure/student-secure"
   CHECKOV_SKIP_PATHS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
@@ -482,7 +483,9 @@ upload-to-defectdojo:
         local file_path="$1"
         local scan_type="$2"
         local label="$3"
-        local response_file=".cloudsentinel/dojo-responses/${label}.json"
+        local safe_label
+        safe_label="$(echo "${label}" | tr ' /()' '_____' | tr -cd '[:alnum:]_.-')"
+        local response_file=".cloudsentinel/dojo-responses/${safe_label}.json"
 
         if [ ! -f "${file_path}" ]; then
           echo "[dojo] ${label}: report not found (${file_path}), skipping."
@@ -565,32 +568,37 @@ deploy-infrastructure:
           exit 2
         fi
       done
-    - mkdir -p .cloudsentinel /tmp/terraform-bin
-    - curl -fsSLo /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+    - mkdir -p .cloudsentinel /tmp/tofu-bin
     - |
-      python3 - <<'PY'
-      import stat
-      import zipfile
-      from pathlib import Path
-      dst = Path("/tmp/terraform-bin")
-      dst.mkdir(parents=True, exist_ok=True)
-      with zipfile.ZipFile("/tmp/terraform.zip") as zf:
-          zf.extractall(dst)
-      tf = dst / "terraform"
-      tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-      PY
-    - export PATH="/tmp/terraform-bin:$PATH"
-    - terraform version
+      if command -v tofu >/dev/null 2>&1; then
+        echo "[deploy] using preinstalled tofu"
+      else
+        echo "[deploy] tofu not found in image, downloading v${TOFU_VERSION}"
+        curl -fsSLo /tmp/tofu.zip "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_amd64.zip"
+        python3 - <<'PY'
+        import stat
+        import zipfile
+        from pathlib import Path
+        dst = Path("/tmp/tofu-bin")
+        dst.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile("/tmp/tofu.zip") as zf:
+            zf.extractall(dst)
+        tf = dst / "tofu"
+        tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        PY
+        export PATH="/tmp/tofu-bin:$PATH"
+      fi
+    - tofu version
     - |
-      terraform -chdir=infra/azure/student-secure init -input=false \
+      tofu -chdir=infra/azure/student-secure init -input=false \
         -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
         -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
         -backend-config="container_name=${TFSTATE_CONTAINER}" \
         -backend-config="key=${TFSTATE_KEY:-student-secure-${CI_COMMIT_REF_SLUG}.tfstate}" \
         -backend-config="use_azuread_auth=true"
-    - terraform -chdir=infra/azure/student-secure plan -input=false -out=tfplan
-    - terraform -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
-    - terraform -chdir=infra/azure/student-secure output -json > .cloudsentinel/terraform_outputs_student_secure.json
+    - tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
+    - tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
+    - tofu -chdir=infra/azure/student-secure output -json > .cloudsentinel/terraform_outputs_student_secure.json
   artifacts:
     when: always
     expire_in: 30 days
@@ -629,4 +637,3 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
-

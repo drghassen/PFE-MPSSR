@@ -23,7 +23,7 @@ infra/
 
 1.  **Shift-Left : Scanner de Misconfigurations (Checkov)**
     *   Tout le code `.tf` présent ici passe systématiquement par l'analyseur Checkov de CloudSentinel en CI.
-    *   Une misconfiguration (Ex: `publicNetworkAccess = true` sur un composant sensible) sera bloquée par l'OPA Quality Gate **avant même l'application du `terraform plan`**.
+    *   Une misconfiguration (Ex: `publicNetworkAccess = true` sur un composant sensible) sera bloquée par l'OPA Quality Gate **avant même l'application du `tofu plan`**.
 
 2.  **Gestion des Exceptions Terraform**
     *   Les exemptions de sécurité **ne doivent pas** être écrites dans ce code via `#checkov:skip`.
