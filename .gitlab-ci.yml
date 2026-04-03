@@ -613,6 +613,14 @@ post-deploy-verify:
     - job: deploy-infrastructure
       artifacts: true
   script:
+    - |
+      if ! command -v opa >/dev/null 2>&1; then
+        mkdir -p /tmp/opa-bin
+        curl -fsSL "https://openpolicyagent.org/downloads/v${OPA_VERSION}/opa_linux_amd64_static" -o /tmp/opa-bin/opa
+        chmod +x /tmp/opa-bin/opa
+        export PATH="/tmp/opa-bin:$PATH"
+      fi
+    - opa version
     - chmod +x scripts/verify-student-secure.sh
     - chmod +x scripts/post-deploy-verify-student-secure.sh
     - bash scripts/post-deploy-verify-student-secure.sh infra/azure/student-secure "${TRIVY_IMAGE_TARGET}"
