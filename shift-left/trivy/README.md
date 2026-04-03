@@ -32,7 +32,7 @@ Les options de la ligne de commande (Timeout, Ignore-Unfixed, Format) sont impos
 **En Mode CI / Local Pipeline :**
 ```bash
 # Nécessite SCAN_TARGET défini (Dossier ou nom d'image) et TYPE_CIBLE (config, image)
-bash shift-left/trivy/scripts/run-trivy.sh "infra/azure/dev" "config"
+bash shift-left/trivy/scripts/run-trivy.sh "infra/azure/student-secure" "config"
 ```
 
 ## 🧩 OPA Integration

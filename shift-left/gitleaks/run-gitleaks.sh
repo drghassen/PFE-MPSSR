@@ -2,21 +2,16 @@
 set -euo pipefail
 
 ############################################
-# CloudSentinel - Gitleaks Wrapper v5.0 (PFE)
+# CloudSentinel - Gitleaks Wrapper v5.1
 # - Local/CI dual mode
 # - Produces OPA-ready JSON
 # - Baseline supported (optional)
-# - NEVER blocks on findings (exit 0). OPA decides.
+# - Fail-closed on technical/format errors (status=NOT_RUN)
 ############################################
 
 log()  { echo "[CloudSentinel][Gitleaks] $*"; }
 warn() { echo "[CloudSentinel][Gitleaks][WARN] $*" >&2; }
 err()  { echo "[CloudSentinel][Gitleaks][ERROR] $*" >&2; }
-
-need() { command -v "$1" >/dev/null 2>&1 || { err "$1 not installed"; exit 2; }; }
-
-need git
-need jq
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
@@ -25,8 +20,6 @@ REPO_ROOT="$(cs_get_repo_root)"
 
 CONFIG_PATH="${CONFIG_PATH:-$REPO_ROOT/shift-left/gitleaks/gitleaks.toml}"
 BASELINE_PATH="${BASELINE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaks-baseline.json}"
-
-# Paramètres de performance et timeout
 USE_BASELINE="${USE_BASELINE:-true}"
 SCAN_TARGET="${SCAN_TARGET:-staged}"
 MAX_SIZE_MB="${GITLEAKS_MAX_SIZE:-5}"
@@ -42,7 +35,6 @@ mkdir -p "$OUT_DIR"
 
 REPORT_RAW_TMP="$(mktemp -t gitleaks-raw.XXXXXX.json)"
 REPORT_NORM_TMP="$(mktemp -t gitleaks-findings.XXXXXX.json)"
-# Rule severity mapping artifacts (built from gitleaks.toml at runtime).
 RULE_SEV_TSV_TMP="$(mktemp -t gitleaks-rule-sev.XXXXXX.tsv)"
 RULE_SEV_MAP_TMP="$(mktemp -t gitleaks-rule-sev-map.XXXXXX.json)"
 trap 'rm -f "$REPORT_RAW_TMP" "$REPORT_NORM_TMP" "$RULE_SEV_TSV_TMP" "$RULE_SEV_MAP_TMP"' EXIT
@@ -56,11 +48,24 @@ emit_not_run() {
   cs_emit_not_run "gitleaks" "$REPORT_OUT" "$reason" "$REPO_ROOT"
 }
 
-command -v gitleaks >/dev/null 2>&1 || { emit_not_run "gitleaks_binary_missing"; exit 0; }
+if ! command -v git >/dev/null 2>&1; then
+  emit_not_run "git_binary_missing"
+  exit 0
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  emit_not_run "jq_binary_missing"
+  exit 0
+fi
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  emit_not_run "gitleaks_binary_missing"
+  exit 0
+fi
+
 [[ -f "$CONFIG_PATH" ]] || { emit_not_run "gitleaks_config_missing:$CONFIG_PATH"; exit 0; }
 
-# Build an authoritative rule_id -> severity lookup directly from gitleaks.toml.
-# This prevents downgrading findings when raw Gitleaks output omits `.Severity`.
+# Build authoritative rule_id -> severity lookup from gitleaks.toml.
 awk '
   function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
   function unquote(s) { s=trim(s); sub(/^"/, "", s); sub(/"$/, "", s); return s }
@@ -69,8 +74,6 @@ awk '
     sev_norm = toupper(trim(rule_sev))
     tags_norm = tolower(rule_tags)
 
-    # Severity is authoritative when defined in the rule.
-    # If absent, infer from tags (critical/high/medium/low/info) to keep policy intent.
     if (sev_norm == "") {
       if (tags_norm ~ /critical/) sev_norm = "CRITICAL"
       else if (tags_norm ~ /high/) sev_norm = "HIGH"
@@ -80,7 +83,6 @@ awk '
       else sev_norm = "MEDIUM"
     }
 
-    # Enforce CloudSentinel severity enum values only.
     if (sev_norm != "CRITICAL" && sev_norm != "HIGH" && sev_norm != "MEDIUM" && sev_norm != "LOW" && sev_norm != "INFO") {
       sev_norm = "MEDIUM"
     }
@@ -98,13 +100,10 @@ awk '
 
   in_rules_block {
     if ($0 ~ /^[[:space:]]*id[[:space:]]*=/) {
-      split($0, p, "=")
       rule_id = unquote(substr($0, index($0, "=") + 1))
     } else if ($0 ~ /^[[:space:]]*severity[[:space:]]*=/) {
-      split($0, p, "=")
       rule_sev = unquote(substr($0, index($0, "=") + 1))
     } else if ($0 ~ /^[[:space:]]*tags[[:space:]]*=/) {
-      # Keep raw tags line for keyword inference when severity is not set.
       rule_tags = substr($0, index($0, "=") + 1)
     }
   }
@@ -114,12 +113,15 @@ awk '
   }
 ' "$CONFIG_PATH" > "$RULE_SEV_TSV_TMP"
 
-jq -Rn '
+if ! jq -Rn '
   reduce inputs as $line ({};
     ($line | split("\t")) as $parts
     | if ($parts | length) == 2 then . + { ($parts[0]): ($parts[1]) } else . end
   )
-' "$RULE_SEV_TSV_TMP" > "$RULE_SEV_MAP_TMP"
+' "$RULE_SEV_TSV_TMP" > "$RULE_SEV_MAP_TMP"; then
+  emit_not_run "gitleaks_rule_severity_map_build_failed"
+  exit 0
+fi
 
 GITLEAKS_VERSION="$(gitleaks version 2>/dev/null | head -n 1 | tr -d '\r' || echo unknown)"
 [[ -z "$GITLEAKS_VERSION" ]] && GITLEAKS_VERSION="unknown"
@@ -135,7 +137,6 @@ run_cmd() {
   fi
 }
 
-# Détection du mode de scan
 SCAN_MODE="${SCAN_MODE:-}"
 if [[ "$SCAN_MODE" != "ci" && "$SCAN_MODE" != "local" ]]; then
   [[ -n "${CI:-}" ]] && SCAN_MODE="ci" || SCAN_MODE="local"
@@ -166,7 +167,6 @@ if [[ "$SCAN_MODE" == "ci" ]]; then
   fi
 fi
 
-
 log "Starting scan (mode=$SCAN_MODE, max_size=${MAX_SIZE_MB}MB)..."
 
 set +e
@@ -190,21 +190,20 @@ set -e
 
 if [[ "$RC" -gt 1 ]]; then
   emit_not_run "gitleaks_execution_error:rc=$RC"
-  exit 2
+  exit 0
 fi
 
-# Validation du JSON
-jq -e 'type=="array"' "$REPORT_RAW_TMP" >/dev/null 2>&1 || { echo "[]" > "$REPORT_RAW_TMP"; }
+if ! jq -e 'type=="array"' "$REPORT_RAW_TMP" >/dev/null 2>&1; then
+  emit_not_run "gitleaks_raw_output_invalid_json"
+  exit 0
+fi
 cp "$REPORT_RAW_TMP" "$REPORT_RAW_OUT"
 
-# Normalisation et Enrichissement (Auteur, Date, Commit)
-jq --argjson rule_sev_map "$(cat "$RULE_SEV_MAP_TMP")" '
+if ! jq --argjson rule_sev_map "$(cat "$RULE_SEV_MAP_TMP")" '
   def norm_sev(x):
     if (x|type)!="string" or (x|length)==0 then ""
     else
-      (x
-       | ascii_upcase
-       | gsub("[^A-Z0-9_]"; ""))
+      (x | ascii_upcase | gsub("[^A-Z0-9_]"; ""))
       | if . == "CRITICAL" or . == "CRIT" or . == "SEV5" or . == "SEVERITY5" or . == "VERY_HIGH" then "CRITICAL"
         elif . == "HIGH" or . == "SEV4" or . == "SEVERITY4" then "HIGH"
         elif . == "MEDIUM" or . == "MODERATE" or . == "SEV3" or . == "SEVERITY3" then "MEDIUM"
@@ -213,10 +212,6 @@ jq --argjson rule_sev_map "$(cat "$RULE_SEV_MAP_TMP")" '
         else "" end
     end;
 
-  # Resolve severity with strict precedence:
-  # 1) gitleaks.toml rule mapping (authoritative for known rule_id)
-  # 2) raw finding severity
-  # 3) MEDIUM fallback for unknown/unmapped values
   def resolve_sev(x):
     (x.RuleID // "unknown") as $rule_id
     | (norm_sev($rule_sev_map[$rule_id] // "")) as $from_rule
@@ -241,13 +236,24 @@ jq --argjson rule_sev_map "$(cat "$RULE_SEV_MAP_TMP")" '
     commit: (.Commit // "unknown"),
     date: (.Date // "unknown")
   }) | unique_by(.fingerprint)
-' "$REPORT_RAW_TMP" > "$REPORT_NORM_TMP"
+' "$REPORT_RAW_TMP" > "$REPORT_NORM_TMP"; then
+  emit_not_run "gitleaks_normalization_failed"
+  exit 0
+fi
 
-# Gestion de la Baseline (Vérification robuste du format)
 if [[ "$USE_BASELINE" == "true" && -f "$BASELINE_PATH" ]]; then
-  if jq -e 'type=="array" and (if length > 0 then .[0].fingerprint? else true end)' "$BASELINE_PATH" >/dev/null 2>&1; then
+  if jq -e 'type=="array" and (if length > 0 then (.[0] | has("fingerprint")) else true end)' "$BASELINE_PATH" >/dev/null 2>&1; then
     BEFORE_COUNT="$(jq 'length' "$REPORT_NORM_TMP")"
-    jq -s '.[0] as $base | .[1] | map(select(.fingerprint as $f | ($base | map(.fingerprint) | index($f) | not)))' "$BASELINE_PATH" "$REPORT_NORM_TMP" > "${REPORT_NORM_TMP}.tmp"
+    if ! jq -s '
+      ([.[0][]?.fingerprint
+        | select(type == "string" and length > 0)
+        | {(.): true}] | add // {}) as $base_idx
+      | .[1]
+      | map(select((($base_idx[.fingerprint] // false) | not)))
+    ' "$BASELINE_PATH" "$REPORT_NORM_TMP" > "${REPORT_NORM_TMP}.tmp"; then
+      emit_not_run "gitleaks_baseline_filter_failed"
+      exit 0
+    fi
     mv "${REPORT_NORM_TMP}.tmp" "$REPORT_NORM_TMP"
     log "Baseline applied: $((BEFORE_COUNT - $(jq 'length' "$REPORT_NORM_TMP"))) findings ignored."
   else
@@ -255,7 +261,6 @@ if [[ "$USE_BASELINE" == "true" && -f "$BASELINE_PATH" ]]; then
   fi
 fi
 
-# Statistiques et Rapport Final OPA
 STATS=$(jq -n --argjson f "$(cat "$REPORT_NORM_TMP")" '{
   CRITICAL: ($f | map(select(.severity=="CRITICAL")) | length),
   HIGH: ($f | map(select(.severity=="HIGH")) | length),
@@ -268,8 +273,6 @@ STATS=$(jq -n --argjson f "$(cat "$REPORT_NORM_TMP")" '{
   PASSED: 0
 }')
 
-# NOTE: has_findings is a SCAN OBSERVATION, not a gate decision.
-# The block/allow decision is EXCLUSIVELY made by OPA (run-opa.sh).
 jq -n \
   --arg tool "gitleaks" \
   --arg version "$GITLEAKS_VERSION" \
@@ -277,7 +280,17 @@ jq -n \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --argjson stats "$STATS" \
   --argjson findings "$(cat "$REPORT_NORM_TMP")" \
-  '{tool: $tool, version: $version, has_findings: ($stats.TOTAL > 0), branch: $branch, timestamp: $timestamp, stats: $stats, findings: $findings}' > "$REPORT_OUT"
+  '{
+    tool: $tool,
+    version: $version,
+    status: "OK",
+    errors: [],
+    has_findings: ($stats.TOTAL > 0),
+    branch: $branch,
+    timestamp: $timestamp,
+    stats: $stats,
+    findings: $findings
+  }' > "$REPORT_OUT"
 
 log "Done. Findings: $(jq -r '.stats.TOTAL' "$REPORT_OUT") | Report: $REPORT_OUT"
 exit 0

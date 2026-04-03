@@ -8,19 +8,13 @@ Ce répertoire contient l'IaC qui déploie l'environnement applicatif et opérat
 
 ## 📁 Architecture
 
-L'infrastructure est conçue par modules réutilisables, promus par environnement (`dev`, `staging`, `prod`) :
+L'infrastructure active est organisée autour d'un seul stack sécurisé :
 
 ```text
 infra/
 ├── README.md
-├── modules/               # Composants réutilisables Terraform / OpenTofu
-│   ├── network/           # VNETs, Subnets, NSGs
-│   ├── storage/           # Storage Accounts (Blobs, Queues)
-│   └── compute/           # AKS, VMs
-│
 └── azure/                 # Instanciations par environnement cloud
-    ├── dev/               # Env de développement déployé sur push (Trunk-based)
-    └── prod/              # Env de production (Protégée par MR stricte et OPA)
+    └── student-secure/    # Stack Azure sécurisé, modulaire et prêt CI
 ```
 
 ---
@@ -44,7 +38,7 @@ L'infrastructure n'est appliquée (`tofu apply`) **que si, et seulement si**, le
 
 ```bash
 # Exemple standard d'initialisation locale (pour tests dry-run)
-cd infra/azure/dev
+cd infra/azure/student-secure
 tofu init
 tofu plan
 ```

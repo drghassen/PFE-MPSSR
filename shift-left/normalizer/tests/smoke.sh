@@ -32,15 +32,15 @@ for f in "${FILES[@]}"; do
 done
 
 cat > "$CLOUD_DIR/gitleaks_opa.json" <<'JSON'
-{"tool":"gitleaks","version":"test","status":"PASSED","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
+{"tool":"gitleaks","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
 JSON
 
 cat > "$CLOUD_DIR/checkov_opa.json" <<'JSON'
-{"tool":"checkov","version":"test","status":"FAILED","stats":{"CRITICAL":0,"HIGH":1,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":1,"EXEMPTED":0,"FAILED":1,"PASSED":0},"findings":[{"id":"CKV2_CS_AZ_001","resource":{"name":"azurerm_storage_account.example","path":"infra/azure/dev/main.tf","location":{"start_line":1,"end_line":1}},"description":"demo finding","severity":"HIGH","status":"FAILED","category":"INFRASTRUCTURE_AS_CODE"}],"errors":[]}
+{"tool":"checkov","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":1,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":1,"EXEMPTED":0,"FAILED":1,"PASSED":0},"findings":[{"id":"CKV2_CS_AZ_001","resource":{"name":"azurerm_storage_account.example","path":"infra/azure/student-secure/main.tf","location":{"start_line":1,"end_line":1}},"description":"demo finding","severity":"HIGH","status":"FAILED","category":"INFRASTRUCTURE_AS_CODE"}],"errors":[]}
 JSON
 
 cat > "$CLOUD_DIR/trivy_opa.json" <<'JSON'
-{"tool":"trivy","version":"test","status":"PASSED","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
+{"tool":"trivy","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
 JSON
 
 export CLOUDSENTINEL_SCHEMA_STRICT="false"

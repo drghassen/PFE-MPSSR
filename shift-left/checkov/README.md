@@ -31,7 +31,7 @@ Checkov dispose de beaucoup d'options globales, forcées via notre `.checkov.yml
 **Pipeline Manuelle (Admin) :**
 ```bash
 # Nécessite SCAN_TARGET défini (Chemin vers l'IaC Terraform)
-bash shift-left/checkov/run-checkov.sh "infra/azure/dev"
+bash shift-left/checkov/run-checkov.sh "infra/azure/student-secure"
 ```
 
 ## 🚫 Rappel sur les Exemptions

@@ -75,6 +75,7 @@ failed_findings := [f |
   some i
   f := object.get(input, "findings", [])[i]
   object.get(f, "status", "") == "FAILED"
+  not to_bool(object.get(object.get(object.get(f, "context", {}), "deduplication", {}), "is_duplicate", false))
 ]
 
 normalize_path(path) := normalized if {
@@ -542,6 +543,20 @@ exception_matches_finding(ex, f) if {
   exception_match_method(ex, f)
 }
 
+# Active exception index (pre-filtered once, then reused by matching paths).
+active_valid_enabled_exceptions := [ex |
+  ex := exceptions_store[_]
+  exception_is_enabled(ex)
+  valid_exception_definition(ex)
+  exception_not_expired(ex)
+  exception_env_match(ex)
+]
+
+candidate_exceptions_for_finding(f) := [ex |
+  ex := active_valid_enabled_exceptions[_]
+  exception_tool(ex) == finding_tool(f)
+]
+
 legacy_exception_after_sunset[ex_id] if {
   ex := exceptions_store[_]
   exception_is_enabled(ex)
@@ -577,14 +592,14 @@ prod_critical_exception_violation[ex_id] if {
 
 applied_exception_ids[ex_id] if {
   f := failed_findings[_]
-  ex := exceptions_store[_]
+  ex := candidate_exceptions_for_finding(f)[_]
   exception_matches_finding(ex, f)
   ex_id := exception_id(ex)
 }
 
 applied_exception_audit[item] if {
   f := failed_findings[_]
-  ex := exceptions_store[_]
+  ex := candidate_exceptions_for_finding(f)[_]
   exception_matches_finding(ex, f)
   item := {
     "exception_id": exception_id(ex),
@@ -597,7 +612,7 @@ applied_exception_audit[item] if {
 }
 
 is_excepted_finding(f) if {
-  ex := exceptions_store[_]
+  ex := candidate_exceptions_for_finding(f)[_]
   exception_matches_finding(ex, f)
 }
 
@@ -637,10 +652,7 @@ effective_info := count([f |
 ])
 
 active_exceptions := [ex |
-  ex := exceptions_store[_]
-  exception_is_enabled(ex)
-  valid_exception_definition(ex)
-  exception_not_expired(ex)
+  ex := active_valid_enabled_exceptions[_]
 ]
 
 active_exceptions_critical := count([ex |

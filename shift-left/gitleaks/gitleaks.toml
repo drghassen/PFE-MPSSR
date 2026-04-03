@@ -22,7 +22,7 @@ paths = [
   '''(^|/)tests?/fixtures/''',
   '''(^|/)__tests__/fixtures/''',
   '''(^|/)test/fixtures/''',
-  '''(^|/)infra/azure/dev/tests/''',
+  '''(^|/)infra/azure/student-secure/tests/''',
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
   '''(^|/)shift-left/trivy/tests/fixtures/''',
@@ -103,7 +103,7 @@ tags = ["cloud", "gcp", "service-account", "credential"]
 [[rules]]
 id = "azure-client-secret"
 description = "Azure AD Client Secret"
-regex = '''(?i)\b(?:ARM_CLIENT_SECRET|AZURE_CLIENT_SECRET|(?:azure|aad|entra|microsoft|arm)[_-]?client[_-]?secret|client_secret)\b\s*[:=]\s*["']?(?!YOUR[_-]?(?:AZURE[_-]?)?(?:CLIENT[_-]?)?SECRET\b|EXAMPLE\b|PLACEHOLDER\b)[A-Za-z0-9~._-]{32,80}["']?'''
+regex = '''(?i)\b(?:ARM_CLIENT_SECRET|AZURE_CLIENT_SECRET|(?:azure|aad|entra|microsoft|arm)[_-]?client[_-]?secret|client_secret)\b\s*[:=]\s*["']?[A-Za-z0-9~._-]{32,80}["']?'''
 severity = "CRITICAL"
 tags = ["cloud", "azure", "aad", "credential"]
 
@@ -276,4 +276,3 @@ description = "JWT signing secret hardcoded in code or config"
 regex = '''(?i)\b(jwt[_-]?secret|jwt[_-]?key|token[_-]?secret|signing[_-]?secret)\b\s*[:=]\s*["']?[A-Za-z0-9!@#$%^&*_\-+=./]{16,}["']?'''
 severity = "HIGH"
 tags = ["auth", "jwt", "signing-key", "credential"]
-

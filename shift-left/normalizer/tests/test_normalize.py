@@ -114,7 +114,7 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
                     "id": "CKV2_CS_AZ_001",
                     "resource": {
                         "name": "azurerm_storage_account.example",
-                        "path": "infra/azure/dev/main.tf",
+                        "path": "infra/azure/student-secure/main.tf",
                         "location": {"start_line": 1, "end_line": 1},
                     },
                     "description": "Storage account should disable public access",

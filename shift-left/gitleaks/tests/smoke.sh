@@ -9,7 +9,7 @@ export SCAN_TARGET="repo"
 export USE_BASELINE="false"
 export CLOUDSENTINEL_TIMEOUT="${CLOUDSENTINEL_TIMEOUT:-120}"
 
-bash "$REPO_ROOT/shift-left/gitleaks/run-gitleaks.sh" || true
+bash "$REPO_ROOT/shift-left/gitleaks/run-gitleaks.sh"
 
 test -f "$OUT_FILE"
 jq -e '.tool == "gitleaks"' "$OUT_FILE" >/dev/null
