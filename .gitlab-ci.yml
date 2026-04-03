@@ -575,17 +575,7 @@ deploy-infrastructure:
       else
         echo "[deploy] tofu not found in image, downloading v${TOFU_VERSION}"
         curl -fsSLo /tmp/tofu.zip "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_amd64.zip"
-        python3 - <<'PY'
-        import stat
-        import zipfile
-        from pathlib import Path
-        dst = Path("/tmp/tofu-bin")
-        dst.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile("/tmp/tofu.zip") as zf:
-            zf.extractall(dst)
-        tf = dst / "tofu"
-        tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        PY
+        python3 -c "import stat, zipfile; from pathlib import Path; dst=Path('/tmp/tofu-bin'); dst.mkdir(parents=True, exist_ok=True); zf=zipfile.ZipFile('/tmp/tofu.zip'); zf.extractall(dst); tf=dst/'tofu'; tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)"
         export PATH="/tmp/tofu-bin:$PATH"
       fi
     - tofu version
