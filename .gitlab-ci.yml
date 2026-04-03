@@ -9,12 +9,14 @@ default:
     - docker
 
 variables:
-  SECURITY_TOOLS_IMAGE: "$CI_REGISTRY_IMAGE/scan-tools:1.0.0"
-  # Base images pinned by tag; override with digests via *_IMAGE_DIGEST in CI settings.
-  CURL_IMAGE_DIGEST: "curlimages/curl:8.12.1"
-  # Recommended: override with immutable digest in CI/CD settings.
-  # Example: $CI_REGISTRY_IMAGE/opa@sha256:<digest>
-  OPA_IMAGE: "$CI_REGISTRY_IMAGE/opa:${OPA_VERSION}"
+  SECURITY_TOOLS_IMAGE: "$CI_REGISTRY_IMAGE/scan-tools@${SECURITY_TOOLS_IMAGE_DIGEST}"
+  SECURITY_TOOLS_IMAGE_DIGEST: "${SECURITY_TOOLS_IMAGE_DIGEST}"
+  CURL_IMAGE: "curlimages/curl@${CURL_IMAGE_DIGEST}"
+  CURL_IMAGE_DIGEST: "${CURL_IMAGE_DIGEST}"
+  OPA_IMAGE: "$CI_REGISTRY_IMAGE/opa@${OPA_IMAGE_DIGEST}"
+  OPA_IMAGE_DIGEST: "${OPA_IMAGE_DIGEST}"
+  KANIKO_IMAGE: "gcr.io/kaniko-project/executor@${KANIKO_IMAGE_DIGEST}"
+  KANIKO_IMAGE_DIGEST: "${KANIKO_IMAGE_DIGEST}"
 
   GITLEAKS_VERSION: "8.21.2"
   CHECKOV_VERSION: "3.2.502"
@@ -22,11 +24,11 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  SCAN_TARGET: "."
-  CHECKOV_SKIP_PATHS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
-  TRIVY_TARGET: "."
-  TRIVY_SCAN_TYPE: "fs"
-  TRIVY_SKIP_DIRS: "infra/azure/dev/tests,infra/azure/test/tests,tests/fixtures"
+  SCAN_TARGET: "infra/azure/student-secure"
+  CHECKOV_SKIP_PATHS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
+  TRIVY_TARGET: "infra/azure/student-secure"
+  TRIVY_IMAGE_TARGET: "alpine:3.21"
+  TRIVY_SKIP_DIRS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "2"
@@ -42,7 +44,7 @@ stages:
   - contract
   - decide
   - report
-  # - deploy
+  - deploy
 
 .default_tools: &default_tools
   image: ${SECURITY_TOOLS_IMAGE}
@@ -74,7 +76,7 @@ build-scan-tools-image:
   stage: prepare
   timeout: 2h
   image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    name: "$KANIKO_IMAGE"
     entrypoint: [""]
   script:
     - mkdir -p /kaniko/.docker
@@ -84,7 +86,7 @@ build-scan-tools-image:
     - /kaniko/executor
       --context "${CI_PROJECT_DIR}"
       --dockerfile "${CI_PROJECT_DIR}/ci/images/scan-tools/Dockerfile"
-      --destination "${SECURITY_TOOLS_IMAGE}"
+      --destination "${CI_REGISTRY_IMAGE}/scan-tools:${SCAN_TOOLS_BUILD_TAG:-1.0.0}"
       --build-arg "GITLEAKS_VERSION=${GITLEAKS_VERSION}"
       --build-arg "CHECKOV_VERSION=${CHECKOV_VERSION}"
       --build-arg "TRIVY_VERSION=${TRIVY_VERSION}"
@@ -106,7 +108,7 @@ gitleaks-scan:
     - mkdir -p .cloudsentinel
     - export USE_BASELINE="false"
     - chmod +x shift-left/gitleaks/run-gitleaks.sh
-    - bash shift-left/gitleaks/run-gitleaks.sh || true
+    - bash shift-left/gitleaks/run-gitleaks.sh
     - chmod a+r .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_opa.json 2>/dev/null || true
     - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/gitleaks_opa.json
   artifacts:
@@ -123,7 +125,7 @@ checkov-scan:
     - checkov --version
     - mkdir -p .cloudsentinel
     - chmod +x shift-left/checkov/run-checkov.sh
-    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}" || true
+    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}"
     - chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_opa.json .cloudsentinel/checkov_scan.log 2>/dev/null || true
     - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/checkov_opa.json
   artifacts:
@@ -134,23 +136,67 @@ checkov-scan:
       - .cloudsentinel/checkov_opa.json
       - .cloudsentinel/checkov_scan.log
 
-trivy-scan:
+trivy-fs-scan:
   <<: *default_tools
   stage: scan
   script:
     - trivy --version
     - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
     - chmod +x shift-left/trivy/scripts/run-trivy.sh
-    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "${TRIVY_SCAN_TYPE}" || true
-    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_opa.json 2>/dev/null || true
-    - jq -r '"[scan-summary] trivy=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring)' .cloudsentinel/trivy_opa.json
+    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "fs"
+    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_fs_opa.json
+    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_fs_opa.json 2>/dev/null || true
+    - jq -r '"[scan-summary] trivy-fs=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_fs_opa.json
   artifacts:
     when: always
     expire_in: 7 days
     paths:
-      - shift-left/trivy/reports/raw/
-      - shift-left/trivy/reports/sbom/
-      - .cloudsentinel/trivy_opa.json
+      - shift-left/trivy/reports/raw/trivy-fs-raw.json
+      - shift-left/trivy/reports/sbom/trivy-fs.cdx.json
+      - .cloudsentinel/trivy_fs_opa.json
+
+trivy-config-scan:
+  <<: *default_tools
+  stage: scan
+  script:
+    - trivy --version
+    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
+    - chmod +x shift-left/trivy/scripts/run-trivy.sh
+    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "config"
+    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_config_opa.json
+    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_config_opa.json 2>/dev/null || true
+    - jq -r '"[scan-summary] trivy-config=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_config_opa.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - shift-left/trivy/reports/raw/trivy-config-raw.json
+      - .cloudsentinel/trivy_config_opa.json
+
+trivy-image-scan:
+  <<: *default_tools
+  stage: scan
+  script:
+    - trivy --version
+    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
+    - chmod +x shift-left/trivy/scripts/run-trivy.sh
+    - |
+      if [ -z "${TRIVY_IMAGE_TARGET:-}" ]; then
+        echo "[scan] TRIVY_IMAGE_TARGET is empty -> emitting NOT_RUN for image scan"
+        bash shift-left/trivy/scripts/run-trivy.sh
+      else
+        bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_IMAGE_TARGET}" "image"
+      fi
+    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_image_opa.json
+    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_image_opa.json 2>/dev/null || true
+    - jq -r '"[scan-summary] trivy-image=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_image_opa.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - shift-left/trivy/reports/raw/trivy-image-raw.json
+      - shift-left/trivy/reports/sbom/trivy-image.cdx.json
+      - .cloudsentinel/trivy_image_opa.json
 
 normalize-reports:
   <<: *default_tools
@@ -160,9 +206,93 @@ normalize-reports:
       artifacts: true
     - job: checkov-scan
       artifacts: true
-    - job: trivy-scan
+    - job: trivy-fs-scan
+      artifacts: true
+    - job: trivy-config-scan
+      artifacts: true
+    - job: trivy-image-scan
       artifacts: true
   script:
+    - |
+      python3 - <<'PY'
+      import json
+      from pathlib import Path
+
+      root = Path(".cloudsentinel")
+      reports = {
+          "fs": root / "trivy_fs_opa.json",
+          "config": root / "trivy_config_opa.json",
+          "image": root / "trivy_image_opa.json",
+      }
+      loaded = {}
+      for name, path in reports.items():
+          if not path.exists():
+              loaded[name] = {"status": "NOT_RUN", "errors": [f"missing_report:{path}"], "findings": [], "stats": {"TOTAL": 0}}
+              continue
+          try:
+              loaded[name] = json.loads(path.read_text(encoding="utf-8"))
+          except Exception:
+              loaded[name] = {"status": "NOT_RUN", "errors": [f"invalid_json:{path}"], "findings": [], "stats": {"TOTAL": 0}}
+
+      any_not_run = any(str(r.get("status", "")).upper() == "NOT_RUN" for r in loaded.values())
+      if any_not_run:
+          errors = []
+          for name, report in loaded.items():
+              if str(report.get("status", "")).upper() == "NOT_RUN":
+                  errs = report.get("errors", [])
+                  if isinstance(errs, list):
+                      errors.extend([f"{name}:{e}" for e in errs])
+                  else:
+                      errors.append(f"{name}:not_run")
+          merged = {
+              "tool": "trivy",
+              "version": "multi",
+              "status": "NOT_RUN",
+              "errors": errors or ["trivy_subscan_not_run"],
+              "has_findings": False,
+              "stats": {
+                  "CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0,
+                  "TOTAL": 0, "EXEMPTED": 0, "FAILED": 0, "PASSED": 0,
+                  "by_type": {"vulnerability": 0, "secret": 0, "misconfig": 0},
+                  "by_category": {"INFRASTRUCTURE": 0, "APPLICATION": 0, "CONFIGURATION": 0, "SECRET": 0}
+              },
+              "findings": []
+          }
+      else:
+          findings = []
+          for report in loaded.values():
+              findings.extend(report.get("findings", []))
+
+          sev_keys = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "EXEMPTED", "FAILED", "PASSED"]
+          by_type_keys = ["vulnerability", "secret", "misconfig"]
+          by_cat_keys = ["INFRASTRUCTURE", "APPLICATION", "CONFIGURATION", "SECRET"]
+          stats = {k: 0 for k in sev_keys}
+          by_type = {k: 0 for k in by_type_keys}
+          by_cat = {k: 0 for k in by_cat_keys}
+          for report in loaded.values():
+              rstats = report.get("stats", {})
+              for key in sev_keys:
+                  stats[key] += int(rstats.get(key, 0) or 0)
+              for key in by_type_keys:
+                  by_type[key] += int((rstats.get("by_type", {}) or {}).get(key, 0) or 0)
+              for key in by_cat_keys:
+                  by_cat[key] += int((rstats.get("by_category", {}) or {}).get(key, 0) or 0)
+          stats["by_type"] = by_type
+          stats["by_category"] = by_cat
+
+          merged = {
+              "tool": "trivy",
+              "version": "multi",
+              "status": "OK",
+              "errors": [],
+              "has_findings": len(findings) > 0,
+              "stats": stats,
+              "findings": findings
+          }
+
+      (root / "trivy_opa.json").write_text(json.dumps(merged, indent=2), encoding="utf-8")
+      print("[normalize] merged trivy subscans -> .cloudsentinel/trivy_opa.json")
+      PY
     - chmod +x shift-left/normalizer/normalize.py
     - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
     - export CLOUDSENTINEL_EXECUTION_MODE="ci"
@@ -173,7 +303,7 @@ normalize-reports:
     - python3 shift-left/normalizer/normalize.py
     - jq '.summary' .cloudsentinel/golden_report.json
     - jq '.quality_gate' .cloudsentinel/golden_report.json
-    - timeout 30 python3 shift-left/opa/fetch-exceptions.py || true
+    - timeout 30 python3 shift-left/opa/fetch-exceptions.py
   artifacts:
     when: always
     expire_in: 30 days
@@ -182,6 +312,9 @@ normalize-reports:
       - .cloudsentinel/gitleaks_opa.json
       - .cloudsentinel/checkov_opa.json
       - .cloudsentinel/trivy_opa.json
+      - .cloudsentinel/trivy_fs_opa.json
+      - .cloudsentinel/trivy_config_opa.json
+      - .cloudsentinel/trivy_image_opa.json
       - .cloudsentinel/exceptions.json
       - .cloudsentinel/dropped_exceptions.json
       - .cloudsentinel/audit_events.jsonl
@@ -198,6 +331,31 @@ contract-test:
     - test -f .cloudsentinel/trivy_opa.json
     - test -f .cloudsentinel/golden_report.json
     - test -f .cloudsentinel/exceptions.json
+    - |
+      python3 - <<'PY'
+      import json
+      import sys
+
+      reports = [
+          ".cloudsentinel/gitleaks_opa.json",
+          ".cloudsentinel/checkov_opa.json",
+          ".cloudsentinel/trivy_opa.json",
+      ]
+      required = {"tool", "version", "status", "findings", "errors"}
+      for path in reports:
+          with open(path, "r", encoding="utf-8") as f:
+              doc = json.load(f)
+          missing = sorted(required.difference(doc.keys()))
+          if missing:
+              raise SystemExit(f"[contract] {path} missing fields: {missing}")
+          if doc["status"] not in {"OK", "NOT_RUN"}:
+              raise SystemExit(f"[contract] {path} invalid status: {doc['status']}")
+          if not isinstance(doc["findings"], list):
+              raise SystemExit(f"[contract] {path} findings must be array")
+          if not isinstance(doc["errors"], list):
+              raise SystemExit(f"[contract] {path} errors must be array")
+      print("[contract] scanner wrapper contract passed")
+      PY
     - |
       printf '%s\n' \
         'import json, sys' \
@@ -301,14 +459,14 @@ opa-decision:
 
 upload-to-defectdojo:
   stage: report
-  image: ${CURL_IMAGE_DIGEST}
+  image: ${CURL_IMAGE}
   retry: 2
   needs:
     - job: gitleaks-scan
       artifacts: true
     - job: checkov-scan
       artifacts: true
-    - job: trivy-scan
+    - job: trivy-fs-scan
       artifacts: true
   script:
     - |
@@ -378,33 +536,105 @@ upload-to-defectdojo:
   when: always
   allow_failure: false
 
-# deploy-infrastructure:
-#   stage: deploy
-#   <<: *default_tools
-#   needs:
-#     - job: opa-decision
-#   before_script:
-#     - apt-get update
-#     - apt-get install -y --no-install-recommends gpg
-#     - rm -rf /var/lib/apt/lists/*
-#     - curl --proto '=https' --tlsv1.2 -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh
-#     - chmod +x /tmp/install-opentofu.sh
-#     - /tmp/install-opentofu.sh --install-method standalone --install-path /usr/local/bin
-#     - tofu version
-#     - cd infra/azure/dev
-#   script:
-#     - tofu init
-#     - tofu plan -out=tfplan
-#     - tofu apply -auto-approve tfplan
-#   rules:
-#     - if: '$CI_COMMIT_BRANCH == "main"'
-#     - if: '$CI_COMMIT_BRANCH == "develop"'
+deploy-security-gate:
+  <<: *default_tools
+  stage: deploy
+  needs:
+    - job: normalize-reports
+      artifacts: true
+    - job: opa-decision
+      artifacts: true
+  script:
+    - chmod +x scripts/ci/enforce-zero-findings.sh
+    - bash scripts/ci/enforce-zero-findings.sh .cloudsentinel/golden_report.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
+
+deploy-infrastructure:
+  <<: *default_tools
+  stage: deploy
+  needs:
+    - job: deploy-security-gate
+      artifacts: true
+  script:
+    - |
+      set -euo pipefail
+      required_vars=(
+        ARM_CLIENT_ID
+        ARM_CLIENT_SECRET
+        ARM_TENANT_ID
+        ARM_SUBSCRIPTION_ID
+        TFSTATE_RESOURCE_GROUP
+        TFSTATE_STORAGE_ACCOUNT
+        TFSTATE_CONTAINER
+      )
+      for name in "${required_vars[@]}"; do
+        if [ -z "${!name:-}" ]; then
+          echo "[deploy][ERROR] missing required variable: ${name}" >&2
+          exit 2
+        fi
+      done
+    - mkdir -p .cloudsentinel /tmp/terraform-bin
+    - curl -fsSLo /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+    - |
+      python3 - <<'PY'
+      import stat
+      import zipfile
+      from pathlib import Path
+      dst = Path("/tmp/terraform-bin")
+      dst.mkdir(parents=True, exist_ok=True)
+      with zipfile.ZipFile("/tmp/terraform.zip") as zf:
+          zf.extractall(dst)
+      tf = dst / "terraform"
+      tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+      PY
+    - export PATH="/tmp/terraform-bin:$PATH"
+    - terraform version
+    - |
+      terraform -chdir=infra/azure/student-secure init -input=false \
+        -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
+        -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
+        -backend-config="container_name=${TFSTATE_CONTAINER}" \
+        -backend-config="key=${TFSTATE_KEY:-student-secure-${CI_COMMIT_REF_SLUG}.tfstate}" \
+        -backend-config="use_azuread_auth=true"
+    - terraform -chdir=infra/azure/student-secure plan -input=false -out=tfplan
+    - terraform -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
+    - terraform -chdir=infra/azure/student-secure output -json > .cloudsentinel/terraform_outputs_student_secure.json
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/terraform_outputs_student_secure.json
+      - infra/azure/student-secure/tfplan
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
+
+post-deploy-verify:
+  <<: *default_tools
+  stage: deploy
+  needs:
+    - job: deploy-infrastructure
+      artifacts: true
+  script:
+    - chmod +x scripts/verify-student-secure.sh
+    - chmod +x scripts/post-deploy-verify-student-secure.sh
+    - bash scripts/post-deploy-verify-student-secure.sh infra/azure/student-secure "${TRIVY_IMAGE_TARGET}"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/golden_report.json
+      - .cloudsentinel/opa_decision.json
+      - .cloudsentinel/terraform_outputs_student_secure.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 
 # workflow: controls which pipelines are created.
 # Only MR events, main, and develop branches trigger the pipeline.
 # Remove or restrict this block if you need manual triggers.
 workflow:
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'

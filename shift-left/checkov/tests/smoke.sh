@@ -27,7 +27,7 @@ resource "azurerm_network_security_rule" "ssh_any_allow" {
 TF
 
 export CHECKOV_SKIP_PATHS=""
-bash "$REPO_ROOT/shift-left/checkov/run-checkov.sh" "$TMP_DIR" || true
+bash "$REPO_ROOT/shift-left/checkov/run-checkov.sh" "$TMP_DIR"
 
 test -f "$OUT_FILE"
 jq -e '.tool == "checkov"' "$OUT_FILE" >/dev/null

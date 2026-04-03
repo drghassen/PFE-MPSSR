@@ -2,13 +2,12 @@
 set -euo pipefail
 
 ################################################################################
-# CloudSentinel - Checkov Wrapper v5.0 (PFE)
-# - Centralise les rapports dans .cloudsentinel/
-# - Normalise les sévérités et catégories via mapping.json
-# - Aucun bypass local: les exceptions sont gérées uniquement par OPA
+# CloudSentinel - Checkov Wrapper v5.1
+# - Centralized reports in .cloudsentinel/
+# - Severity/category normalization via mapping.json
+# - Fail-closed on technical/format errors (status=NOT_RUN)
 ################################################################################
 
-# --- Couleurs & Logs ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,25 +19,17 @@ log_success() { echo -e "${GREEN}[Checkov][SUCCESS]${NC} $*"; }
 log_warn()    { echo -e "${YELLOW}[Checkov][WARN]${NC} $*" >&2; }
 log_err()     { echo -e "${RED}[Checkov][ERROR]${NC} $*" >&2; }
 
-# --- Chemins & Dossiers ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Import de notre librairie partagée
 source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
 
-# On récupère la racine du projet Git via la lib unifiée
 REPO_ROOT="$(cs_get_repo_root)"
-
-# Dossier de sortie centralisé pour OPA
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 mkdir -p "$OUT_DIR"
 
-# Fichiers de configuration
 POLICIES_DIR="${SCRIPT_DIR}/policies"
 MAPPING_FILE="${POLICIES_DIR}/mapping.json"
 CONFIG_FILE="${SCRIPT_DIR}/.checkov.yml"
 
-# Fichiers de rapports (on utilise des noms fixes pour éviter l'accumulation)
 REPORT_RAW="$OUT_DIR/checkov_raw.json"
 REPORT_OPA="$OUT_DIR/checkov_opa.json"
 REPORT_LOG="$OUT_DIR/checkov_scan.log"
@@ -49,31 +40,26 @@ emit_not_run() {
     cs_emit_not_run "checkov" "$REPORT_OPA" "$reason" "$REPO_ROOT"
 }
 
-# --- Prérequis ---
-command -v checkov >/dev/null 2>&1 || { log_err "Checkov n'est pas installé."; exit 2; }
-command -v jq >/dev/null 2>&1 || { log_err "jq n'est pas installé."; exit 2; }
-
-[[ -f "$MAPPING_FILE" ]] || { log_err "Mapping introuvable: $MAPPING_FILE"; emit_not_run "mapping_file_missing"; exit 0; }
-# --- Préparation du Scan ---
-SCAN_TARGET="${1:-$REPO_ROOT}" # Par défaut scanne tout le repo ou le dossier passé en argument
-log_info "Démarrage du scan sur : $SCAN_TARGET"
-
-# Construction de la commande Checkov
-# Si .checkov.yml existe, il est la source de vérité (frameworks + checks + policies).
-checkov_cmd=(checkov --directory "$SCAN_TARGET")
-
-if [[ ! -f "$CONFIG_FILE" ]]; then
-    log_err "Config file missing: $CONFIG_FILE"
-    emit_not_run "config_file_missing"
-    # Do not block on scanner setup issues here: OPA remains the single gate.
+if ! command -v jq >/dev/null 2>&1; then
+    emit_not_run "jq_binary_missing"
     exit 0
 fi
 
-log_info "Using config: $CONFIG_FILE"
+if ! command -v checkov >/dev/null 2>&1; then
+    emit_not_run "checkov_binary_missing"
+    exit 0
+fi
+
+[[ -f "$MAPPING_FILE" ]] || { log_err "Mapping not found: $MAPPING_FILE"; emit_not_run "mapping_file_missing"; exit 0; }
+[[ -f "$CONFIG_FILE" ]] || { log_err "Config file missing: $CONFIG_FILE"; emit_not_run "config_file_missing"; exit 0; }
+
+SCAN_TARGET="${1:-$REPO_ROOT}"
+log_info "Starting scan on: $SCAN_TARGET"
+
+checkov_cmd=(checkov --directory "$SCAN_TARGET")
 checkov_cmd+=("--config-file" "$CONFIG_FILE")
 checkov_cmd+=("--external-checks-dir" "$POLICIES_DIR")
 
-# CI noise reduction (optional): allow explicit skip-path list without impacting local/e2e scans.
 if [[ -n "${CHECKOV_SKIP_PATHS:-}" ]]; then
     IFS=',' read -r -a skip_paths <<< "$CHECKOV_SKIP_PATHS"
     for skip_path in "${skip_paths[@]}"; do
@@ -84,35 +70,34 @@ if [[ -n "${CHECKOV_SKIP_PATHS:-}" ]]; then
     log_info "Applied CHECKOV_SKIP_PATHS: $CHECKOV_SKIP_PATHS"
 fi
 
-# --- Exécution ---
 set +e
 "${checkov_cmd[@]}" > "$REPORT_RAW" 2> "$REPORT_LOG"
 EXIT_CODE=$?
 set -e
 
-# Code 2 = Erreur technique
-if [ $EXIT_CODE -eq 2 ]; then
-    log_err "Erreur technique Checkov. Consultez $REPORT_LOG"
+if [[ $EXIT_CODE -eq 2 ]]; then
+    log_err "Technical Checkov failure. See $REPORT_LOG"
     emit_not_run "checkov_execution_error"
-    # Bloque le job (technique) : OPA ne doit pas décider sur un scanner en échec dur.
-    exit 2
+    exit 0
 fi
 
-# Si le fichier est vide ou invalide (aucun fichier .tf trouvé par ex)
-if ! jq -e '.' "$REPORT_RAW" >/dev/null 2>&1; then
-    log_warn "Aucun résultat exploitable. Génération d'un rapport vide."
-    echo '{"results":{"failed_checks":[]}}' > "$REPORT_RAW"
+if [[ ! -s "$REPORT_RAW" ]]; then
+    emit_not_run "checkov_raw_output_missing"
+    exit 0
 fi
 
-# --- Métadonnées Git ---
+if ! jq -e 'type == "object" and (.results | type == "object")' "$REPORT_RAW" >/dev/null 2>&1; then
+    log_err "Invalid Checkov JSON report detected."
+    emit_not_run "checkov_raw_output_invalid_json"
+    exit 0
+fi
+
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
 COMMIT="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
-
-# --- Normalisation JQ (Le Cœur du Système) ---
-log_info "Normalisation des résultats pour OPA..."
-
 CHECKOV_VERSION="$(checkov --version 2>/dev/null | head -n1 | tr -d '\r' || echo unknown)"
 [[ -z "$CHECKOV_VERSION" ]] && CHECKOV_VERSION="unknown"
+
+log_info "Normalizing results for OPA..."
 
 jq -n \
   --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -154,14 +139,11 @@ jq -n \
       })
     ) as $normalized
 
-  # ---------------------------------------------------------------------------
-  # NOTE: has_findings is a SCAN OBSERVATION, not a gate decision.
-  # The block/allow decision is EXCLUSIVELY made by OPA (run-opa.sh).
-  # Never use this field to gate a pipeline directly.
-  # ---------------------------------------------------------------------------
   | {
       tool: "checkov",
       version: $version,
+      status: "OK",
+      errors: [],
       has_findings: ($normalized | map(select(.status == "FAILED")) | length > 0),
       timestamp: $timestamp,
       branch: $branch,
@@ -176,27 +158,20 @@ jq -n \
         TOTAL:    ($normalized | map(select(.status == "FAILED")) | length),
         EXEMPTED: 0,
         FAILED:   ($normalized | map(select(.status == "FAILED")) | length),
-        # NOTE: PASSED is always 0 by design.
-        # $normalized contains only failed_checks.
-        # Passed checks are not loaded for OPA normalization:
-        # OPA decisions are based exclusively on failures.
-        # Loading passed_checks is out of scope (post-soutenance roadmap).
-        PASSED:   ($normalized | map(select(.status == "PASSED")) | length)
+        PASSED:   0
       },
       findings: $normalized
     }
 ' > "$REPORT_OPA"
 
-# --- Résumé Final ---
 TOTAL_FAIL=$(jq '.stats.TOTAL' "$REPORT_OPA")
 
-if [ "$TOTAL_FAIL" -gt 0 ]; then
-    log_warn "Scan terminé : $TOTAL_FAIL violations détectées."
-    # Affiche les 5 premières
-    jq -r '.findings[] | select(.status == "FAILED") | "  [\(.severity)] \(.id) -> \(.resource)"' "$REPORT_OPA" | head -n 5
+if [[ "$TOTAL_FAIL" -gt 0 ]]; then
+    log_warn "Scan completed: $TOTAL_FAIL violations detected."
+    jq -r '.findings[] | select(.status == "FAILED") | "  [\(.severity)] \(.id) -> \(.resource.name // .resource)"' "$REPORT_OPA" | head -n 5
 else
-    log_success "Scan terminé : Aucune violation détectée."
+    log_success "Scan completed: no violations detected."
 fi
 
-log_success "Rapport disponible : $REPORT_OPA"
+log_success "Report available: $REPORT_OPA"
 exit 0

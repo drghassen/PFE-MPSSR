@@ -54,7 +54,7 @@
   "definitions": {
     "exception_v2": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "exception_id",
         "scanner",

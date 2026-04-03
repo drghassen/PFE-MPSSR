@@ -27,7 +27,7 @@ test_allow_when_thresholds_respected if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         }
       ]
@@ -64,7 +64,7 @@ test_apply_exception_in_dev if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Temporary unblock while remediation is in progress",
@@ -84,7 +84,7 @@ test_apply_exception_in_dev if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         }
       ]
@@ -123,7 +123,7 @@ test_allow_when_exception_resource_name_matches if {
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
           "resource": {
             "name": "azurerm_storage_account.insecure",
-            "path": "/infra/azure/dev/state_storage.tf"
+            "path": "/infra/azure/student-secure/modules/storage/main.tf"
           },
           "severity": {"level": "HIGH"}
         }
@@ -143,7 +143,7 @@ test_apply_exception_with_rule_alias_and_path_normalization if {
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_999",
     "rule_id_aliases": ["CKV2_CS_AZ_001"],
-    "resource_path": "./infra\\azure/dev/./state_storage.tf",
+    "resource_path": "./infra\\azure\\student-secure\\./modules\\storage\\main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Alias-based matching for scanner drift",
@@ -162,7 +162,7 @@ test_apply_exception_with_rule_alias_and_path_normalization if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         }
       ]
@@ -248,7 +248,7 @@ test_deny_when_enabled_exception_is_malformed if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Invalid because requested_by is missing",
@@ -278,7 +278,7 @@ test_deny_when_exception_aliases_are_invalid if {
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
     "rule_id_aliases": ["CKV2_CS_AZ_001", 123],
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Invalid alias payload",
@@ -308,7 +308,7 @@ test_deny_when_requested_by_equals_approved_by if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Self-approval attempt",
@@ -338,7 +338,7 @@ test_deny_when_four_eyes_violated_case_insensitive if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Case insensitive self-approval",
@@ -367,7 +367,7 @@ test_deny_when_commit_hash_invalid if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Bad commit hash",
@@ -396,7 +396,7 @@ test_deny_when_request_date_after_expires_at if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Request date after expiry",
@@ -425,7 +425,7 @@ test_allow_when_four_eyes_respected if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Valid four-eyes approval",
@@ -442,7 +442,7 @@ test_allow_when_four_eyes_respected if {
       "findings": [{
         "status": "FAILED",
         "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-        "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+        "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
         "severity": {"level": "HIGH"}
       }]
     })
@@ -459,7 +459,7 @@ test_metrics_excepted_counts_findings_not_exception_ids if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Single exception for repeated finding instances",
@@ -478,13 +478,13 @@ test_metrics_excepted_counts_findings_not_exception_ids if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         },
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         }
       ]
@@ -524,7 +524,7 @@ test_deny_when_exception_is_expired if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/dev/state_storage.tf",
+    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Grace period — remediation in progress",
@@ -545,7 +545,7 @@ test_deny_when_exception_is_expired if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},
           "severity": {"level": "HIGH"}
         }
       ]
@@ -569,7 +569,7 @@ test_allow_when_exception_path_suffix_matches if {
     "enabled": true,
     "tool": "checkov",
     "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "state_storage.tf",   # short suffix — no directory prefix
+    "resource_path": "main.tf",   # short suffix — no directory prefix
     "environments": ["dev"],
     "max_severity": "HIGH",
     "reason": "Suffix path exception for environment-agnostic resource matching",
@@ -588,7 +588,7 @@ test_allow_when_exception_path_suffix_matches if {
         {
           "status": "FAILED",
           "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-          "resource": {"path": "/infra/azure/dev/state_storage.tf"},  # full path
+          "resource": {"path": "/infra/azure/student-secure/modules/storage/main.tf"},  # full path
           "severity": {"level": "HIGH"}
         }
       ]
@@ -636,7 +636,7 @@ test_v2_allow_when_fingerprint_matches_exactly if {
       "findings": [{
         "status": "FAILED",
         "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/dev/state_storage.tf"},
+        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/student-secure/modules/storage/main.tf"},
         "severity": {"level": "HIGH"},
         "context": {"deduplication": {"fingerprint": "fp-enterprise-001"}}
       }]
@@ -728,7 +728,7 @@ test_v2_allow_break_glass_when_strict_constraints_met if {
       "findings": [{
         "status": "FAILED",
         "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
-        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/dev/state_storage.tf"},
+        "resource": {"name": "azurerm_storage_account.insecure", "path": "/infra/azure/student-secure/modules/storage/main.tf"},
         "severity": {"level": "HIGH"},
         "context": {"deduplication": {"fingerprint": "fp-breakglass-002"}}
       }]

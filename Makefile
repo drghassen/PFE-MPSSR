@@ -79,11 +79,11 @@ scan: ## Exécuter tous les scanners (Gitleaks, Checkov, Trivy)
 
 scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 	@echo "$(GREEN)🔐 Scan des secrets...$(RESET)"
-	@gitleaks detect --source=infra/azure/dev --report-path=reports/gitleaks.json --no-git --exit-code=0
+	@gitleaks detect --source=infra/azure/student-secure --report-path=reports/gitleaks.json --no-git --exit-code=0
 
 scan-iac: ## Scanner uniquement l'IaC (Checkov)
 	@echo "$(GREEN)🏗️  Scan IaC...$(RESET)"
-	@bash shift-left/checkov/run-checkov.sh infra/azure/dev
+	@bash shift-left/checkov/run-checkov.sh infra/azure/student-secure
 
 checkov-smoke: ## Smoke test des policies Checkov sur fixtures internes
 	@echo "$(GREEN)🧪 Smoke Checkov (fixtures)...$(RESET)"
@@ -116,7 +116,7 @@ gitleaks-update-baseline: ## Régénérer la baseline Gitleaks (faux positifs co
 
 scan-vulns: ## Scanner uniquement les vulnérabilités (Trivy)
 	@echo "$(GREEN)🐛 Scan vulnérabilités...$(RESET)"
-	@bash shift-left/trivy/scripts/run-trivy.sh infra/azure/dev config
+	@bash shift-left/trivy/scripts/run-trivy.sh infra/azure/student-secure config
 
 trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
 	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"
@@ -158,20 +158,20 @@ drift-detect: ## Détecter les drifts de configuration
 
 terraform-init: ## Initialiser Terraform
 	@echo "$(GREEN)🏗️  Terraform init...$(RESET)"
-	@cd infra/azure/dev && terraform init
+	@cd infra/azure/student-secure && terraform init
 
 terraform-plan: ## Planifier le déploiement Terraform
 	@echo "$(GREEN)📋 Terraform plan...$(RESET)"
-	@cd infra/azure/dev && terraform plan
+	@cd infra/azure/student-secure && terraform plan
 
 terraform-apply: ## Déployer l'infrastructure Terraform
 	@echo "$(YELLOW)⚠️  Déploiement infrastructure$(RESET)"
-	@cd infra/azure/dev && terraform apply
+	@cd infra/azure/student-secure && terraform apply
 
 terraform-destroy: ## Détruire l'infrastructure Terraform
 	@echo "$(YELLOW)⚠️  DESTRUCTION infrastructure$(RESET)"
 	@read -p "Êtes-vous VRAIMENT sûr ? (y/N) " confirm && [ $$confirm = y ] || exit 1
-	@cd infra/azure/dev && terraform destroy
+	@cd infra/azure/student-secure && terraform destroy
 
 ##@ DefectDojo & Gouvernance
 
@@ -223,8 +223,8 @@ clean: ## Nettoyer les artifacts et rapports
 	@echo "$(GREEN)🧹 Nettoyage...$(RESET)"
 	@rm -rf reports/*.json
 	@rm -rf custodian-output/
-	@rm -rf infra/azure/dev/.terraform
-	@rm -rf infra/azure/dev/terraform.tfstate*
+	@rm -rf infra/azure/student-secure/.terraform
+	@rm -rf infra/azure/student-secure/terraform.tfstate*
 	@echo "$(GREEN)✅ Nettoyage terminé$(RESET)"
 
 clean-all: clean ## Nettoyage complet (y compris Docker)
@@ -246,7 +246,7 @@ pre-commit-install: ## Installer le hook Git pre-commit
 
 validate: ## Valider la configuration (Terraform, OPA, etc.)
 	@echo "$(GREEN)✅ Validation de la configuration...$(RESET)"
-	@cd infra/azure/dev && terraform validate
+	@cd infra/azure/student-secure && terraform validate
 	@cd policies/opa && opa check .
 	@echo "$(GREEN)✅ Configuration valide$(RESET)"
 
