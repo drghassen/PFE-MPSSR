@@ -31,8 +31,7 @@ resource "azurerm_storage_account" "this" {
   https_traffic_only_enabled        = true
   public_network_access_enabled     = false
   allow_nested_items_to_be_public   = false
-  # Keep key access enabled for provider compatibility in constrained subscriptions.
-  shared_access_key_enabled         = true
+  shared_access_key_enabled         = false
   infrastructure_encryption_enabled = true
   tags                              = var.tags
 
@@ -51,6 +50,10 @@ resource "azurerm_storage_account" "this" {
     container_delete_retention_policy {
       days = 7
     }
+  }
+
+  sas_policy {
+    expiration_period = "1.00:00:00"
   }
 
   queue_properties {
