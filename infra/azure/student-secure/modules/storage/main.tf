@@ -31,7 +31,8 @@ resource "azurerm_storage_account" "this" {
   https_traffic_only_enabled        = true
   public_network_access_enabled     = false
   allow_nested_items_to_be_public   = false
-  shared_access_key_enabled         = false
+  # Keep key access enabled for provider compatibility in constrained subscriptions.
+  shared_access_key_enabled         = true
   infrastructure_encryption_enabled = true
   tags                              = var.tags
 
@@ -69,10 +70,16 @@ resource "azurerm_storage_account" "this" {
   }
 }
 
-resource "azurerm_role_assignment" "storage_cmk_role" {
-  scope                = var.key_vault_id
-  role_definition_name = "Key Vault Crypto Service Encryption User"
-  principal_id         = azurerm_storage_account.this.identity[0].principal_id
+resource "azurerm_key_vault_access_policy" "storage_cmk" {
+  key_vault_id = var.key_vault_id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_storage_account.this.identity[0].principal_id
+
+  key_permissions = [
+    "Get",
+    "WrapKey",
+    "UnwrapKey"
+  ]
 }
 
 resource "azurerm_storage_account_customer_managed_key" "this" {
@@ -81,7 +88,7 @@ resource "azurerm_storage_account_customer_managed_key" "this" {
   key_name           = element(split("/", var.key_vault_key_id), length(split("/", var.key_vault_key_id)) - 2)
   key_version        = element(split("/", var.key_vault_key_id), length(split("/", var.key_vault_key_id)) - 1)
 
-  depends_on = [azurerm_role_assignment.storage_cmk_role]
+  depends_on = [azurerm_key_vault_access_policy.storage_cmk]
 }
 
 resource "azurerm_private_endpoint" "blob" {
