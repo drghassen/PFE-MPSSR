@@ -6,8 +6,14 @@ metadata:
   guideline: "https://docs.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
 
 definition:
-  cond_type: "attribute"
-  resource_types:
-    - "azurerm_storage_account_customer_managed_key"
-  attribute: "key_vault_key_id"
-  operator: "exists"
+  and:
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_storage_account_customer_managed_key"
+      attribute: "key_vault_id"
+      operator: "exists"
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_storage_account_customer_managed_key"
+      attribute: "key_name"
+      operator: "exists"
