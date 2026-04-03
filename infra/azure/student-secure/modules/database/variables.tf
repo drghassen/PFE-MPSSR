@@ -2,6 +2,16 @@ variable "base_name" {
   type = string
 }
 
+variable "enabled" {
+  type    = bool
+  default = true
+}
+
+variable "manage_key_vault_secrets" {
+  type    = bool
+  default = true
+}
+
 variable "location" {
   type = string
 }

@@ -7,4 +7,6 @@ admin_allowed_cidr   = "198.51.100.25/32"
 vm_size              = "Standard_B1s"
 mysql_sku_name       = "B_Standard_B1ms"
 mysql_admin_username = "mysqladmin"
+enable_database      = false
+manage_database_secrets_in_key_vault = false
 db_secret_expiration_date = "2030-01-01T00:00:00Z"
