@@ -84,7 +84,7 @@ resource "azurerm_key_vault_secret" "mysql_admin_username" {
   tags = merge(var.tags, {
     SecretClass = "credential"
     Rotation    = "manual"
-    ManagedBy   = "terraform"
+    ManagedBy   = "opentofu"
   })
 }
 
@@ -98,6 +98,6 @@ resource "azurerm_key_vault_secret" "mysql_admin_password" {
   tags = merge(var.tags, {
     SecretClass = "credential"
     Rotation    = "manual"
-    ManagedBy   = "terraform"
+    ManagedBy   = "opentofu"
   })
 }

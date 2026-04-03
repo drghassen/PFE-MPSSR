@@ -16,7 +16,7 @@ echo "[post-deploy] enforcing zero findings gate..."
 bash "$REPO_ROOT/scripts/ci/enforce-zero-findings.sh" ".cloudsentinel/golden_report.json"
 
 if [[ -f ".cloudsentinel/terraform_outputs_student_secure.json" ]]; then
-  echo "[post-deploy] validating terraform outputs contract..."
+  echo "[post-deploy] validating OpenTofu outputs contract..."
   jq -e 'type == "object"' ".cloudsentinel/terraform_outputs_student_secure.json" >/dev/null
 fi
 

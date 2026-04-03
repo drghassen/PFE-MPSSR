@@ -77,7 +77,9 @@ resource "azurerm_role_assignment" "storage_cmk_role" {
 
 resource "azurerm_storage_account_customer_managed_key" "this" {
   storage_account_id = azurerm_storage_account.this.id
-  key_vault_key_id   = var.key_vault_key_id
+  key_vault_id       = var.key_vault_id
+  key_name           = element(split("/", var.key_vault_key_id), length(split("/", var.key_vault_key_id)) - 2)
+  key_version        = element(split("/", var.key_vault_key_id), length(split("/", var.key_vault_key_id)) - 1)
 
   depends_on = [azurerm_role_assignment.storage_cmk_role]
 }
