@@ -30,15 +30,17 @@ resource "azurerm_monitor_log_profile" "activity" {
 
 resource "azurerm_monitor_diagnostic_setting" "storage" {
   name                       = "diag-storage-${replace(var.base_name, "-", "")}"
-  target_resource_id         = var.storage_account_id
+  target_resource_id         = "${var.storage_account_id}/blobServices/default"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 
   enabled_log {
-    category_group = "allLogs"
+    category = "StorageRead"
   }
-
-  metric {
-    category = "AllMetrics"
+  enabled_log {
+    category = "StorageWrite"
+  }
+  enabled_log {
+    category = "StorageDelete"
   }
 }
 

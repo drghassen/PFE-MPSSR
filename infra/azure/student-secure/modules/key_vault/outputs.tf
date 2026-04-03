@@ -7,7 +7,7 @@ output "name" {
 }
 
 output "cmk_key_id" {
-  value = azurerm_key_vault_key.storage_cmk.id
+  value = null
 }
 
 output "private_endpoint_id" {
