@@ -10,6 +10,14 @@ variable "resource_group_name" {
   type = string
 }
 
+variable "network_watcher_name" {
+  type = string
+}
+
+variable "network_watcher_resource_group_name" {
+  type = string
+}
+
 variable "storage_account_id" {
   type = string
 }
