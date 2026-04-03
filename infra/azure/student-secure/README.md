@@ -76,9 +76,7 @@ Le pipeline GitLab est déclenché sur `push` et exécute:
 2. Scanners Shift-Left (`gitleaks`, `checkov`, `trivy fs/config/image`).
 3. Normalizer -> `golden_report.json` (schema strict).
 4. OPA `--enforce`.
-5. Gate de déploiement stricte (`0 finding` + aucun scanner `NOT_RUN`).
-6. `tofu init/plan/apply` sur `infra/azure/student-secure`.
-7. Vérification post-déploiement automatisée.
+5. `tofu init/plan/apply` sur `infra/azure/student-secure` (seulement si OPA = ALLOW).
 
 Variables CI requises pour deploy:
 
@@ -97,13 +95,6 @@ Depuis la racine du repo:
 
 ```bash
 bash scripts/verify-student-secure.sh infra/azure/student-secure alpine:3.21
-bash scripts/ci/enforce-zero-findings.sh .cloudsentinel/golden_report.json
-```
-
-Post-deploy CI:
-
-```bash
-bash scripts/post-deploy-verify-student-secure.sh infra/azure/student-secure alpine:3.21
 ```
 
 Le flux échoue immédiatement si:
@@ -112,7 +103,6 @@ Le flux échoue immédiatement si:
 - JSON invalide
 - secret non redacted
 - violation OPA
-- findings restants (`FAILED > 0`)
 
 ## Outputs Disponibles
 
