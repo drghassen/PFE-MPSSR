@@ -62,7 +62,6 @@ retry-guard:
   <<: *default_tools
   stage: guard
   script:
-    - chmod +x ci/scripts/retry-guard.sh
     - bash ci/scripts/retry-guard.sh
   allow_failure: false
 
@@ -70,7 +69,6 @@ policies-immutability:
   <<: *default_tools
   stage: guard
   script:
-    - chmod +x ci/scripts/policies-immutability.sh
     - bash ci/scripts/policies-immutability.sh
   allow_failure: false
 
@@ -82,7 +80,6 @@ build-scan-tools-image:
     name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
     entrypoint: [""]
   script:
-    - chmod +x ci/scripts/build-scan-tools-image.sh
     - /busybox/sh ci/scripts/build-scan-tools-image.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
@@ -97,7 +94,6 @@ build-deploy-tools-image:
     name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
     entrypoint: [""]
   script:
-    - chmod +x ci/scripts/build-deploy-tools-image.sh
     - /busybox/sh ci/scripts/build-deploy-tools-image.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
@@ -107,7 +103,6 @@ gitleaks-scan:
   stage: scan
   needs: []
   script:
-    - chmod +x ci/scripts/gitleaks-scan.sh
     - bash ci/scripts/gitleaks-scan.sh
   artifacts:
     when: always
@@ -121,7 +116,6 @@ checkov-scan:
   stage: scan
   needs: []
   script:
-    - chmod +x ci/scripts/checkov-scan.sh
     - bash ci/scripts/checkov-scan.sh
   artifacts:
     when: always
@@ -136,7 +130,6 @@ trivy-fs-scan:
   stage: scan
   needs: []
   script:
-    - chmod +x ci/scripts/trivy-fs-scan.sh
     - bash ci/scripts/trivy-fs-scan.sh
   artifacts:
     when: always
@@ -151,7 +144,6 @@ trivy-config-scan:
   stage: scan
   needs: []
   script:
-    - chmod +x ci/scripts/trivy-config-scan.sh
     - bash ci/scripts/trivy-config-scan.sh
   artifacts:
     when: always
@@ -165,7 +157,6 @@ trivy-image-scan:
   stage: scan
   needs: []
   script:
-    - chmod +x ci/scripts/trivy-image-scan.sh
     - bash ci/scripts/trivy-image-scan.sh
   artifacts:
     when: always
@@ -190,7 +181,6 @@ normalize-reports:
     - job: trivy-image-scan
       artifacts: true
   script:
-    - chmod +x ci/scripts/normalize-reports.sh
     - bash ci/scripts/normalize-reports.sh
   artifacts:
     when: always
@@ -214,7 +204,6 @@ contract-test:
     - job: normalize-reports
       artifacts: true
   script:
-    - chmod +x ci/scripts/contract-test.sh
     - bash ci/scripts/contract-test.sh
 opa-image-smoke:
   image:
@@ -225,7 +214,6 @@ opa-image-smoke:
     - job: normalize-reports
       artifacts: true
   script:
-    - chmod +x ci/scripts/opa-image-smoke.sh
     - bash ci/scripts/opa-image-smoke.sh
   artifacts:
     when: on_failure
@@ -244,7 +232,6 @@ opa-decision:
     - job: contract-test
     - job: opa-image-smoke
   script:
-    - chmod +x ci/scripts/opa-decision.sh
     - bash ci/scripts/opa-decision.sh
   artifacts:
     when: always
@@ -259,7 +246,7 @@ upload-to-defectdojo:
   image: "curlimages/curl@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b"
   retry: 2
   variables:
-    GIT_STRATEGY: none
+    GIT_STRATEGY: fetch
   needs:
     - job: gitleaks-scan
       artifacts: true
@@ -268,7 +255,6 @@ upload-to-defectdojo:
     - job: trivy-fs-scan
       artifacts: true
   script:
-    - chmod +x ci/scripts/upload-to-defectdojo.sh
     - sh ci/scripts/upload-to-defectdojo.sh
   artifacts:
     when: always
@@ -287,7 +273,6 @@ deploy-infrastructure:
     - job: opa-decision
       artifacts: true
   script:
-    - chmod +x ci/scripts/deploy-infrastructure.sh
     - bash ci/scripts/deploy-infrastructure.sh
   artifacts:
     when: always
