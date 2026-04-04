@@ -62,16 +62,16 @@ retry-guard:
   <<: *default_tools
   stage: guard
   script:
-    - chmod +x shift-left/ci/retry-guard.sh
-    - bash shift-left/ci/retry-guard.sh
+    - chmod +x ci/scripts/retry-guard.sh
+    - bash ci/scripts/retry-guard.sh
   allow_failure: false
 
 policies-immutability:
   <<: *default_tools
   stage: guard
   script:
-    - chmod +x shift-left/ci/enforce-policies-immutability.sh
-    - bash shift-left/ci/enforce-policies-immutability.sh
+    - chmod +x ci/scripts/policies-immutability.sh
+    - bash ci/scripts/policies-immutability.sh
   allow_failure: false
 
 
@@ -82,21 +82,8 @@ build-scan-tools-image:
     name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
     entrypoint: [""]
   script:
-    - mkdir -p /kaniko/.docker
-    - >
-      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}'
-      "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" > /kaniko/.docker/config.json
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/ci/images/scan-tools/Dockerfile"
-      --destination "${CI_REGISTRY_IMAGE}/scan-tools:${SCAN_TOOLS_BUILD_TAG:-1.0.0}"
-      --build-arg "GITLEAKS_VERSION=${GITLEAKS_VERSION}"
-      --build-arg "CHECKOV_VERSION=${CHECKOV_VERSION}"
-      --build-arg "TRIVY_VERSION=${TRIVY_VERSION}"
-      --build-arg "JSONSCHEMA_VERSION=${JSONSCHEMA_VERSION}"
-      --snapshot-mode=redo
-      --cache=true
-      --cache-repo "${CI_REGISTRY_IMAGE}/cache/scan-tools"
+    - chmod +x ci/scripts/build-scan-tools-image.sh
+    - /busybox/sh ci/scripts/build-scan-tools-image.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
@@ -110,19 +97,8 @@ build-deploy-tools-image:
     name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
     entrypoint: [""]
   script:
-    - mkdir -p /kaniko/.docker
-    - >
-      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}'
-      "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" > /kaniko/.docker/config.json
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/ci/images/deploy-tools/Dockerfile"
-      --destination "${CI_REGISTRY_IMAGE}/deploy-tools:${CI_COMMIT_SHA}"
-      --build-arg "TOFU_VERSION=${TOFU_VERSION}"
-      --build-arg "TOFU_LINUX_AMD64_ZIP_SHA256=${TOFU_LINUX_AMD64_ZIP_SHA256}"
-      --snapshot-mode=redo
-      --cache=true
-      --cache-repo "${CI_REGISTRY_IMAGE}/cache/deploy-tools"
+    - chmod +x ci/scripts/build-deploy-tools-image.sh
+    - /busybox/sh ci/scripts/build-deploy-tools-image.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 
@@ -131,13 +107,8 @@ gitleaks-scan:
   stage: scan
   needs: []
   script:
-    - gitleaks version
-    - mkdir -p .cloudsentinel
-    - export USE_BASELINE="false"
-    - chmod +x shift-left/gitleaks/run-gitleaks.sh
-    - bash shift-left/gitleaks/run-gitleaks.sh
-    - chmod a+r .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_opa.json 2>/dev/null || true
-    - jq -r '"[scan-summary] gitleaks=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/gitleaks_opa.json
+    - chmod +x ci/scripts/gitleaks-scan.sh
+    - bash ci/scripts/gitleaks-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -150,12 +121,8 @@ checkov-scan:
   stage: scan
   needs: []
   script:
-    - checkov --version
-    - mkdir -p .cloudsentinel
-    - chmod +x shift-left/checkov/run-checkov.sh
-    - bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET}"
-    - chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_opa.json .cloudsentinel/checkov_scan.log 2>/dev/null || true
-    - jq -r '"[scan-summary] checkov=" + ((.stats.TOTAL // 0) | tostring) + " has_findings=" + ((.has_findings // false) | tostring) + " state=" + (if (.status // "") == "NOT_RUN" then "NOT_RUN" else "OK" end)' .cloudsentinel/checkov_opa.json
+    - chmod +x ci/scripts/checkov-scan.sh
+    - bash ci/scripts/checkov-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -169,13 +136,8 @@ trivy-fs-scan:
   stage: scan
   needs: []
   script:
-    - trivy --version
-    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
-    - chmod +x shift-left/trivy/scripts/run-trivy.sh
-    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "fs"
-    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_fs_opa.json
-    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_fs_opa.json 2>/dev/null || true
-    - jq -r '"[scan-summary] trivy-fs=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_fs_opa.json
+    - chmod +x ci/scripts/trivy-fs-scan.sh
+    - bash ci/scripts/trivy-fs-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -189,13 +151,8 @@ trivy-config-scan:
   stage: scan
   needs: []
   script:
-    - trivy --version
-    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
-    - chmod +x shift-left/trivy/scripts/run-trivy.sh
-    - bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "config"
-    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_config_opa.json
-    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_config_opa.json 2>/dev/null || true
-    - jq -r '"[scan-summary] trivy-config=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_config_opa.json
+    - chmod +x ci/scripts/trivy-config-scan.sh
+    - bash ci/scripts/trivy-config-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -208,19 +165,8 @@ trivy-image-scan:
   stage: scan
   needs: []
   script:
-    - trivy --version
-    - mkdir -p shift-left/trivy/reports/raw .cloudsentinel
-    - chmod +x shift-left/trivy/scripts/run-trivy.sh
-    - |
-      if [ -z "${TRIVY_IMAGE_TARGET:-}" ]; then
-        echo "[scan] TRIVY_IMAGE_TARGET is empty -> emitting NOT_RUN for image scan"
-        bash shift-left/trivy/scripts/run-trivy.sh
-      else
-        bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_IMAGE_TARGET}" "image"
-      fi
-    - cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_image_opa.json
-    - chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_image_opa.json 2>/dev/null || true
-    - jq -r '"[scan-summary] trivy-image=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_image_opa.json
+    - chmod +x ci/scripts/trivy-image-scan.sh
+    - bash ci/scripts/trivy-image-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -244,97 +190,8 @@ normalize-reports:
     - job: trivy-image-scan
       artifacts: true
   script:
-    - |
-      python3 - <<'PY'
-      import json
-      from pathlib import Path
-
-      root = Path(".cloudsentinel")
-      reports = {
-          "fs": root / "trivy_fs_opa.json",
-          "config": root / "trivy_config_opa.json",
-          "image": root / "trivy_image_opa.json",
-      }
-      loaded = {}
-      for name, path in reports.items():
-          if not path.exists():
-              loaded[name] = {"status": "NOT_RUN", "errors": [f"missing_report:{path}"], "findings": [], "stats": {"TOTAL": 0}}
-              continue
-          try:
-              loaded[name] = json.loads(path.read_text(encoding="utf-8"))
-          except Exception:
-              loaded[name] = {"status": "NOT_RUN", "errors": [f"invalid_json:{path}"], "findings": [], "stats": {"TOTAL": 0}}
-
-      any_not_run = any(str(r.get("status", "")).upper() == "NOT_RUN" for r in loaded.values())
-      if any_not_run:
-          errors = []
-          for name, report in loaded.items():
-              if str(report.get("status", "")).upper() == "NOT_RUN":
-                  errs = report.get("errors", [])
-                  if isinstance(errs, list):
-                      errors.extend([f"{name}:{e}" for e in errs])
-                  else:
-                      errors.append(f"{name}:not_run")
-          merged = {
-              "tool": "trivy",
-              "version": "multi",
-              "status": "NOT_RUN",
-              "errors": errors or ["trivy_subscan_not_run"],
-              "has_findings": False,
-              "stats": {
-                  "CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0,
-                  "TOTAL": 0, "EXEMPTED": 0, "FAILED": 0, "PASSED": 0,
-                  "by_type": {"vulnerability": 0, "secret": 0, "misconfig": 0},
-                  "by_category": {"INFRASTRUCTURE": 0, "APPLICATION": 0, "CONFIGURATION": 0, "SECRET": 0}
-              },
-              "findings": []
-          }
-      else:
-          findings = []
-          for report in loaded.values():
-              findings.extend(report.get("findings", []))
-
-          sev_keys = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "EXEMPTED", "FAILED", "PASSED"]
-          by_type_keys = ["vulnerability", "secret", "misconfig"]
-          by_cat_keys = ["INFRASTRUCTURE", "APPLICATION", "CONFIGURATION", "SECRET"]
-          stats = {k: 0 for k in sev_keys}
-          by_type = {k: 0 for k in by_type_keys}
-          by_cat = {k: 0 for k in by_cat_keys}
-          for report in loaded.values():
-              rstats = report.get("stats", {})
-              for key in sev_keys:
-                  stats[key] += int(rstats.get(key, 0) or 0)
-              for key in by_type_keys:
-                  by_type[key] += int((rstats.get("by_type", {}) or {}).get(key, 0) or 0)
-              for key in by_cat_keys:
-                  by_cat[key] += int((rstats.get("by_category", {}) or {}).get(key, 0) or 0)
-          stats["by_type"] = by_type
-          stats["by_category"] = by_cat
-
-          merged = {
-              "tool": "trivy",
-              "version": "multi",
-              "status": "OK",
-              "errors": [],
-              "has_findings": len(findings) > 0,
-              "stats": stats,
-              "findings": findings
-          }
-
-      (root / "trivy_opa.json").write_text(json.dumps(merged, indent=2), encoding="utf-8")
-      print("[normalize] merged trivy subscans -> .cloudsentinel/trivy_opa.json")
-      PY
-    - chmod +x shift-left/normalizer/normalize.py
-    - export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
-    - export CLOUDSENTINEL_EXECUTION_MODE="ci"
-    - export CLOUDSENTINEL_SCHEMA_STRICT="true"
-    # Backward compatibility: allow either DOJO_* or DEFECTDOJO_* CI variable names.
-    - export DOJO_URL="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
-    - export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
-    - python3 shift-left/normalizer/normalize.py
-    - jq '.summary' .cloudsentinel/golden_report.json
-    - jq '.quality_gate' .cloudsentinel/golden_report.json
-    - timeout 30 python3 shift-left/opa/fetch-exceptions.py
+    - chmod +x ci/scripts/normalize-reports.sh
+    - bash ci/scripts/normalize-reports.sh
   artifacts:
     when: always
     expire_in: 30 days
@@ -357,63 +214,8 @@ contract-test:
     - job: normalize-reports
       artifacts: true
   script:
-    - test -f .cloudsentinel/gitleaks_opa.json
-    - test -f .cloudsentinel/checkov_opa.json
-    - test -f .cloudsentinel/trivy_opa.json
-    - test -f .cloudsentinel/golden_report.json
-    - test -f .cloudsentinel/exceptions.json
-    - |
-      python3 - <<'PY'
-      import json
-      import sys
-
-      reports = [
-          ".cloudsentinel/gitleaks_opa.json",
-          ".cloudsentinel/checkov_opa.json",
-          ".cloudsentinel/trivy_opa.json",
-      ]
-      required = {"tool", "version", "status", "findings", "errors"}
-      for path in reports:
-          with open(path, "r", encoding="utf-8") as f:
-              doc = json.load(f)
-          missing = sorted(required.difference(doc.keys()))
-          if missing:
-              raise SystemExit(f"[contract] {path} missing fields: {missing}")
-          if doc["status"] not in {"OK", "NOT_RUN"}:
-              raise SystemExit(f"[contract] {path} invalid status: {doc['status']}")
-          if not isinstance(doc["findings"], list):
-              raise SystemExit(f"[contract] {path} findings must be array")
-          if not isinstance(doc["errors"], list):
-              raise SystemExit(f"[contract] {path} errors must be array")
-      print("[contract] scanner wrapper contract passed")
-      PY
-    - |
-      printf '%s\n' \
-        'import json, sys' \
-        'from jsonschema import validate, Draft7Validator' \
-        'doc    = json.load(open(".cloudsentinel/golden_report.json"))' \
-        'schema = json.load(open("shift-left/normalizer/schema/cloudsentinel_report.schema.json"))' \
-        'Draft7Validator.check_schema(schema)' \
-        'validate(doc, schema)' \
-        'print("[contract] schema validation passed")' \
-        > /tmp/contract_validate.py
-      python3 /tmp/contract_validate.py
-    - |
-      printf '%s\n' \
-        'import json, sys' \
-        'from jsonschema import validate, Draft7Validator' \
-        'doc    = json.load(open(".cloudsentinel/exceptions.json"))' \
-        'schema = json.load(open("shift-left/opa/schema/exceptions_v2.schema.json"))' \
-        'Draft7Validator.check_schema(schema)' \
-        'validate(doc, schema)' \
-        'print("[contract] exceptions schema validation passed")' \
-        > /tmp/contract_validate_exceptions.py
-      python3 /tmp/contract_validate_exceptions.py
-    - python3 -m unittest discover -s shift-left/opa/tests -p "test_fetch_exceptions.py"
-    - python3 -m unittest discover -s shift-left/normalizer/tests -p "test_normalize.py"
-    - bash shift-left/checkov/tests/smoke.sh
-    - bash shift-left/gitleaks/tests/smoke.sh
-    - bash shift-left/normalizer/tests/smoke.sh
+    - chmod +x ci/scripts/contract-test.sh
+    - bash ci/scripts/contract-test.sh
 opa-image-smoke:
   image:
     name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:740ebf73adc25cd85b2a08615666b4e728812c0cc487760c6953ffe675ca78cd"
@@ -423,28 +225,8 @@ opa-image-smoke:
     - job: normalize-reports
       artifacts: true
   script:
-    - mkdir -p .cloudsentinel
-    - opa version
-    - bash --version | head -n1
-    - curl --version | head -n1
-    - jq --version
-    - git --version
-    - |
-      opa run --server --addr=127.0.0.1:8181 \
-        --log-level=error \
-        --set=decision_logs.console=true \
-        policies/opa/pipeline_decision.rego \
-        .cloudsentinel/exceptions.json \
-        > .cloudsentinel/opa-image-smoke.log 2>&1 &
-    - |
-      for i in {1..10}; do
-        if curl -sf "http://127.0.0.1:8181/health"; then
-          echo "[smoke] OPA server is UP"; break;
-        fi
-        echo "[smoke] Waiting for OPA... ($i/10)"
-        sleep 2
-      done
-    - curl -sf "http://127.0.0.1:8181/v1/policies" >/dev/null
+    - chmod +x ci/scripts/opa-image-smoke.sh
+    - bash ci/scripts/opa-image-smoke.sh
   artifacts:
     when: on_failure
     expire_in: 7 days
@@ -462,24 +244,8 @@ opa-decision:
     - job: contract-test
     - job: opa-image-smoke
   script:
-    - opa test policies/opa -v
-    - |
-      opa run --server --addr=127.0.0.1:8181 \
-        --log-level=info \
-        --log-format=json \
-        --set=decision_logs.console=true \
-        policies/opa/pipeline_decision.rego \
-        .cloudsentinel/exceptions.json \
-        > /tmp/opa-server.log 2>&1 &
-    - |
-      for i in {1..10}; do
-        if curl -sf "http://127.0.0.1:8181/health" >/dev/null; then
-          echo "[opa] OPA server is UP"; break
-        fi
-        echo "[opa] Waiting for OPA... ($i/10)"
-        sleep 2
-      done
-    - OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
+    - chmod +x ci/scripts/opa-decision.sh
+    - bash ci/scripts/opa-decision.sh
   artifacts:
     when: always
     expire_in: 30 days
@@ -502,67 +268,8 @@ upload-to-defectdojo:
     - job: trivy-fs-scan
       artifacts: true
   script:
-    - |
-      DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
-      DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
-      DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID:-}}"
-
-      if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
-        echo "[dojo] Missing Dojo vars. Accepted names:"
-        echo "[dojo] URL: DOJO_URL or DEFECTDOJO_URL"
-        echo "[dojo] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
-        echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID"
-        echo "[dojo] Skipping upload."
-        exit 0
-      fi
-
-      # Some scanners create artifacts with 600 permissions. Ensure readability for this job user.
-      chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
-      mkdir -p .cloudsentinel/dojo-responses
-
-      upload_scan() {
-        local file_path="$1"
-        local scan_type="$2"
-        local label="$3"
-        local safe_label
-        safe_label="$(echo "${label}" | tr ' /()' '_____' | tr -cd '[:alnum:]_.-')"
-        local response_file=".cloudsentinel/dojo-responses/${safe_label}.json"
-
-        if [ ! -f "${file_path}" ]; then
-          echo "[dojo] ${label}: report not found (${file_path}), skipping."
-          return 0
-        fi
-
-        if [ ! -r "${file_path}" ]; then
-          echo "[dojo] ${label}: report exists but is not readable (${file_path})."
-          ls -l "${file_path}" || true
-          return 1
-        fi
-
-        HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
-          -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
-          -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
-          -F "file=@${file_path}" \
-          -F "scan_type=${scan_type}" \
-          --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
-          --form-string "active=true" \
-          --form-string "verified=true" \
-          --form-string "close_old_findings=true" \
-          --form-string "close_old_findings_product_scope=false" \
-          --form-string "deduplication_on_engagement=true")
-
-        if [ "${HTTP_CODE}" = "201" ]; then
-          echo "[dojo] ${label} uploaded HTTP=201"
-        else
-          echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
-          cat "${response_file}" || true
-          return 1
-        fi
-      }
-
-      upload_scan ".cloudsentinel/gitleaks_raw.json" "Gitleaks Scan" "Gitleaks"
-      upload_scan ".cloudsentinel/checkov_raw.json" "Checkov Scan" "Checkov"
-      upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json" "Trivy Scan" "Trivy (FS/SCA)"
+    - chmod +x ci/scripts/upload-to-defectdojo.sh
+    - sh ci/scripts/upload-to-defectdojo.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -580,44 +287,8 @@ deploy-infrastructure:
     - job: opa-decision
       artifacts: true
   script:
-    - |
-      set -euo pipefail
-      required_vars=(
-        ARM_CLIENT_ID
-        ARM_CLIENT_SECRET
-        ARM_TENANT_ID
-        ARM_SUBSCRIPTION_ID
-        TFSTATE_RESOURCE_GROUP
-        TFSTATE_STORAGE_ACCOUNT
-        TFSTATE_CONTAINER
-        TF_VAR_admin_ssh_public_key
-      )
-      for name in "${required_vars[@]}"; do
-        if [ -z "${!name:-}" ]; then
-          echo "[deploy][ERROR] missing required variable: ${name}" >&2
-          exit 2
-        fi
-      done
-      if ! printf '%s' "${TF_VAR_admin_ssh_public_key}" | grep -Eq '^ssh-rsa[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$'; then
-        echo "[deploy][ERROR] TF_VAR_admin_ssh_public_key must be RSA format (starts with 'ssh-rsa ')." >&2
-        echo "[deploy][ERROR] Generate with: ssh-keygen -t rsa -b 4096 -C \"gitlab-ci\" -f ~/.ssh/student_secure_rsa" >&2
-        exit 2
-      fi
-    # Fail-closed: deploy image must contain immutable/pinned tofu + cosign.
-    - tofu version
-    - cosign version
-    - export ARM_USE_AZUREAD=true
-    - export ARM_STORAGE_USE_AZUREAD=true
-    - |
-      tofu -chdir=infra/azure/student-secure init -input=false \
-        -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
-        -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
-        -backend-config="container_name=${TFSTATE_CONTAINER}" \
-        -backend-config="key=${TFSTATE_KEY:-student-secure-${CI_COMMIT_REF_SLUG}.tfstate}" \
-        -backend-config="use_azuread_auth=true"
-    - tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
-    - tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
-    - tofu -chdir=infra/azure/student-secure output -json > .cloudsentinel/terraform_outputs_student_secure.json
+    - chmod +x ci/scripts/deploy-infrastructure.sh
+    - bash ci/scripts/deploy-infrastructure.sh
   artifacts:
     when: always
     expire_in: 30 days

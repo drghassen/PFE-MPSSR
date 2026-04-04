@@ -11,6 +11,8 @@ Ce répertoire centralise les outils d'orchestration pour le pipeline GitLab CI/
 ```text
 ci/
 ├── README.md
+├── libs/            # Logique contractuelle partagée CI/local
+├── scripts/         # Wrappers CI minces (appelent libs + shift-left)
 └── images/
     ├── opa/            # Image OPA durcie (pinning par digest)
     └── scan-tools/     # Image multi-outils optimisée (Alpine/Slim)
@@ -61,3 +63,4 @@ docker build \
 
 1.  **Immuabilité** : Le `.gitlab-ci.yml` utilise la variable `OPA_IMAGE` pointant vers un digest (et non un tag).
 2.  **Smoke Tests** : Le job `opa-image-smoke` valide que le binaire OPA démarre bien avant le block `decide`.
+3.  **Factorisation** : Les validations de contrat (merge Trivy + schéma JSON) sont centralisées dans `ci/libs/cloudsentinel_contracts.py` et appelées par les wrappers `ci/scripts/*`.

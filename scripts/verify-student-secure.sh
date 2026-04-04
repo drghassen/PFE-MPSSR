@@ -6,6 +6,7 @@ TRIVY_IMAGE_TARGET="${2:-alpine:3.21}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+source "$REPO_ROOT/shift-left/lib_scanner_utils.sh"
 
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 mkdir -p "$OUT_DIR"
@@ -28,21 +29,7 @@ emit_not_run_contract() {
   local tool="$1"
   local out_file="$2"
   local reason="$3"
-  jq -n \
-    --arg tool "$tool" \
-    --arg reason "$reason" \
-    '{
-      tool: $tool,
-      version: "unknown",
-      status: "NOT_RUN",
-      findings: [],
-      errors: [$reason],
-      has_findings: false,
-      stats: {
-        CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0,
-        TOTAL: 0, EXEMPTED: 0, FAILED: 0, PASSED: 0
-      }
-    }' >"$out_file"
+  cs_emit_not_run "$tool" "$out_file" "$reason" "$REPO_ROOT"
 }
 
 echo "[verify] target dir: $TARGET_DIR"
@@ -125,80 +112,11 @@ bash "$REPO_ROOT/shift-left/trivy/scripts/run-trivy.sh" "$TRIVY_IMAGE_TARGET" "i
 cp "$OUT_DIR/trivy_opa.json" "$OUT_DIR/trivy_image_opa.json"
 
 echo "[verify] merge trivy reports..."
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-root = Path(".cloudsentinel")
-reports = {
-    "fs": root / "trivy_fs_opa.json",
-    "config": root / "trivy_config_opa.json",
-    "image": root / "trivy_image_opa.json",
-}
-loaded = {}
-for name, path in reports.items():
-    if not path.exists():
-        loaded[name] = {"status": "NOT_RUN", "errors": [f"missing_report:{path}"], "findings": [], "stats": {"TOTAL": 0}}
-        continue
-    try:
-        loaded[name] = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        loaded[name] = {"status": "NOT_RUN", "errors": [f"invalid_json:{path}"], "findings": [], "stats": {"TOTAL": 0}}
-
-if any(str(r.get("status", "")).upper() == "NOT_RUN" for r in loaded.values()):
-    errors = []
-    for name, report in loaded.items():
-        if str(report.get("status", "")).upper() == "NOT_RUN":
-            errs = report.get("errors", [])
-            if isinstance(errs, list):
-                errors.extend([f"{name}:{e}" for e in errs])
-            else:
-                errors.append(f"{name}:not_run")
-    merged = {
-        "tool": "trivy",
-        "version": "multi",
-        "status": "NOT_RUN",
-        "errors": errors or ["trivy_subscan_not_run"],
-        "has_findings": False,
-        "stats": {
-            "CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0,
-            "TOTAL": 0, "EXEMPTED": 0, "FAILED": 0, "PASSED": 0,
-            "by_type": {"vulnerability": 0, "secret": 0, "misconfig": 0},
-            "by_category": {"INFRASTRUCTURE": 0, "APPLICATION": 0, "CONFIGURATION": 0, "SECRET": 0}
-        },
-        "findings": []
-    }
-else:
-    findings = []
-    sev_keys = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "EXEMPTED", "FAILED", "PASSED"]
-    by_type_keys = ["vulnerability", "secret", "misconfig"]
-    by_cat_keys = ["INFRASTRUCTURE", "APPLICATION", "CONFIGURATION", "SECRET"]
-    stats = {k: 0 for k in sev_keys}
-    by_type = {k: 0 for k in by_type_keys}
-    by_cat = {k: 0 for k in by_cat_keys}
-    for report in loaded.values():
-        findings.extend(report.get("findings", []))
-        rstats = report.get("stats", {})
-        for key in sev_keys:
-            stats[key] += int(rstats.get(key, 0) or 0)
-        for key in by_type_keys:
-            by_type[key] += int((rstats.get("by_type", {}) or {}).get(key, 0) or 0)
-        for key in by_cat_keys:
-            by_cat[key] += int((rstats.get("by_category", {}) or {}).get(key, 0) or 0)
-    stats["by_type"] = by_type
-    stats["by_category"] = by_cat
-    merged = {
-        "tool": "trivy",
-        "version": "multi",
-        "status": "OK",
-        "errors": [],
-        "has_findings": len(findings) > 0,
-        "stats": stats,
-        "findings": findings
-    }
-
-(root / "trivy_opa.json").write_text(json.dumps(merged, indent=2), encoding="utf-8")
-PY
+python3 "$REPO_ROOT/ci/libs/cloudsentinel_contracts.py" merge-trivy \
+  --fs "$OUT_DIR/trivy_fs_opa.json" \
+  --config "$OUT_DIR/trivy_config_opa.json" \
+  --image "$OUT_DIR/trivy_image_opa.json" \
+  --output "$OUT_DIR/trivy_opa.json"
 
 echo "[verify] strict exceptions payload..."
 cat > "$OUT_DIR/exceptions.json" <<'JSON'
@@ -222,24 +140,14 @@ export CLOUDSENTINEL_EXECUTION_MODE="ci"
 export CLOUDSENTINEL_SCHEMA_STRICT="true"
 python3 "$REPO_ROOT/shift-left/normalizer/normalize.py"
 
-python3 - <<'PY'
-import json
-from jsonschema import Draft7Validator, validate
-
-with open(".cloudsentinel/golden_report.json", "r", encoding="utf-8") as f:
-    golden = json.load(f)
-with open("shift-left/normalizer/schema/cloudsentinel_report.schema.json", "r", encoding="utf-8") as f:
-    golden_schema = json.load(f)
-Draft7Validator.check_schema(golden_schema)
-validate(golden, golden_schema)
-
-with open(".cloudsentinel/exceptions.json", "r", encoding="utf-8") as f:
-    exceptions = json.load(f)
-with open("shift-left/opa/schema/exceptions_v2.schema.json", "r", encoding="utf-8") as f:
-    exceptions_schema = json.load(f)
-Draft7Validator.check_schema(exceptions_schema)
-validate(exceptions, exceptions_schema)
-PY
+python3 "$REPO_ROOT/ci/libs/cloudsentinel_contracts.py" validate-schema \
+  --document "$OUT_DIR/golden_report.json" \
+  --schema "$REPO_ROOT/shift-left/normalizer/schema/cloudsentinel_report.schema.json" \
+  --success-message "[verify] golden_report schema validation passed"
+python3 "$REPO_ROOT/ci/libs/cloudsentinel_contracts.py" validate-schema \
+  --document "$OUT_DIR/exceptions.json" \
+  --schema "$REPO_ROOT/shift-left/opa/schema/exceptions_v2.schema.json" \
+  --success-message "[verify] exceptions schema validation passed"
 
 echo "[verify] OPA enforce..."
 OPA_PREFER_CLI=true bash "$REPO_ROOT/shift-left/opa/run-opa.sh" --enforce
