@@ -1,0 +1,58 @@
+# ============================================================================
+# CloudSentinel - Image Factory Pipeline
+# Purpose: build/publish immutable CI images outside the main security pipeline.
+# ============================================================================
+
+default:
+  tags:
+    - cloudsentinel
+    - docker
+
+variables:
+  TOFU_VERSION: "1.8.8"
+  TOFU_LINUX_AMD64_ZIP_SHA256: "9e889633bc177b1d266552658020fe8ceb839445fcac82aaa7622952fd9c81bb"
+  GITLEAKS_VERSION: "8.21.2"
+  CHECKOV_VERSION: "3.2.502"
+  TRIVY_VERSION: "0.69.1"
+  JSONSCHEMA_VERSION: "4.25.1"
+
+  # Override when launching the factory pipeline if needed.
+  SCAN_TOOLS_BUILD_TAG: "1.0.0"
+  DEPLOY_TOOLS_BUILD_TAG: "1.0.0"
+
+stages:
+  - build
+
+build-scan-tools-image:
+  stage: build
+  timeout: 2h
+  image:
+    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
+    entrypoint: [""]
+  script:
+    - /busybox/sh ci/scripts/build-scan-tools-image.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+      when: manual
+      allow_failure: false
+    - when: never
+
+build-deploy-tools-image:
+  stage: build
+  timeout: 2h
+  image:
+    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
+    entrypoint: [""]
+  script:
+    - /busybox/sh ci/scripts/build-deploy-tools-image.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+      when: manual
+      allow_failure: false
+    - when: never
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - when: never
+
