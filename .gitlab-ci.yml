@@ -71,7 +71,7 @@ supply-chain-verify:
       TOFU_SIG="${TOFU_SUMS}.sig"
       TOFU_PEM="${TOFU_SUMS}.pem"
       TOFU_MM="$(printf '%s' "${TOFU_VERSION}" | awk -F. '{print $1 "." $2}')"
-      IDENTITY="https://github.com/opentofu/opentofu/.github/workflows/release.yml@refs/tags/v${TOFU_MM}"
+      IDENTITY="https://github.com/opentofu/opentofu/.github/workflows/release.yml@refs/heads/v${TOFU_MM}"
       TOFU_DIR=".cloudsentinel/tofu"
 
       test -f "${TOFU_DIR}/${TOFU_ZIP}"
