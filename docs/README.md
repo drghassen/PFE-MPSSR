@@ -58,3 +58,12 @@ Ce répertoire contient la documentation complète du projet CloudSentinel.
 Cette documentation suit la structure du cahier des charges du PFE et correspond au diagramme d'architecture fourni.
 
 **Dernière mise à jour** : Février 2026
+
+## CI Image Factory
+
+- Main pipeline config: `.gitlab-ci.yml`
+  - Uses pinned immutable images only (`SCAN_TOOLS_IMAGE`, `DEPLOY_TOOLS_IMAGE`).
+  - No Kaniko build step on normal push/MR pipelines.
+- Image factory config: `.gitlab-ci-image-factory.yml`
+  - Dedicated/manual pipeline to build and publish CI images.
+  - Intended for version bumps and controlled image refresh.

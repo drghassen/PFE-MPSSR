@@ -10,6 +10,7 @@ default:
 
 variables:
   SCAN_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
+  DEPLOY_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
   TOFU_VERSION: "1.8.8"
   TOFU_LINUX_AMD64_ZIP_SHA256: "9e889633bc177b1d266552658020fe8ceb839445fcac82aaa7622952fd9c81bb"
   GITLEAKS_VERSION: "8.21.2"
@@ -32,7 +33,6 @@ variables:
 
 stages:
   - guard
-  - prepare
   - scan
   - normalize
   - contract
@@ -72,31 +72,6 @@ policies-immutability:
     - bash ci/scripts/policies-immutability.sh
   allow_failure: false
 
-
-build-scan-tools-image:
-  stage: prepare
-  timeout: 2h
-  image:
-    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
-    entrypoint: [""]
-  script:
-    - /busybox/sh ci/scripts/build-scan-tools-image.sh
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-      allow_failure: true
-    - when: never
-
-build-deploy-tools-image:
-  stage: deploy
-  timeout: 2h
-  image:
-    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
-    entrypoint: [""]
-  script:
-    - /busybox/sh ci/scripts/build-deploy-tools-image.sh
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 
 gitleaks-scan:
   <<: *default_tools
@@ -265,11 +240,10 @@ upload-to-defectdojo:
   allow_failure: false
 
 deploy-infrastructure:
-  image: "${CI_REGISTRY_IMAGE}/deploy-tools:${CI_COMMIT_SHA}"
+  image: "${DEPLOY_TOOLS_IMAGE}"
   before_script: []
   stage: deploy
   needs:
-    - job: build-deploy-tools-image
     - job: opa-decision
       artifacts: true
   script:
