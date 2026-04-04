@@ -1,0 +1,58 @@
+stages:
+  - diag
+
+tls-runner-diagnostic:
+  stage: diag
+  image: alpine:3.20
+  tags:
+    - cloudsentinel
+    - docker
+  when: manual
+  allow_failure: false
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - set -euo pipefail
+    - apk add --no-cache ca-certificates curl git openssl
+    - mkdir -p .cloudsentinel/diag
+    - echo "Runner: ${CI_RUNNER_DESCRIPTION:-unknown} (id=${CI_RUNNER_ID:-unknown})"
+    - |
+      for v in CI_SERVER_TLS_CA_FILE GIT_SSL_CAINFO CURL_CA_BUNDLE SSL_CERT_FILE; do
+        if [ -n "${!v:-}" ]; then
+          echo "$v=SET -> ${!v}"
+        else
+          echo "$v=UNSET"
+        fi
+      done
+    - |
+      if [ -n "${CI_SERVER_TLS_CA_FILE:-}" ] && [ -f "${CI_SERVER_TLS_CA_FILE}" ]; then
+        ls -l "${CI_SERVER_TLS_CA_FILE}"
+        openssl x509 -in "${CI_SERVER_TLS_CA_FILE}" -noout -issuer -subject -dates || true
+      else
+        echo "CI_SERVER_TLS_CA_FILE missing or not a file"
+      fi
+    - git config --global --list | grep -Ei 'ssl|http' || true
+    - |
+      if ! curl -fsSIL https://gitlab.com > .cloudsentinel/diag/curl_gitlab_headers.txt 2> .cloudsentinel/diag/curl_gitlab_err.txt; then
+        echo "curl to gitlab.com failed"
+        tail -n 80 .cloudsentinel/diag/curl_gitlab_err.txt || true
+        exit 1
+      fi
+    - |
+      if ! git ls-remote "https://gitlab.com/${CI_PROJECT_PATH}.git" > .cloudsentinel/diag/git_ls_remote.txt 2> .cloudsentinel/diag/git_ls_remote_err.txt; then
+        echo "git ls-remote failed"
+        tail -n 80 .cloudsentinel/diag/git_ls_remote_err.txt || true
+        exit 1
+      fi
+    - echo "TLS path looks OK from job container"
+  artifacts:
+    when: always
+    expire_in: 1 day
+    paths:
+      - .cloudsentinel/diag/
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - when: never
+
