@@ -38,7 +38,9 @@ module "key_vault" {
   tenant_id           = module.resource_group.tenant_id
   private_subnet_id   = module.network.private_subnet_id
   virtual_network_id  = module.network.vnet_id
-  key_expiration_date = "2030-01-01T00:00:00Z"
+  key_expiration_date = var.key_vault_cmk_expiration_date
+  cmk_key_name        = "storage-cmk-${var.environment}"
+  existing_cmk_key_id = var.key_vault_existing_cmk_key_id
   tags                = local.tags
 }
 
@@ -59,33 +61,33 @@ module "storage" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  base_name            = local.base_name
-  location             = module.resource_group.location
-  resource_group_name  = module.resource_group.name
-  network_watcher_name = "NetworkWatcher_${lower(module.resource_group.location)}"
+  base_name                           = local.base_name
+  location                            = module.resource_group.location
+  resource_group_name                 = module.resource_group.name
+  network_watcher_name                = "NetworkWatcher_${lower(module.resource_group.location)}"
   network_watcher_resource_group_name = "NetworkWatcherRG"
-  storage_account_id   = module.storage.id
-  key_vault_id         = module.key_vault.id
-  network_security_ids = module.network.nsg_ids
-  tags                 = local.tags
+  storage_account_id                  = module.storage.id
+  key_vault_id                        = module.key_vault.id
+  network_security_ids                = module.network.nsg_ids
+  tags                                = local.tags
 }
 
 module "database" {
   source = "./modules/database"
 
-  enabled              = var.enable_database
+  enabled                  = var.enable_database
   manage_key_vault_secrets = var.manage_database_secrets_in_key_vault
-  base_name            = local.base_name
-  location             = module.resource_group.location
-  resource_group_name  = module.resource_group.name
-  delegated_subnet_id  = module.network.db_subnet_id
-  private_subnet_id    = module.network.private_subnet_id
-  virtual_network_id   = module.network.vnet_id
-  mysql_sku_name       = var.mysql_sku_name
-  mysql_admin_username = var.mysql_admin_username
-  key_vault_id           = module.key_vault.id
-  secret_expiration_date = var.db_secret_expiration_date
-  tags                   = local.tags
+  base_name                = local.base_name
+  location                 = module.resource_group.location
+  resource_group_name      = module.resource_group.name
+  delegated_subnet_id      = module.network.db_subnet_id
+  private_subnet_id        = module.network.private_subnet_id
+  virtual_network_id       = module.network.vnet_id
+  mysql_sku_name           = var.mysql_sku_name
+  mysql_admin_username     = var.mysql_admin_username
+  key_vault_id             = module.key_vault.id
+  secret_expiration_date   = var.db_secret_expiration_date
+  tags                     = local.tags
 
   depends_on = [module.key_vault]
 }

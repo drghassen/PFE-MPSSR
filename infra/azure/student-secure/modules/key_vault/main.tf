@@ -3,6 +3,7 @@ data "azurerm_client_config" "current" {}
 locals {
   key_vault_name_raw = lower(replace("kv-${var.base_name}", "-", ""))
   key_vault_name     = substr(local.key_vault_name_raw, 0, 24)
+  use_existing_cmk   = trimspace(var.existing_cmk_key_id) != ""
 }
 
 resource "azurerm_private_dns_zone" "key_vault" {
@@ -60,4 +61,16 @@ resource "azurerm_private_endpoint" "key_vault" {
   }
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.key_vault]
+}
+
+resource "azurerm_key_vault_key" "cmk" {
+  count = local.use_existing_cmk ? 0 : 1
+
+  name            = var.cmk_key_name
+  key_vault_id    = azurerm_key_vault.this.id
+  key_type        = var.cmk_key_type
+  key_size        = var.cmk_key_size
+  key_opts        = ["wrapKey", "unwrapKey"]
+  expiration_date = var.key_expiration_date
+  tags            = var.tags
 }

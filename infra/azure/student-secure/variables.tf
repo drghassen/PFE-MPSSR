@@ -113,6 +113,26 @@ variable "db_secret_expiration_date" {
   default     = "2030-01-01T00:00:00Z"
 }
 
+variable "key_vault_cmk_expiration_date" {
+  description = "Expiration date for the Key Vault CMK used by Storage encryption (RFC3339)."
+  type        = string
+  default     = "2030-01-01T00:00:00Z"
+}
+
+variable "key_vault_existing_cmk_key_id" {
+  description = "Existing Key Vault key identifier to use as CMK (https://<vault>/keys/<name>[/<version>]). Leave empty to create it via Terraform."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      trimspace(var.key_vault_existing_cmk_key_id) == "" ||
+      can(regex("^https://[^/]+/keys/[^/]+(?:/[^/]+)?$", trimspace(var.key_vault_existing_cmk_key_id)))
+    )
+    error_message = "key_vault_existing_cmk_key_id must be empty or a valid Key Vault key URL."
+  }
+}
+
 variable "tags" {
   description = "Common tags for governance and traceability."
   type        = map(string)

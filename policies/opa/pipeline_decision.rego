@@ -138,6 +138,7 @@ finding_fingerprint(f) := fp if {
 }
 
 finding_fingerprint(f) := fp if {
+  trim_space(object.get(object.get(object.get(f, "context", {}), "deduplication", {}), "fingerprint", "")) == ""
   fp := trim_space(object.get(f, "fingerprint", ""))
   fp != ""
 }
@@ -153,11 +154,14 @@ finding_resource_id(f) := rid if {
 }
 
 finding_resource_id(f) := rid if {
+  trim_space(object.get(object.get(f, "resource", {}), "name", "")) == ""
   rid := normalize_path(object.get(object.get(f, "resource", {}), "path", ""))
   rid != ""
 }
 
 finding_resource_id(f) := rid if {
+  trim_space(object.get(object.get(f, "resource", {}), "name", "")) == ""
+  normalize_path(object.get(object.get(f, "resource", {}), "path", "")) == ""
   rid := normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", ""))
   rid != ""
 }
@@ -195,6 +199,7 @@ exception_scope_type(ex) := lower(trim_space(object.get(ex, "scope_type", "repo"
 exception_repo(ex) := lower(trim_space(object.get(ex, "repo", input_repo)))
 exception_branch_scope(ex) := lower(trim_space(object.get(ex, "branch_scope", "*")))
 exception_commit_scope(ex) := lower(trim_space(object.get(ex, "commit_sha", object.get(ex, "commit_hash", ""))))
+exception_status(ex) := upper(trim_space(object.get(ex, "status", "")))
 exception_requested_by(ex) := lower(trim_space(object.get(ex, "requested_by", "")))
 exception_approved_by(ex) := lower(trim_space(object.get(ex, "approved_by", "")))
 exception_approved_by_role(ex) := upper(trim_space(object.get(ex, "approved_by_role", "")))
@@ -211,11 +216,14 @@ exception_resource_id(ex) := rid if {
 }
 
 exception_resource_id(ex) := rid if {
+  trim_space(object.get(ex, "resource_id", "")) == ""
   rid := trim_space(object.get(ex, "resource_name", ""))
   rid != ""
 }
 
 exception_resource_id(ex) := rid if {
+  trim_space(object.get(ex, "resource_id", "")) == ""
+  trim_space(object.get(ex, "resource_name", "")) == ""
   rid := normalize_path(object.get(ex, "resource_path", ""))
   rid != ""
 }
@@ -232,6 +240,7 @@ exception_fingerprint(ex) := fp if {
 }
 
 exception_fingerprint(ex) := fp if {
+  lower(trim_space(object.get(ex, "fingerprint", ""))) == ""
   fp := lower(trim_space(object.get(ex, "resource_hash", "")))
   fp != ""
 }
@@ -259,12 +268,22 @@ exception_env_match(ex) if {
   lower(trim_space(env)) == environment
 }
 
+exception_has_expires_at(ex) if {
+  exception_expires_at(ex) != ""
+}
+
 exception_not_expired(ex) if {
+  not exception_has_expires_at(ex)
+}
+
+exception_not_expired(ex) if {
+  exception_has_expires_at(ex)
   expires_ns := time.parse_rfc3339_ns(exception_expires_at(ex))
   time.now_ns() <= expires_ns
 }
 
 exception_is_expired(ex) if {
+  exception_has_expires_at(ex)
   expires_ns := time.parse_rfc3339_ns(exception_expires_at(ex))
   time.now_ns() > expires_ns
 }
@@ -386,9 +405,21 @@ valid_break_glass(ex) if {
   (expires_ns - created_ns) <= (7 * ns_per_day)
 }
 
+valid_optional_expiry(ex) if {
+  not exception_has_expires_at(ex)
+}
+
+valid_optional_expiry(ex) if {
+  exception_has_expires_at(ex)
+  created_ns := time.parse_rfc3339_ns(exception_created_at(ex))
+  expires_ns := time.parse_rfc3339_ns(exception_expires_at(ex))
+  created_ns < expires_ns
+}
+
 v2_required_fields(ex) if {
   valid_uuid(exception_id(ex))
   trim_space(object.get(ex, "schema_version", "")) != ""
+  exception_status(ex) == "APPROVED"
   allowed_tools[exception_tool(ex)]
   exception_rule(ex) != ""
   exception_resource_id(ex) != ""
@@ -404,11 +435,12 @@ v2_required_fields(ex) if {
   valid_approved_role(ex)
   exception_justification(ex) != ""
   exception_created_at(ex) != ""
-  exception_expires_at(ex) != ""
+  exception_approved_at(ex) != ""
   created_ns := time.parse_rfc3339_ns(exception_created_at(ex))
-  expires_ns := time.parse_rfc3339_ns(exception_expires_at(ex))
   created_ns <= time.now_ns()
-  created_ns < expires_ns
+  approved_ns := time.parse_rfc3339_ns(exception_approved_at(ex))
+  approved_ns >= created_ns
+  valid_optional_expiry(ex)
   valid_scope_permissions(ex)
   valid_commit_scope(ex)
   valid_break_glass(ex)
@@ -417,11 +449,6 @@ v2_required_fields(ex) if {
 valid_exception_definition(ex) if {
   is_v2_exception(ex)
   v2_required_fields(ex)
-}
-
-valid_exception_definition(ex) if {
-  not is_v2_exception(ex)
-  legacy_valid_definition(ex)
 }
 
 # ------------------------------- Match engine ---------------------------------
@@ -561,7 +588,6 @@ legacy_exception_after_sunset[ex_id] if {
   ex := exceptions_store[_]
   exception_is_enabled(ex)
   not is_v2_exception(ex)
-  not legacy_mode_allowed
   ex_id := exception_id(ex)
 }
 
@@ -577,6 +603,30 @@ expired_enabled_exception_ids[ex_id] if {
   exception_is_enabled(ex)
   valid_exception_definition(ex)
   exception_is_expired(ex)
+  ex_id := exception_id(ex)
+}
+
+exception_status_not_approved_ids[ex_id] if {
+  ex := exceptions_store[_]
+  exception_is_enabled(ex)
+  is_v2_exception(ex)
+  exception_status(ex) != "APPROVED"
+  ex_id := exception_id(ex)
+}
+
+exception_missing_approved_by_ids[ex_id] if {
+  ex := exceptions_store[_]
+  exception_is_enabled(ex)
+  is_v2_exception(ex)
+  exception_approved_by(ex) == ""
+  ex_id := exception_id(ex)
+}
+
+exception_missing_approved_at_ids[ex_id] if {
+  ex := exceptions_store[_]
+  exception_is_enabled(ex)
+  is_v2_exception(ex)
+  exception_approved_at(ex) == ""
   ex_id := exception_id(ex)
 }
 
@@ -747,8 +797,28 @@ deny[msg] if {
 }
 
 deny[msg] if {
+  exception_status_not_approved_ids[ex_id]
+  msg := sprintf("Exception %s is invalid: status must be APPROVED", [ex_id])
+}
+
+deny[msg] if {
+  exception_missing_approved_by_ids[ex_id]
+  msg := sprintf("Exception %s is invalid: approved_by is required", [ex_id])
+}
+
+deny[msg] if {
+  exception_missing_approved_at_ids[ex_id]
+  msg := sprintf("Exception %s is invalid: approved_at is required (RFC3339)", [ex_id])
+}
+
+deny[msg] if {
+  expired_enabled_exception_ids[ex_id]
+  msg := sprintf("Exception %s is invalid: expires_at is in the past", [ex_id])
+}
+
+deny[msg] if {
   legacy_exception_after_sunset[ex_id]
-  msg := sprintf("Exception %s uses legacy schema after sunset date", [ex_id])
+  msg := sprintf("Exception %s uses legacy schema which is no longer accepted", [ex_id])
 }
 
 default allow := false

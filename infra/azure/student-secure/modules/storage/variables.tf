@@ -16,6 +16,11 @@ variable "key_vault_id" {
 
 variable "key_vault_key_id" {
   type = string
+
+  validation {
+    condition     = can(regex("^https://[^/]+/keys/[^/]+(?:/[^/]+)?$", trimspace(var.key_vault_key_id)))
+    error_message = "key_vault_key_id must be a valid Key Vault key URL: https://<vault>/keys/<name>[/<version>]."
+  }
 }
 
 variable "virtual_network_id" {

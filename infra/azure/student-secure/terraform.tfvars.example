@@ -10,3 +10,7 @@ mysql_admin_username = "mysqladmin"
 enable_database      = false
 manage_database_secrets_in_key_vault = false
 db_secret_expiration_date = "2030-01-01T00:00:00Z"
+key_vault_cmk_expiration_date = "2030-01-01T00:00:00Z"
+# Optional: reference an existing key instead of creating it with Terraform.
+# key_vault_existing_cmk_key_id = "https://<vault-name>.vault.azure.net/keys/<key-name>/<key-version>"
+key_vault_existing_cmk_key_id = ""

@@ -33,7 +33,13 @@ output "storage_private_endpoints" {
     blob_endpoint = module.storage.primary_blob_endpoint
     endpoint_id   = module.storage.private_endpoint_id
     subnet_ids    = module.storage.allowed_subnet_ids
+    cmk_key_id    = module.storage.cmk_key_id
   }
+}
+
+output "storage_customer_managed_key_id" {
+  description = "Storage customer-managed key association resource ID"
+  value       = module.storage.customer_managed_key_id
 }
 
 output "virtual_machine_id" {
@@ -82,4 +88,9 @@ output "key_vault_id" {
 output "key_vault_private_endpoint_id" {
   description = "Key Vault private endpoint ID"
   value       = module.key_vault.private_endpoint_id
+}
+
+output "key_vault_cmk_key_id" {
+  description = "Key Vault CMK key ID used by Storage encryption"
+  value       = module.key_vault.cmk_key_id
 }

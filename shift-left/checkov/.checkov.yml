@@ -26,8 +26,5 @@ soft-fail: true
 # Avoid overlap with Trivy (Docker) and keep scope IaC/K8s only.
 skip-check:
   - CKV_DOCKER_*
-  # Azure Student subscriptions can block CMK onboarding workflows (permission model/role assignment constraints).
-  # Compensating controls are enforced: infra encryption enabled, private endpoints, strict network ACLs, Key Vault hardening.
-  - CKV2_AZURE_1
 
 # Allow everything else; policy-level filtering happens in run-checkov.sh

@@ -15,6 +15,7 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
   TOFU_VERSION: "1.8.8"
+  TOFU_LINUX_AMD64_ZIP_SHA256: "9e889633bc177b1d266552658020fe8ceb839445fcac82aaa7622952fd9c81bb"
 
   SCAN_TARGET: "infra/azure/student-secure"
   CHECKOV_SKIP_PATHS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
@@ -27,6 +28,77 @@ variables:
   RETRY_GUARD_MAX_RETRIES: "3"
   RETRY_GUARD_MIN_INTERVAL_SEC: "120"
   APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin"
+
+supply-chain-fetch:
+  stage: .pre
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
+  before_script: []
+  script:
+    - |
+      set -euo pipefail
+      TOFU_ZIP="tofu_${TOFU_VERSION}_linux_amd64.zip"
+      TOFU_SUMS="tofu_${TOFU_VERSION}_SHA256SUMS"
+      TOFU_SIG="${TOFU_SUMS}.sig"
+      TOFU_PEM="${TOFU_SUMS}.pem"
+      RELEASE_URL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}"
+
+      mkdir -p .cloudsentinel/tofu
+      curl --proto '=https' --tlsv1.2 -fsSLo ".cloudsentinel/tofu/${TOFU_ZIP}" "${RELEASE_URL}/${TOFU_ZIP}"
+      curl --proto '=https' --tlsv1.2 -fsSLo ".cloudsentinel/tofu/${TOFU_SUMS}" "${RELEASE_URL}/${TOFU_SUMS}"
+      curl --proto '=https' --tlsv1.2 -fsSLo ".cloudsentinel/tofu/${TOFU_SIG}" "${RELEASE_URL}/${TOFU_SIG}"
+      curl --proto '=https' --tlsv1.2 -fsSLo ".cloudsentinel/tofu/${TOFU_PEM}" "${RELEASE_URL}/${TOFU_PEM}"
+  artifacts:
+    when: always
+    expire_in: 1 hour
+    paths:
+      - .cloudsentinel/tofu/
+  allow_failure: false
+
+supply-chain-verify:
+  stage: .pre
+  image:
+    name: "ghcr.io/sigstore/cosign/cosign:v2.2.3-dev@sha256:0d795fa145b03026b7bc2a35e33068cdb75e1c1f974e604c17408bf7bd174967"
+    entrypoint: ["/busybox/sh", "-c"]
+  before_script: []
+  needs:
+    - job: supply-chain-fetch
+      artifacts: true
+  script:
+    - |
+      set -euo pipefail
+      TOFU_ZIP="tofu_${TOFU_VERSION}_linux_amd64.zip"
+      TOFU_SUMS="tofu_${TOFU_VERSION}_SHA256SUMS"
+      TOFU_SIG="${TOFU_SUMS}.sig"
+      TOFU_PEM="${TOFU_SUMS}.pem"
+      TOFU_MM="$(printf '%s' "${TOFU_VERSION}" | awk -F. '{print $1 "." $2}')"
+      IDENTITY="https://github.com/opentofu/opentofu/.github/workflows/release.yml@refs/tags/v${TOFU_MM}"
+      TOFU_DIR=".cloudsentinel/tofu"
+
+      test -f "${TOFU_DIR}/${TOFU_ZIP}"
+      test -f "${TOFU_DIR}/${TOFU_SUMS}"
+      test -f "${TOFU_DIR}/${TOFU_SIG}"
+      test -f "${TOFU_DIR}/${TOFU_PEM}"
+
+      cosign verify-blob \
+        --certificate-identity "${IDENTITY}" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        --signature "${TOFU_DIR}/${TOFU_SIG}" \
+        --certificate "${TOFU_DIR}/${TOFU_PEM}" \
+        "${TOFU_DIR}/${TOFU_SUMS}"
+
+      grep " ${TOFU_ZIP}$" "${TOFU_DIR}/${TOFU_SUMS}" | (cd "${TOFU_DIR}" && sha256sum -c -)
+      echo "${TOFU_LINUX_AMD64_ZIP_SHA256}  ${TOFU_DIR}/${TOFU_ZIP}" | sha256sum -c -
+
+      mkdir -p .cloudsentinel/bin
+      unzip -oq "${TOFU_DIR}/${TOFU_ZIP}" -d .cloudsentinel/bin
+      chmod +x .cloudsentinel/bin/tofu
+      .cloudsentinel/bin/tofu version
+  artifacts:
+    when: always
+    expire_in: 1 hour
+    paths:
+      - .cloudsentinel/bin/tofu
+  allow_failure: false
 
 stages:
   - guard
@@ -536,6 +608,8 @@ deploy-infrastructure:
   needs:
     - job: opa-decision
       artifacts: true
+    - job: supply-chain-verify
+      artifacts: true
   script:
     - |
       set -euo pipefail
@@ -560,16 +634,14 @@ deploy-infrastructure:
         echo "[deploy][ERROR] Generate with: ssh-keygen -t rsa -b 4096 -C \"gitlab-ci\" -f ~/.ssh/student_secure_rsa" >&2
         exit 2
       fi
-    - mkdir -p .cloudsentinel /tmp/tofu-bin
+    - mkdir -p .cloudsentinel
     - |
-      if command -v tofu >/dev/null 2>&1; then
-        echo "[deploy] using preinstalled tofu"
-      else
-        echo "[deploy] tofu not found in image, downloading v${TOFU_VERSION}"
-        curl -fsSLo /tmp/tofu.zip "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_amd64.zip"
-        python3 -c "import stat, zipfile; from pathlib import Path; dst=Path('/tmp/tofu-bin'); dst.mkdir(parents=True, exist_ok=True); zf=zipfile.ZipFile('/tmp/tofu.zip'); zf.extractall(dst); tf=dst/'tofu'; tf.chmod(tf.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)"
-        export PATH="/tmp/tofu-bin:$PATH"
+      TOFU_PATH="${CI_PROJECT_DIR}/.cloudsentinel/bin/tofu"
+      if [ ! -f "${TOFU_PATH}" ]; then
+        echo "[deploy][ERROR] verified tofu binary missing at ${TOFU_PATH}" >&2
+        exit 1
       fi
+      export PATH="$(dirname "${TOFU_PATH}"):${PATH}"
     - tofu version
     - export ARM_USE_AZUREAD=true
     - export ARM_STORAGE_USE_AZUREAD=true

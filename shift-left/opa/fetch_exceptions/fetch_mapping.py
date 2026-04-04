@@ -76,7 +76,7 @@ def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tu
                 "scanner": ex["scanner"],
                 "scope_type": ex["scope_type"],
                 "break_glass": ex["break_glass"],
-                "expires_at": ex["expires_at"],
+                "expires_at": ex.get("expires_at"),
             },
         )
 
@@ -119,4 +119,3 @@ def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tu
         ctx.logger.warning("Legacy compatibility window is closed by sunset date")
 
     return mapped, meta
-
