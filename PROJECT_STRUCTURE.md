@@ -97,11 +97,16 @@ pfe-cloud-sentinel/
 │   └── aws/
 │       └── README.md               # (À créer - Future)
 │
-├── 🔄 ci/                          # CI/CD SCRIPTS
+├── 🔄 ci/                          # CI/CD
 │   ├── README.md                   # ✅ Créé
-│   └── scripts/
-│       ├── run-scanners.sh         # (À créer)
-│       └── upload-to-defectdojo.sh # (À créer)
+│   ├── libs/
+│   │   ├── README.md               # ✅ Logique partagée CI/local
+│   │   └── cloudsentinel_contracts.py # ✅ Merge Trivy + validations contrat/schema
+│   ├── scripts/                    # ✅ Wrappers CI minces
+│   └── images/
+│       ├── opa/
+│       ├── scan-tools/
+│       └── deploy-tools/
 │
 ├── 📊 defectdojo/                  # GOUVERNANCE
 │   ├── README.md                   # ✅ Créé
@@ -142,12 +147,12 @@ pfe-cloud-sentinel/
 │       └── test-full-pipeline.sh   # (À créer)
 │
 └── 🛠️ scripts/                     # SCRIPTS UTILITAIRES
-    ├── run_prod_pipeline.sh        # ✅ Existe
-    ├── cloudsentinel-scan.sh        # ✅ Orchestrateur scan local
-    ├── setup-dev-env.sh            # (À créer - Important)
-    ├── cleanup.sh                  # (À créer)
-    ├── gitleaks.json               # ⚠️ À supprimer (gitignored)
-    └── opa_input.json              # ⚠️ À supprimer (gitignored)
+    ├── verify-student-secure.sh    # ✅ Vérification locale stricte (fail-closed)
+    ├── create-risk-acceptance.sh   # ✅ Helper DX bash DefectDojo
+    ├── cloudsentinel_ra_template.py # ✅ Générateur RA canonique (Python)
+    ├── ci/
+    │   └── ...
+    └── archive/                    # ✅ Scripts non référencés conservés pour traçabilité
 ```
 
 ---

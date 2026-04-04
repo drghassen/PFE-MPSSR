@@ -347,7 +347,7 @@ fi
 if [[ "$MODE" == "--enforce" ]]; then
   echo ""
   log_deny "${BOLD}Pipeline BLOCKED by OPA Quality Gate.${NC}"
-  log_deny "Fix violations or submit an exception request using scripts/create-risk-acceptance.sh."
+  log_deny "Fix violations or submit an exception request using scripts/cloudsentinel_ra_template.py (or scripts/create-risk-acceptance.sh)."
   exit 1
 else
   log_warn "Advisory mode: deny detected but pipeline continues."

@@ -1,0 +1,59 @@
+#!/bin/sh
+DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
+DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
+DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID:-}}"
+
+if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
+  echo "[dojo] Missing Dojo vars. Accepted names:"
+  echo "[dojo] URL: DOJO_URL or DEFECTDOJO_URL"
+  echo "[dojo] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
+  echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID"
+  echo "[dojo] Skipping upload."
+  exit 0
+fi
+
+chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
+mkdir -p .cloudsentinel/dojo-responses
+
+upload_scan() {
+  file_path="$1"
+  scan_type="$2"
+  label="$3"
+  safe_label="$(echo "${label}" | tr ' /()' '_____' | tr -cd '[:alnum:]_.-')"
+  response_file=".cloudsentinel/dojo-responses/${safe_label}.json"
+
+  if [ ! -f "${file_path}" ]; then
+    echo "[dojo] ${label}: report not found (${file_path}), skipping."
+    return 0
+  fi
+
+  if [ ! -r "${file_path}" ]; then
+    echo "[dojo] ${label}: report exists but is not readable (${file_path})."
+    ls -l "${file_path}" || true
+    return 1
+  fi
+
+  HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
+    -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+    -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+    -F "file=@${file_path}" \
+    -F "scan_type=${scan_type}" \
+    --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+    --form-string "active=true" \
+    --form-string "verified=true" \
+    --form-string "close_old_findings=true" \
+    --form-string "close_old_findings_product_scope=false" \
+    --form-string "deduplication_on_engagement=true")
+
+  if [ "${HTTP_CODE}" = "201" ]; then
+    echo "[dojo] ${label} uploaded HTTP=201"
+  else
+    echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
+    cat "${response_file}" || true
+    return 1
+  fi
+}
+
+upload_scan ".cloudsentinel/gitleaks_raw.json" "Gitleaks Scan" "Gitleaks"
+upload_scan ".cloudsentinel/checkov_raw.json" "Checkov Scan" "Checkov"
+upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json" "Trivy Scan" "Trivy (FS/SCA)"

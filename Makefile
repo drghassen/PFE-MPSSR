@@ -32,7 +32,8 @@ help: ## Afficher cette aide
 
 setup: ## Installation complète de l'environnement
 	@echo "$(GREEN)🔧 Installation de l'environnement CloudSentinel...$(RESET)"
-	@./scripts/setup-dev-env.sh
+	@$(MAKE) install-tools
+	@$(MAKE) config
 	@echo "$(GREEN)✅ Setup terminé$(RESET)"
 
 install-tools: ## Installer les outils de sécurité (Gitleaks, Checkov, Trivy, OPA)
@@ -75,7 +76,7 @@ config: ## Créer le fichier .env depuis le template
 
 scan: ## Exécuter tous les scanners (Gitleaks, Checkov, Trivy)
 	@echo "$(GREEN)🔍 Exécution du pipeline Shift-Left...$(RESET)"
-	@cd scripts && ./run_prod_pipeline.sh
+	@bash scripts/verify-student-secure.sh infra/azure/student-secure alpine:3.21
 
 scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 	@echo "$(GREEN)🔐 Scan des secrets...$(RESET)"

@@ -52,7 +52,9 @@ CI/CD (Enforce)
 - `shift-left/gitleaks/run-gitleaks.sh`
 - `shift-left/checkov/run-checkov.sh`
 - `shift-left/trivy/scripts/run-trivy.sh`
-- `shift-left/normalizer/normalize.sh` (mode=ci)
+- `ci/scripts/*.sh` wrappers (orchestration GitLab)
+- `ci/libs/cloudsentinel_contracts.py` (merge Trivy + validations de contrat/schéma)
+- `shift-left/normalizer/normalize.py` (mode=ci)
 - `CLOUDSENTINEL_SCHEMA_STRICT=true` en CI (validation schema obligatoire)
 - `shift-left/opa/run-opa.sh --enforce` (via OPA Server)
 
