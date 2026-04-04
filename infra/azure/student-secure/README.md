@@ -13,11 +13,11 @@ Stack OpenTofu sécurisé et modulaire pour Azure Student, avec intégration CI/
   - deny-all inbound explicite.
   - ouverture minimale uniquement des flux nécessaires.
 - `Storage Account` sécurisé:
-  - TLS1.2, HTTPS-only, public access désactivé, CMK Key Vault, private endpoint Blob.
+  - TLS1.2, HTTPS-only, public access désactivé, CMK Key Vault réellement appliquée, private endpoint Blob.
 - `MySQL Flexible Server` privé:
   - subnet délégué + private endpoint + private DNS.
 - `Key Vault Premium`:
-  - RBAC, purge protection, clé HSM pour chiffrement.
+  - RBAC, purge protection, clé CMK (créée par Terraform ou référencée via `key_vault_existing_cmk_key_id`) pour chiffrement Storage.
   - secrets DB stockés dans Key Vault (username/password).
 - `Monitoring`:
   - Network Watcher flow logs, Log Analytics, diagnostic settings.
@@ -88,6 +88,11 @@ Variables CI requises pour deploy:
 - `TFSTATE_STORAGE_ACCOUNT`
 - `TFSTATE_CONTAINER`
 - optionnel: `TFSTATE_KEY`
+
+Variables Terraform CMK:
+
+- `key_vault_cmk_expiration_date`
+- `key_vault_existing_cmk_key_id` (laisser vide pour création IaC, renseigner pour réutiliser une clé existante)
 
 ## Vérification Automatique (Fail-Closed)
 

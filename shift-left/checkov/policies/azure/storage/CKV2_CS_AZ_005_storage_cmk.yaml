@@ -1,14 +1,13 @@
 metadata:
   id: "CKV2_CS_AZ_005"
-  name: "Ensure storage accounts enforce infrastructure encryption at rest"
+  name: "Ensure storage accounts are encrypted with customer-managed keys (CMK)"
   category: "ENCRYPTION"
-  severity: "MEDIUM"
+  severity: "HIGH"
   guideline: "https://docs.microsoft.com/en-us/azure/storage/common/customer-managed-keys-overview"
 
 definition:
   cond_type: "attribute"
   resource_types:
-    - "azurerm_storage_account"
-  attribute: "infrastructure_encryption_enabled"
-  operator: "equals"
-  value: true
+    - "azurerm_storage_account_customer_managed_key"
+  attribute: "key_name"
+  operator: "exists"

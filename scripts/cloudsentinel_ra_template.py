@@ -86,7 +86,7 @@ def default_template() -> Dict[str, Any]:
             "incident_id": "",
         },
         "defectdojo": {
-            "is_active": True,
+            "is_active": False,
             "name_prefix": "Accept",
         },
     }
@@ -298,7 +298,7 @@ def build_defectdojo_payload(fields: Dict[str, Any], template: Dict[str, Any], a
         "path": fields["resource_id"],
         "recommendation_details": fields["fingerprint"],
         "expiration_date": fields["expires_at"],
-        "is_active": bool(dojo_cfg.get("is_active", True)),
+        "is_active": bool(dojo_cfg.get("is_active", False)),
         "custom_fields": custom_fields,
     }
     if accepted_findings:
@@ -405,4 +405,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

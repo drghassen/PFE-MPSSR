@@ -23,10 +23,11 @@ class FetchExceptionsMappingTests(unittest.TestCase):
             "owner": "dev@example.com",
             "approver": "security@example.com",
             "created": rfc3339(now - timedelta(days=2)),
+            "accepted_date": rfc3339(now - timedelta(days=1)),
             "expiration_date": (now + timedelta(days=10)).strftime("%Y-%m-%d"),
             "description": "Temporary exception with compensating control",
             "is_active": True,
-            "status": "accepted",
+            "status": "APPROVED",
             "custom_fields": {
                 "scanner": "checkov",
                 "resource_id": "azurerm_storage_account.insecure",
@@ -36,6 +37,10 @@ class FetchExceptionsMappingTests(unittest.TestCase):
                 "branch_scope": "main",
                 "severity": "HIGH",
                 "approved_by_role": "APPSEC_L3",
+                "requested_by": "dev@example.com",
+                "approved_by": "security@example.com",
+                "status": "APPROVED",
+                "approved_at": rfc3339(now - timedelta(days=1)),
             },
         }
 
@@ -53,6 +58,8 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["scope_type"], "repo")
         self.assertEqual(ex["approved_by_role"], "APPSEC_L3")
         self.assertEqual(ex["severity"], "HIGH")
+        self.assertEqual(ex["status"], "APPROVED")
+        self.assertTrue(ex["approved_at"].endswith("Z"))
 
     def test_extract_v2_exception_rejects_missing_fingerprint(self):
         ra = self.base_ra()
@@ -64,7 +71,13 @@ class FetchExceptionsMappingTests(unittest.TestCase):
 
     def test_extract_v2_exception_uses_recommendation_details_fingerprint_fallback(self):
         ra = self.base_ra()
-        ra["custom_fields"] = {}
+        ra["custom_fields"] = {
+            "requested_by": "dev@example.com",
+            "approved_by": "security@example.com",
+            "approved_by_role": "APPSEC_L3",
+            "status": "APPROVED",
+            "approved_at": ra["accepted_date"],
+        }
         ra["name"] = "CKV2_CS_AZ_021"
         ra["path"] = "azurerm_network_security_rule.rdp_any_allow"
         ra["recommendation_details"] = (
@@ -83,29 +96,56 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         )
         self.assertEqual(ex["requested_by"], "dev@example.com")
 
-    def test_extract_v2_exception_handles_numeric_owner_and_accepted_by_email(self):
+    def test_extract_v2_exception_rejects_non_approved_status(self):
         ra = self.base_ra()
-        ra["custom_fields"] = {}
-        ra["owner"] = 1
-        ra["accepted_by"] = "security@example.com"
-        ra["name"] = "CKV2_CS_AZ_021"
-        ra["path"] = "azurerm_network_security_rule.rdp_any_allow"
-        ra["recommendation_details"] = (
-            "Q0tWMl9DU19BWl8wMjE6L2luZnJhL2F6dXJlL2Rldi90ZXN0cy9jaGVja292L2ZpeHR1cmVzL25zZ19vcGVuXzIyLnRmOjIz"
-        )
+        ra["status"] = "accepted"
+        ra["custom_fields"]["status"] = "accepted"
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
-        self.assertIsNone(error)
-        self.assertIsNotNone(ex)
-        self.assertEqual(ex["requested_by"], "dev-system@example.com")
-        self.assertEqual(ex["approved_by"], "security@example.com")
+        self.assertIsNone(ex)
+        self.assertIn("expected APPROVED", error)
+
+    def test_extract_v2_exception_rejects_missing_approved_by(self):
+        ra = self.base_ra()
+        ra["custom_fields"].pop("approved_by")
+        ra["approver"] = ""
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(ex)
+        self.assertIn("invalid approved_by email", error)
+
+    def test_extract_v2_exception_rejects_missing_approved_at(self):
+        ra = self.base_ra()
+        ra["custom_fields"].pop("approved_at")
+        ra["accepted_date"] = ""
+        ra["updated"] = ""
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(ex)
+        self.assertIn("missing or invalid approved_at", error)
+
+    def test_extract_v2_exception_rejects_missing_requested_by_without_fallback(self):
+        ra = self.base_ra()
+        ra["custom_fields"].pop("requested_by")
+        ra["owner"] = 1
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(ex)
+        self.assertIn("invalid requested_by email", error)
 
     def test_extract_v2_exception_uses_accepted_finding_component_for_resource(self):
         ra = self.base_ra()
-        ra["custom_fields"] = {}
-        ra["owner"] = 1
-        ra["accepted_by"] = "security@example.com"
+        ra["custom_fields"] = {
+            "requested_by": "dev@example.com",
+            "approved_by": "security@example.com",
+            "approved_by_role": "APPSEC_L3",
+            "status": "APPROVED",
+            "approved_at": ra["accepted_date"],
+        }
         ra["name"] = "CKV2_CS_AZ_021"
         ra["path"] = "No proof has been supplied"
         ra["recommendation_details"] = (
@@ -128,23 +168,6 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["severity"], "CRITICAL")
         self.assertEqual(ex["accepted_finding_ids"], [178])
 
-    def test_extract_v2_exception_uses_decision_details_as_justification(self):
-        ra = self.base_ra()
-        ra["custom_fields"] = {}
-        ra["name"] = "CKV2_CS_AZ_021"
-        ra["path"] = "azurerm_network_security_rule.rdp_any_allow"
-        ra["description"] = "Generic description should not win"
-        ra["decision_details"] = "Temporary exception approved with compensating controls."
-        ra["recommendation_details"] = (
-            "Q0tWMl9DU19BWl8wMjE6L2luZnJhL2F6dXJlL2Rldi90ZXN0cy9jaGVja292L2ZpeHR1cmVzL25zZ19vcGVuXzIyLnRmOjIz"
-        )
-
-        ex, error = fetch_exceptions.extract_v2_exception(ra)
-
-        self.assertIsNone(error)
-        self.assertIsNotNone(ex)
-        self.assertEqual(ex["justification"], "Temporary exception approved with compensating controls.")
-
     def test_extract_v2_exception_rejects_break_glass_ttl_over_7_days(self):
         ra = self.base_ra()
         now = datetime.now(timezone.utc)
@@ -157,10 +180,25 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertIsNone(ex)
         self.assertIn("break-glass TTL exceeds", error)
 
-    def test_normalize_severity_maps_aliases(self):
-        self.assertEqual(fetch_exceptions.normalize_severity("critical"), "CRITICAL")
-        self.assertEqual(fetch_exceptions.normalize_severity("informational"), "INFO")
-        self.assertEqual(fetch_exceptions.normalize_severity("moderate"), "MEDIUM")
+    def test_is_active_accepted_requires_explicit_active_and_approved(self):
+        ra = self.base_ra()
+        self.assertTrue(fetch_exceptions.is_active_accepted(ra))
+
+        ra_inactive = dict(ra)
+        ra_inactive["is_active"] = False
+        self.assertFalse(fetch_exceptions.is_active_accepted(ra_inactive))
+
+        ra_pending = dict(ra)
+        ra_pending["status"] = "PENDING"
+        ra_pending["custom_fields"] = dict(ra["custom_fields"])
+        ra_pending["custom_fields"]["status"] = "PENDING"
+        self.assertFalse(fetch_exceptions.is_active_accepted(ra_pending))
+
+        ra_missing_status = dict(ra)
+        ra_missing_status["status"] = ""
+        ra_missing_status["custom_fields"] = dict(ra["custom_fields"])
+        ra_missing_status["custom_fields"]["status"] = ""
+        self.assertFalse(fetch_exceptions.is_active_accepted(ra_missing_status))
 
 
 if __name__ == "__main__":

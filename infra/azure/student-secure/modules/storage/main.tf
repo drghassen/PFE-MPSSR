@@ -4,6 +4,10 @@ locals {
   suffix                = substr(replace(data.azurerm_client_config.current.subscription_id, "-", ""), 0, 6)
   storage_name_untrimed = lower(replace("st${replace(var.base_name, "-", "")}${local.suffix}", "-", ""))
   storage_name          = substr(local.storage_name_untrimed, 0, 24)
+  cmk_key_match         = regexall("^https://[^/]+/keys/([^/]+)(?:/([^/]+))?$", trimspace(var.key_vault_key_id))
+  cmk_key_name          = local.cmk_key_match[0][0]
+  cmk_key_version_raw   = local.cmk_key_match[0][1]
+  cmk_key_version       = trimspace(local.cmk_key_version_raw) != "" ? local.cmk_key_version_raw : null
 }
 
 resource "azurerm_private_dns_zone" "blob" {
@@ -71,6 +75,21 @@ resource "azurerm_storage_account" "this" {
     bypass                     = ["AzureServices"]
     virtual_network_subnet_ids = var.storage_allowed_subnet_ids
   }
+}
+
+resource "azurerm_role_assignment" "storage_cmk_crypto_user" {
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+  principal_id         = azurerm_storage_account.this.identity[0].principal_id
+}
+
+resource "azurerm_storage_account_customer_managed_key" "this" {
+  storage_account_id = azurerm_storage_account.this.id
+  key_vault_id       = var.key_vault_id
+  key_name           = local.cmk_key_name
+  key_version        = local.cmk_key_version
+
+  depends_on = [azurerm_role_assignment.storage_cmk_crypto_user]
 }
 
 resource "azurerm_private_endpoint" "blob" {

@@ -12,7 +12,6 @@
   },
   "defectdojo": {
     "name_prefix": "Accept",
-    "is_active": true
+    "is_active": false
   }
 }
-

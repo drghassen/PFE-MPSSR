@@ -7,7 +7,19 @@ output "name" {
 }
 
 output "cmk_key_id" {
-  value = null
+  value = (
+    trimspace(var.existing_cmk_key_id) != ""
+    ? trimspace(var.existing_cmk_key_id)
+    : azurerm_key_vault_key.cmk[0].id
+  )
+}
+
+output "cmk_key_name" {
+  value = (
+    trimspace(var.existing_cmk_key_id) != ""
+    ? regex("^https://[^/]+/keys/([^/]+)(?:/[^/]+)?$", trimspace(var.existing_cmk_key_id))[0]
+    : azurerm_key_vault_key.cmk[0].name
+  )
 }
 
 output "private_endpoint_id" {

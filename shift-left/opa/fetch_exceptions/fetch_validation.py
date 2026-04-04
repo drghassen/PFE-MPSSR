@@ -91,12 +91,12 @@ def principal_email(value: Any) -> str:
     return safe_str(value)
 
 
-def choose_email(default_email: str, *candidates: Any) -> str:
+def choose_email(*candidates: Any) -> str:
     for candidate in candidates:
         email = principal_email(candidate)
         if email and valid_email(email):
             return email
-    return default_email
+    return ""
 
 
 def accepted_finding_details(ra: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -191,17 +191,17 @@ def legacy_window_open(ctx: FetchContext) -> bool:
 
 
 def is_active_accepted(ra: Dict[str, Any]) -> bool:
-    if not ra.get("is_active", True):
+    is_active = parse_bool(ra.get("is_active", False))
+    if not is_active:
         return False
-    status = safe_str(ra.get("status")).lower()
-    if not status:
-        return True
-    # Keep accepted-like statuses only.
-    return status in {"accepted", "approve", "approved", "active"}
+
+    status = safe_str(first_non_empty(cf(ra, "status"), ra.get("status"))).upper()
+    return status == "APPROVED"
 
 
 def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     ra_id = safe_str(ra.get("id")) or "unknown"
+    status = safe_str(first_non_empty(cf(ra, "status"), ra.get("status"))).upper()
 
     rule_id = first_non_empty(cf(ra, "rule_id", "rule", "check_id"), ra.get("rule_id"), ra.get("name"))
     inferred_rule_id = extract_rule_id_hint(
@@ -217,14 +217,12 @@ def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optiona
     scanner = guess_scanner(rule_id, first_non_empty(cf(ra, "scanner", "tool"), ra.get("tool")))
 
     requested_by = choose_email(
-        "dev-system@example.com",
         cf(ra, "requested_by", "owner_email"),
         ra.get("requested_by"),
         ra.get("owner_email"),
         ra.get("owner"),
     )
     approved_by = choose_email(
-        "appsec-system@example.com",
         cf(ra, "approved_by", "approver_email"),
         ra.get("approved_by"),
         ra.get("approver"),
@@ -303,11 +301,13 @@ def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optiona
     expires_at = parse_expires_at(ra)
     approved_at = parse_approved_at(ra)
 
+    if status != "APPROVED":
+        return None, f"invalid status: expected APPROVED, got {status or 'empty'}"
     if not created_at:
         return None, "missing or invalid created_at/request_date"
-    if not expires_at:
-        return None, "missing or invalid expires_at/expiration_date"
-    if expires_at <= now_utc():
+    if not approved_at:
+        return None, "missing or invalid approved_at/acceptance_date"
+    if expires_at and expires_at <= now_utc():
         return None, "exception already expired"
 
     if not justification:
@@ -333,6 +333,8 @@ def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optiona
         return None, "global scope requires elevated AppSec role"
 
     if break_glass:
+        if not expires_at:
+            return None, "break-glass exception requires expires_at"
         ttl_days = (expires_at - now_utc()).total_seconds() / 86400.0
         if not incident_id:
             return None, "break-glass exception requires incident_id"
@@ -345,6 +347,7 @@ def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optiona
         "exception_id": generate_exception_uuid(ctx, ra),
         "schema_version": ctx.schema_version,
         "enabled": True,
+        "status": status,
         "source_system": "defectdojo",
         "source_id": f"RA-{ra_id}",
         "scanner": scanner,
@@ -363,26 +366,11 @@ def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optiona
         "approved_by": approved_by,
         "justification": justification,
         "created_at": to_rfc3339(created_at),
-        "approved_at": to_rfc3339(approved_at) if approved_at else None,
-        "expires_at": to_rfc3339(expires_at),
+        "approved_at": to_rfc3339(approved_at),
         "commit_sha": commit_sha,
         "accepted_finding_ids": ra.get("accepted_findings", []),
     }
-
-    # Legacy bridge fields consumed by older policy versions.
-    ex.update(
-        {
-            "id": ex["exception_id"],
-            "tool": scanner,
-            "resource_path": resource_id,
-            "resource_name": resource_id,
-            "environments": ["dev", "test", "staging", "prod"],
-            "max_severity": severity,
-            "reason": justification,
-            "ticket": f"DOJO-RA-{ra_id}",
-            "commit_hash": commit_sha[:8] if commit_sha else "unknown",
-            "request_date": ex["created_at"],
-        }
-    )
+    if expires_at:
+        ex["expires_at"] = to_rfc3339(expires_at)
 
     return ex, None

@@ -17,3 +17,11 @@ output "allowed_subnet_ids" {
 output "private_endpoint_id" {
   value = azurerm_private_endpoint.blob.id
 }
+
+output "customer_managed_key_id" {
+  value = azurerm_storage_account_customer_managed_key.this.id
+}
+
+output "cmk_key_id" {
+  value = var.key_vault_key_id
+}

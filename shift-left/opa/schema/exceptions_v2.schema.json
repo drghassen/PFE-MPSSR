@@ -57,6 +57,8 @@
       "additionalProperties": false,
       "required": [
         "exception_id",
+        "enabled",
+        "status",
         "scanner",
         "rule_id",
         "resource_id",
@@ -68,8 +70,8 @@
         "approved_by_role",
         "requested_by",
         "approved_by",
+        "approved_at",
         "justification",
-        "expires_at",
         "created_at",
         "schema_version"
       ],
@@ -77,6 +79,19 @@
         "exception_id": {
           "type": "string",
           "pattern": "^[0-9a-fA-F-]{36}$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["APPROVED"]
+        },
+        "source_system": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
         },
         "scanner": {
           "type": "string",
@@ -142,8 +157,12 @@
           "format": "date-time"
         },
         "approved_at": {
-          "type": ["string", "null"],
+          "type": "string",
           "format": "date-time"
+        },
+        "accepted_finding_ids": {
+          "type": "array",
+          "items": {"type": ["integer", "string"]}
         },
         "commit_sha": {
           "type": "string"
