@@ -5,11 +5,9 @@ trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
 DEFAULT_TRIVY_TARGET="infra/azure/student-secure"
-if [ -n "${CI:-}" ]; then
-  TRIVY_TARGET_EFF="${DEFAULT_TRIVY_TARGET}"
-else
-  TRIVY_TARGET_EFF="${TRIVY_TARGET:-${DEFAULT_TRIVY_TARGET}}"
-fi
+
+# [Hardening] Enforce hardcoded targets regardless of environment variables
+TRIVY_TARGET_EFF="${DEFAULT_TRIVY_TARGET}"
 bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET_EFF}" "config"
 cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_config_opa.json
 chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_config_opa.json 2>/dev/null || true

@@ -5,11 +5,9 @@ trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
 DEFAULT_TRIVY_IMAGE_TARGET="alpine:3.21"
-if [ -n "${CI:-}" ]; then
-  TRIVY_IMAGE_TARGET_EFF="${DEFAULT_TRIVY_IMAGE_TARGET}"
-else
-  TRIVY_IMAGE_TARGET_EFF="${TRIVY_IMAGE_TARGET:-${DEFAULT_TRIVY_IMAGE_TARGET}}"
-fi
+
+# [Hardening] Enforce hardcoded targets regardless of environment variables
+TRIVY_IMAGE_TARGET_EFF="${DEFAULT_TRIVY_IMAGE_TARGET}"
 if [ -z "${TRIVY_IMAGE_TARGET_EFF:-}" ]; then
   echo "[scan] TRIVY_IMAGE_TARGET is empty -> emitting NOT_RUN for image scan"
   bash shift-left/trivy/scripts/run-trivy.sh

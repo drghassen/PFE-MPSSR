@@ -15,10 +15,17 @@ BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_DIR="$BASE_DIR/configs"
 REPORT_DIR="$BASE_DIR/reports/raw"
 SBOM_DIR="$BASE_DIR/reports/sbom"
+SCAN_MODE="${SCAN_MODE:-local}"
+[[ -n "${CI:-}" ]] && SCAN_MODE="ci"
+
 IGNORE_FILE="$BASE_DIR/.trivyignore"
 IGNORE_ARGS=()
 if [[ -f "$IGNORE_FILE" ]]; then
-  IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+  if [[ "$SCAN_MODE" == "ci" ]]; then
+    echo -e "\033[1;33m[CloudSentinel][Trivy][WARN]\033[0m .trivyignore is IGNORED in CI mode. Use DefectDojo/OPA for exceptions." >&2
+  else
+    IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+  fi
 fi
 
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy][IMAGE]\033[0m $*"; }
@@ -29,9 +36,7 @@ err()  { echo -e "\033[1;31m[CloudSentinel][Trivy][IMAGE][ERROR]\033[0m $*" >&2;
 TARGET="${1:-}"
 [[ -z "$TARGET" ]] && { err "Usage: $0 <image_name[:tag]>"; exit 1; }
 
-# Detect CI mode to select appropriate config
-SCAN_MODE="${SCAN_MODE:-local}"
-[[ -n "${CI:-}" ]] && SCAN_MODE="ci"
+# SCAN_MODE already detected above
 
 CONFIG_FILE="$CONFIG_DIR/trivy.yaml"
 [[ "$SCAN_MODE" == "ci" ]] && CONFIG_FILE="$CONFIG_DIR/trivy-ci.yaml"

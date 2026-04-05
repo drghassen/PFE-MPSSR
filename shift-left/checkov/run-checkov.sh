@@ -110,16 +110,8 @@ jq -n \
 '
   def get_map(id): ($mapping[0][id] // {category: "UNKNOWN", severity: null});
 
-  def allowed_check(id):
-    (id | startswith("CKV2_CS_AZ_"))
-    or (id | startswith("CKV_AZURE_"))
-    or (id | startswith("CKV2_AZURE_"))
-    or (id | startswith("CKV_K8S_"))
-    or (id | startswith("CKV2_K8S_"));
-
   ($raw | flatten | map(.results.failed_checks // []) | flatten) as $findings
   | ($findings
-    | map(select(allowed_check(.check_id)))
     | map({
         id: .check_id,
         resource: {
