@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
-if [ -z "${TRIVY_IMAGE_TARGET:-}" ]; then
+DEFAULT_TRIVY_IMAGE_TARGET="alpine:3.21"
+if [ -n "${CI:-}" ]; then
+  TRIVY_IMAGE_TARGET_EFF="${DEFAULT_TRIVY_IMAGE_TARGET}"
+else
+  TRIVY_IMAGE_TARGET_EFF="${TRIVY_IMAGE_TARGET:-${DEFAULT_TRIVY_IMAGE_TARGET}}"
+fi
+if [ -z "${TRIVY_IMAGE_TARGET_EFF:-}" ]; then
   echo "[scan] TRIVY_IMAGE_TARGET is empty -> emitting NOT_RUN for image scan"
   bash shift-left/trivy/scripts/run-trivy.sh
 else
-  bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_IMAGE_TARGET}" "image"
+  bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_IMAGE_TARGET_EFF}" "image"
 fi
 cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_image_opa.json
 chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_image_opa.json 2>/dev/null || true
