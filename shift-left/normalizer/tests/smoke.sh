@@ -6,10 +6,15 @@ CLOUD_DIR="$REPO_ROOT/.cloudsentinel"
 BACKUP_DIR="$(mktemp -d -t cs-normalizer-smoke-backup-XXXXXX)"
 
 FILES=(
-  "gitleaks_opa.json"
-  "checkov_opa.json"
-  "trivy_opa.json"
+  "gitleaks_raw.json"
+  "checkov_raw.json"
   "golden_report.json"
+)
+TRIVY_RAW_DIR="$REPO_ROOT/shift-left/trivy/reports/raw"
+TRIVY_FILES=(
+  "trivy-fs-raw.json"
+  "trivy-config-raw.json"
+  "trivy-image-raw.json"
 )
 
 restore() {
@@ -20,27 +25,46 @@ restore() {
       rm -f "$CLOUD_DIR/$f"
     fi
   done
+  for f in "${TRIVY_FILES[@]}"; do
+    if [[ -f "$BACKUP_DIR/$f" ]]; then
+      cp "$BACKUP_DIR/$f" "$TRIVY_RAW_DIR/$f"
+    else
+      rm -f "$TRIVY_RAW_DIR/$f"
+    fi
+  done
   rm -rf "$BACKUP_DIR"
 }
 trap restore EXIT
 
 mkdir -p "$CLOUD_DIR"
+mkdir -p "$TRIVY_RAW_DIR"
 for f in "${FILES[@]}"; do
   if [[ -f "$CLOUD_DIR/$f" ]]; then
     cp "$CLOUD_DIR/$f" "$BACKUP_DIR/$f"
   fi
 done
+for f in "${TRIVY_FILES[@]}"; do
+  if [[ -f "$TRIVY_RAW_DIR/$f" ]]; then
+    cp "$TRIVY_RAW_DIR/$f" "$BACKUP_DIR/$f"
+  fi
+done
 
-cat > "$CLOUD_DIR/gitleaks_opa.json" <<'JSON'
-{"tool":"gitleaks","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
+cat > "$CLOUD_DIR/gitleaks_raw.json" <<'JSON'
+[]
 JSON
 
-cat > "$CLOUD_DIR/checkov_opa.json" <<'JSON'
-{"tool":"checkov","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":1,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":1,"EXEMPTED":0,"FAILED":1,"PASSED":0},"findings":[{"id":"CKV2_CS_AZ_001","resource":{"name":"azurerm_storage_account.example","path":"infra/azure/student-secure/main.tf","location":{"start_line":1,"end_line":1}},"description":"demo finding","severity":"HIGH","status":"FAILED","category":"INFRASTRUCTURE_AS_CODE"}],"errors":[]}
+cat > "$CLOUD_DIR/checkov_raw.json" <<'JSON'
+{"results":{"failed_checks":[{"check_id":"CKV2_CS_AZ_001","check_name":"demo finding","resource":"azurerm_storage_account.example","file_path":"infra/azure/student-secure/main.tf","file_line_range":[1,1]}]}}
 JSON
 
-cat > "$CLOUD_DIR/trivy_opa.json" <<'JSON'
-{"tool":"trivy","version":"test","status":"OK","stats":{"CRITICAL":0,"HIGH":0,"MEDIUM":0,"LOW":0,"INFO":0,"TOTAL":0,"EXEMPTED":0,"FAILED":0,"PASSED":0},"findings":[],"errors":[]}
+cat > "$TRIVY_RAW_DIR/trivy-fs-raw.json" <<'JSON'
+{"SchemaVersion":2,"Trivy":{"Version":"0.69.1"},"Results":[]}
+JSON
+cat > "$TRIVY_RAW_DIR/trivy-config-raw.json" <<'JSON'
+{"SchemaVersion":2,"Trivy":{"Version":"0.69.1"},"Results":[]}
+JSON
+cat > "$TRIVY_RAW_DIR/trivy-image-raw.json" <<'JSON'
+{"SchemaVersion":2,"Trivy":{"Version":"0.69.1"},"Results":[]}
 JSON
 
 export CLOUDSENTINEL_SCHEMA_STRICT="false"

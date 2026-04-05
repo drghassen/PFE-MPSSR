@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # =========================
 # trivy-config-scan.sh
 # =========================
@@ -8,12 +10,11 @@ mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
 
 # Hardcoded Trivy target
-DEFAULT_TRIVY_TARGET="infra/azure/student-secure"
+readonly DEFAULT_TRIVY_TARGET="infra/azure/student-secure"
 TRIVY_TARGET_EFF="${DEFAULT_TRIVY_TARGET}"
 
 bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET_EFF}" "config"
-cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_config_opa.json
-chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_config_opa.json 2>/dev/null || true
+chmod -R a+r shift-left/trivy/reports/raw 2>/dev/null || true
 
-jq -r '"[scan-summary] trivy-config=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' \
-  .cloudsentinel/trivy_config_opa.json
+jq -r '"[scan-summary] trivy_config_raw_results=" + (((.Results // []) | length) | tostring)' \
+  shift-left/trivy/reports/raw/trivy-config-raw.json

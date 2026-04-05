@@ -12,6 +12,10 @@ from typing import Any, Dict, List
 from .fetch_utils import safe_str
 
 
+class DefectDojoFetchError(RuntimeError):
+    """Raised when DefectDojo cannot be queried reliably."""
+
+
 def _fetch_json(url: str, headers: Dict[str, str], timeout: int, logger: Logger) -> Dict[str, Any]:
     req = urllib.request.Request(url, headers=headers)
     try:
@@ -19,11 +23,15 @@ def _fetch_json(url: str, headers: Dict[str, str], timeout: int, logger: Logger)
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as e:
         logger.error(f"DefectDojo request failed: {e}")
-        return {}
-    except json.JSONDecodeError:
+        raise DefectDojoFetchError(f"request_failed:{url}") from e
+    except json.JSONDecodeError as e:
         logger.error("DefectDojo returned malformed JSON")
-        return {}
-    return body if isinstance(body, dict) else {}
+        raise DefectDojoFetchError(f"invalid_json:{url}") from e
+
+    if not isinstance(body, dict):
+        logger.error("DefectDojo response payload is not a JSON object")
+        raise DefectDojoFetchError(f"invalid_payload_type:{url}")
+    return body
 
 
 def _enrich_with_accepted_findings(
@@ -65,8 +73,7 @@ def _enrich_with_accepted_findings(
 
 def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, logger: Logger) -> List[Dict[str, Any]]:
     if not dojo_url or not dojo_api_key:
-        logger.info("DefectDojo credentials missing; running with empty payload")
-        return []
+        raise DefectDojoFetchError("missing_credentials")
 
     endpoint = f"{dojo_url}/api/v2/risk_acceptance/"
     headers = {
@@ -79,12 +86,10 @@ def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, logger: Logger) -> 
 
     while next_url:
         body = _fetch_json(next_url, headers, 15, logger)
-        if not body:
-            return []
-
         page = body.get("results", [])
-        if isinstance(page, list):
-            results.extend([x for x in page if isinstance(x, dict)])
+        if not isinstance(page, list):
+            raise DefectDojoFetchError(f"invalid_results_array:{next_url}")
+        results.extend([x for x in page if isinstance(x, dict)])
 
         raw_next = body.get("next")
         next_url = safe_str(raw_next)

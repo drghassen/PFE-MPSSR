@@ -10,7 +10,7 @@ set -euo pipefail
 log() { echo "[CloudSentinel][immutability] $*"; }
 err() { echo "[CloudSentinel][immutability][ERROR] $*" >&2; }
 
-APPSEC_ALLOWED_USERS="${APPSEC_ALLOWED_USERS:-appsec-bot,appsec-admin}"
+readonly APPSEC_ALLOWED_USERS="appsec-bot,appsec-admin,drghassen"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"
@@ -45,7 +45,7 @@ if ! git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
   exit 2
 fi
 
-PROTECTED_REGEX='^(policies/opa/.*\.rego|shift-left/opa/schema/exceptions_v2\.schema\.json|shift-left/normalizer/schema/cloudsentinel_report\.schema\.json|shift-left/gitleaks/gitleaks\.toml|shift-left/checkov/\.checkov\.yml|shift-left/checkov/policies/mapping\.json|shift-left/trivy/configs/trivy\.yaml|shift-left/trivy/configs/trivy-ci\.yaml|shift-left/trivy/configs/severity-mapping\.json|\.gitlab-ci\.yml)$'
+PROTECTED_REGEX='^(policies/opa/.*\.rego|ci/scripts/.*\.sh|ci/libs/cloudsentinel_contracts\.py|shift-left/normalizer/.*|shift-left/opa/.*|shift-left/.*/run-.*\.sh|shift-left/opa/schema/exceptions_v2\.schema\.json|shift-left/normalizer/schema/cloudsentinel_report\.schema\.json|shift-left/gitleaks/gitleaks\.toml|shift-left/checkov/\.checkov\.yml|shift-left/checkov/policies/mapping\.json|shift-left/trivy/configs/trivy\.yaml|shift-left/trivy/configs/trivy-ci\.yaml|shift-left/trivy/configs/severity-mapping\.json|\.gitlab-ci\.yml)$'
 
 CHANGED_PROTECTED_FILES="$({
   git diff --name-only "$BASE_SHA" "$HEAD_SHA"

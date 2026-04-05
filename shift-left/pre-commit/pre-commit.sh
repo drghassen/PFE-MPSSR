@@ -21,7 +21,7 @@ json_get_or() {
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 GITLEAKS_RUNNER="${REPO_ROOT}/shift-left/gitleaks/run-gitleaks.sh"
-GITLEAKS_REPORT="${REPO_ROOT}/.cloudsentinel/gitleaks_opa.json"
+GITLEAKS_REPORT="${REPO_ROOT}/.cloudsentinel/gitleaks_raw.json"
 NORMALIZER_SH="${REPO_ROOT}/shift-left/normalizer/normalize.sh"
 NORMALIZER_PY="${REPO_ROOT}/shift-left/normalizer/normalize.py"
 OPA_RUNNER="${REPO_ROOT}/shift-left/opa/run-opa.sh"
@@ -52,11 +52,8 @@ if [[ -f "$GITLEAKS_RUNNER" ]]; then
   fi
 
   if [[ -f "$GITLEAKS_REPORT" ]]; then
-    GITLEAKS_TOTAL="$(json_get_or "$GITLEAKS_REPORT" '.stats.TOTAL // 0' 0)"
-    GITLEAKS_NOT_RUN="$(json_get_or "$GITLEAKS_REPORT" '((.status // "") | ascii_upcase) == "NOT_RUN"' true)"
-    if [[ "$GITLEAKS_NOT_RUN" == "true" ]]; then
-      warn "Gitleaks status=NOT_RUN. CI/OPA will enforce scanner health."
-    elif [[ "$GITLEAKS_TOTAL" -gt 0 ]]; then
+    GITLEAKS_TOTAL="$(json_get_or "$GITLEAKS_REPORT" 'length' 0)"
+    if [[ "$GITLEAKS_TOTAL" -gt 0 ]]; then
       warn "Gitleaks detected $GITLEAKS_TOTAL finding(s) locally (advisory)."
     fi
   else

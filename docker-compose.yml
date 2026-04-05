@@ -43,7 +43,8 @@ services:
       # Read-only: policies must be changed via Git, not at runtime.
       - ./policies/opa/pipeline_decision.rego:/app/policies/pipeline_decision.rego:ro
       # Exceptions data generated from DefectDojo fetch-exceptions flow.
-      # Namespace expected by policy: data.cloudsentinel.exceptions.exceptions
+      # Only exceptions.json is loaded by OPA; scanner/raw artifacts in this
+      # directory must not be loaded as OPA data documents.
       - ./.cloudsentinel:/app/data:ro
     command:
       - run
@@ -54,7 +55,7 @@ services:
       - --set=decision_logs.console=true
       - --watch
       - /app/policies/pipeline_decision.rego
-      - /app/data
+      - /app/data/exceptions.json
     healthcheck:
       # OPA exposes /health and /health?plugins for readiness checks
       test: ["CMD", "/opa", "eval", "1==1"]

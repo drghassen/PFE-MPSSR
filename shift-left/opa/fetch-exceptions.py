@@ -143,5 +143,4 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         logger.exception(f"Unhandled error in fetch-exceptions: {exc}")
-        emit_empty(f"Unhandled exception: {exc}")
-
+        raise SystemExit(2) from exc

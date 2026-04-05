@@ -1,4 +1,6 @@
 #!/busybox/sh
+set -euo pipefail
+
 mkdir -p /kaniko/.docker
 printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
   "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" > /kaniko/.docker/config.json

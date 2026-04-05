@@ -11,8 +11,6 @@ default:
 variables:
   GIT_STRATEGY: clone
   GIT_DEPTH: "0"
-  SCAN_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
-  DEPLOY_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
   TOFU_VERSION: "1.8.8"
   TOFU_LINUX_AMD64_ZIP_SHA256: "9e889633bc177b1d266552658020fe8ceb839445fcac82aaa7622952fd9c81bb"
   GITLEAKS_VERSION: "8.21.2"
@@ -21,17 +19,10 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
 
-  SCAN_TARGET: "infra/azure/student-secure"
-  CHECKOV_SKIP_PATHS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
-  TRIVY_TARGET: "infra/azure/student-secure"
-  TRIVY_IMAGE_TARGET: "alpine:3.21"
-  TRIVY_SKIP_DIRS: "infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
-
   CRITICAL_MAX: "0"
   HIGH_MAX: "2"
   RETRY_GUARD_MAX_RETRIES: "3"
   RETRY_GUARD_MIN_INTERVAL_SEC: "120"
-  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin,drghassen"
 
 stages:
   - guard
@@ -43,7 +34,7 @@ stages:
   - deploy
 
 .default_tools: &default_tools
-  image: "${SCAN_TOOLS_IMAGE}"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
   before_script: []
 
 .trivy_cache_pull: &trivy_cache_pull
@@ -78,7 +69,6 @@ policies-immutability:
 gitleaks-scan:
   <<: *default_tools
   stage: scan
-  needs: []
   script:
     - bash ci/scripts/gitleaks-scan.sh
   artifacts:
@@ -86,12 +76,10 @@ gitleaks-scan:
     expire_in: 7 days
     paths:
       - .cloudsentinel/gitleaks_raw.json
-      - .cloudsentinel/gitleaks_opa.json
 
 checkov-scan:
   <<: *default_tools
   stage: scan
-  needs: []
   script:
     - bash ci/scripts/checkov-scan.sh
   artifacts:
@@ -99,13 +87,11 @@ checkov-scan:
     expire_in: 7 days
     paths:
       - .cloudsentinel/checkov_raw.json
-      - .cloudsentinel/checkov_opa.json
       - .cloudsentinel/checkov_scan.log
 
 trivy-fs-scan:
   <<: [*default_tools, *trivy_cache_pull_push]
   stage: scan
-  needs: []
   script:
     - bash ci/scripts/trivy-fs-scan.sh
   artifacts:
@@ -114,12 +100,10 @@ trivy-fs-scan:
     paths:
       - shift-left/trivy/reports/raw/trivy-fs-raw.json
       - shift-left/trivy/reports/sbom/trivy-fs.cdx.json
-      - .cloudsentinel/trivy_fs_opa.json
 
 trivy-config-scan:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
-  needs: []
   script:
     - bash ci/scripts/trivy-config-scan.sh
   artifacts:
@@ -127,12 +111,10 @@ trivy-config-scan:
     expire_in: 7 days
     paths:
       - shift-left/trivy/reports/raw/trivy-config-raw.json
-      - .cloudsentinel/trivy_config_opa.json
 
 trivy-image-scan:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
-  needs: []
   script:
     - bash ci/scripts/trivy-image-scan.sh
   artifacts:
@@ -141,7 +123,6 @@ trivy-image-scan:
     paths:
       - shift-left/trivy/reports/raw/trivy-image-raw.json
       - shift-left/trivy/reports/sbom/trivy-image.cdx.json
-      - .cloudsentinel/trivy_image_opa.json
 
 normalize-reports:
   <<: *default_tools
@@ -164,12 +145,12 @@ normalize-reports:
     expire_in: 30 days
     paths:
       - .cloudsentinel/golden_report.json
-      - .cloudsentinel/gitleaks_opa.json
-      - .cloudsentinel/checkov_opa.json
-      - .cloudsentinel/trivy_opa.json
-      - .cloudsentinel/trivy_fs_opa.json
-      - .cloudsentinel/trivy_config_opa.json
-      - .cloudsentinel/trivy_image_opa.json
+      - .cloudsentinel/gitleaks_raw.json
+      - .cloudsentinel/checkov_raw.json
+      - .cloudsentinel/checkov_scan.log
+      - shift-left/trivy/reports/raw/trivy-fs-raw.json
+      - shift-left/trivy/reports/raw/trivy-config-raw.json
+      - shift-left/trivy/reports/raw/trivy-image-raw.json
       - .cloudsentinel/exceptions.json
       - .cloudsentinel/dropped_exceptions.json
       - .cloudsentinel/audit_events.jsonl
@@ -220,7 +201,7 @@ opa-decision:
 
 upload-to-defectdojo:
   stage: report
-  image: "curlimages/curl@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
   retry: 2
   variables:
     GIT_STRATEGY: fetch
@@ -232,7 +213,7 @@ upload-to-defectdojo:
     - job: trivy-fs-scan
       artifacts: true
   script:
-    - sh ci/scripts/upload-to-defectdojo.sh
+    - bash ci/scripts/upload-to-defectdojo.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -242,7 +223,7 @@ upload-to-defectdojo:
   allow_failure: false
 
 deploy-infrastructure:
-  image: "${DEPLOY_TOOLS_IMAGE}"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
   before_script: []
   stage: deploy
   needs:

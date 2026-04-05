@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-OUT_FILE="$REPO_ROOT/.cloudsentinel/checkov_opa.json"
+OUT_FILE="$REPO_ROOT/.cloudsentinel/checkov_raw.json"
 TMP_DIR="$(mktemp -d -t cs-checkov-smoke-XXXXXX)"
 
 cleanup() {
@@ -30,8 +30,6 @@ export CHECKOV_SKIP_PATHS=""
 bash "$REPO_ROOT/shift-left/checkov/run-checkov.sh" "$TMP_DIR"
 
 test -f "$OUT_FILE"
-jq -e '.tool == "checkov"' "$OUT_FILE" >/dev/null
-jq -e '.stats | type == "object"' "$OUT_FILE" >/dev/null
-jq -e '.findings | type == "array"' "$OUT_FILE" >/dev/null
+jq -e 'type == "object" and (.results | type == "object")' "$OUT_FILE" >/dev/null
 
 echo "[smoke][checkov] PASS"

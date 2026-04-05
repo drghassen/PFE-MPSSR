@@ -8,7 +8,7 @@ import os
 import sys
 from typing import Any, Dict, Optional, Set
 
-from .fetch_defectdojo import fetch_risk_acceptances
+from .fetch_defectdojo import DefectDojoFetchError, fetch_risk_acceptances
 from .fetch_mapping import emit_audit_event, json_payload, map_risk_acceptances, save_outputs
 from .fetch_validation import FetchContext
 
@@ -108,7 +108,7 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
 
 
 def emit_empty(ctx: FetchContext, reason: str) -> None:
-    ctx.logger.warning(f"Fail-closed output: {reason}")
+    ctx.logger.warning(f"No approved active exceptions found: {reason}")
     payload = json_payload(
         ctx,
         [],
@@ -137,11 +137,17 @@ def execute(ctx: FetchContext) -> None:
     ctx.logger.info("Starting enterprise exceptions fetch process")
 
     if not ctx.dojo_url or not ctx.dojo_api_key:
-        emit_empty(ctx, "DefectDojo credentials are not configured")
+        ctx.logger.error("DefectDojo credentials are not configured")
+        raise SystemExit(2)
 
-    raw_ras = fetch_risk_acceptances(ctx.dojo_url, ctx.dojo_api_key, ctx.logger)
+    try:
+        raw_ras = fetch_risk_acceptances(ctx.dojo_url, ctx.dojo_api_key, ctx.logger)
+    except DefectDojoFetchError as exc:
+        ctx.logger.error(f"DefectDojo fetch failed: {exc}")
+        raise SystemExit(2) from exc
+
     if not raw_ras:
-        emit_empty(ctx, "No accepted risk acceptances found or DefectDojo unreachable")
+        emit_empty(ctx, "No approved active risk acceptances found")
 
     mapped, meta = map_risk_acceptances(ctx, raw_ras)
     payload = json_payload(ctx, mapped, meta)
@@ -168,5 +174,4 @@ def run_cli() -> None:
         raise
     except Exception as exc:
         ctx.logger.exception(f"Unhandled error in fetch-exceptions: {exc}")
-        emit_empty(ctx, f"Unhandled exception: {exc}")
-
+        raise SystemExit(2) from exc

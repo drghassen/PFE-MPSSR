@@ -18,7 +18,7 @@ metadata := object.get(input, "metadata", {})
 git_meta := object.get(metadata, "git", {})
 environment := lower(object.get(metadata, "environment", "dev"))
 execution_mode := lower(object.get(object.get(metadata, "execution", {}), "mode", "ci"))
-input_repo := lower(trim_space(object.get(git_meta, "repository", object.get(git_meta, "repo", object.get(metadata, "repo", "unknown")))))
+input_repo := lower(trim_space(object.get(git_meta, "repo", object.get(git_meta, "repository", object.get(metadata, "repo", "unknown")))))
 input_branch := lower(trim_space(object.get(git_meta, "branch", "unknown")))
 input_commit := lower(trim_space(object.get(git_meta, "commit", "")))
 
