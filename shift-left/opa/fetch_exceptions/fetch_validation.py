@@ -80,7 +80,15 @@ def parse_approved_at(ra: Dict[str, Any]) -> Optional[datetime]:
 
 
 def parse_status(ra: Dict[str, Any]) -> str:
-    return sanitize_text(cf(ra, "status") or ra.get("status")).lower()
+    raw = sanitize_text(cf(ra, "status") or ra.get("status")).lower()
+    aliases = {
+        "approved": "approved",
+        "approve": "approved",
+        "accepted": "approved",
+        "accept": "approved",
+        "a": "approved",
+    }
+    return aliases.get(raw, raw)
 
 
 def is_active_accepted(ra: Dict[str, Any]) -> bool:

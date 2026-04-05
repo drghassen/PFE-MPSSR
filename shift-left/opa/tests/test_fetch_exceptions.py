@@ -142,6 +142,12 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["resource"], "modules/network/main.tf")
         self.assertEqual(ex["severity"], "MEDIUM")
 
+    def test_is_active_accepted_supports_status_alias_a(self):
+        ra = self.base_ra()
+        ra["status"] = "A"
+        ra["is_active"] = True
+        self.assertTrue(fetch_exceptions.is_active_accepted(ra))
+
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
         ra["accepted_findings"] = []

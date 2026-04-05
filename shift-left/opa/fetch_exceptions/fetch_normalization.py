@@ -79,16 +79,21 @@ def _normalize_finding_dict(item: Any) -> Dict[str, Any]:
 def accepted_findings(ra: Dict[str, Any]) -> List[Dict[str, Any]]:
     findings: List[Dict[str, Any]] = []
 
-    raw_findings = ra.get("accepted_findings", [])
-    if isinstance(raw_findings, list):
-        for item in raw_findings:
-            findings.append(_normalize_finding_dict(item))
-
     details = ra.get("accepted_finding_details", [])
     if isinstance(details, list):
         for item in details:
             if isinstance(item, dict):
                 findings.append(item)
+
+    # Prefer enriched finding objects when available. Raw IDs from accepted_findings
+    # are not parseable on their own and create false drop noise.
+    if findings:
+        return findings
+
+    raw_findings = ra.get("accepted_findings", [])
+    if isinstance(raw_findings, list):
+        for item in raw_findings:
+            findings.append(_normalize_finding_dict(item))
 
     return findings
 
