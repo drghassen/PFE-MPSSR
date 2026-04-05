@@ -2,7 +2,7 @@
 # CloudSentinel - GitLab CI/CD
 # Shift-Left scanners are advisory only. OPA is the single ALLOW/DENY gate.
 # ============================================================================
-
+##
 default:
   tags:
     - cloudsentinel
