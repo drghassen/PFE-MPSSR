@@ -1,25 +1,47 @@
 #!/usr/bin/env python3
-"""Exception mapping, output and audit emission logic."""
+"""Normalization orchestration, output emission, and audit trail generation."""
 
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .fetch_utils import now_utc, parse_datetime, safe_str, save_json, to_rfc3339, ensure_dir
-from .fetch_validation import FetchContext, extract_v2_exception, is_active_accepted, legacy_window_open
+from .fetch_normalization import accepted_findings, normalize_finding_candidate, risk_acceptance_id
+from .fetch_utils import ensure_dir, now_utc, sanitize_text, save_json, to_rfc3339
+from .fetch_validation import (
+    FetchContext,
+    parse_approved_at,
+    parse_approved_by,
+    parse_decision,
+    parse_expires_at,
+    parse_requested_by,
+    parse_status,
+    stable_exception_id,
+    validate_normalized_exception,
+)
 
 
-def emit_audit_event(ctx: FetchContext, event_type: str, payload: Dict[str, Any]) -> None:
-    event = {
-        "timestamp": to_rfc3339(now_utc()),
-        "component": "fetch-exceptions",
-        "event_type": event_type,
-        **payload,
-    }
+def emit_audit_event(
+    ctx: FetchContext,
+    input_payload: Any,
+    output_payload: Optional[Dict[str, Any]],
+    status: str,
+    reason: Optional[str] = None,
+) -> None:
     ensure_dir(ctx.audit_log_file)
+    event: Dict[str, Any] = {
+        "timestamp": to_rfc3339(now_utc()),
+        "source": "defectdojo",
+        "action": "normalize_exception",
+        "input": input_payload,
+        "output": output_payload,
+        "status": status,
+    }
+    if reason:
+        event["reason"] = reason
+
     with open(ctx.audit_log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(event, separators=(",", ":")) + "\n")
+        f.write(json.dumps(event, separators=(",", ":"), sort_keys=True) + "\n")
 
 
 def json_payload(ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -28,10 +50,6 @@ def json_payload(ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict
             "exceptions": {
                 "schema_version": ctx.schema_version,
                 "generated_at": to_rfc3339(now_utc()),
-                "legacy_compatibility": {
-                    "enabled": ctx.legacy_compat,
-                    "sunset_date": ctx.legacy_sunset_date,
-                },
                 "metadata": meta,
                 "exceptions": exceptions,
             }
@@ -39,15 +57,15 @@ def json_payload(ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict
     }
 
 
-def drop(ctx: FetchContext, ra: Dict[str, Any], reason: str) -> None:
+def drop(ctx: FetchContext, ra_identifier: str, reason: str, detail: str, input_payload: Any) -> None:
     record = {
-        "id": f"RA-{safe_str(ra.get('id')) or 'unknown'}",
+        "risk_acceptance_id": ra_identifier,
         "reason": reason,
-        "dropped_at": to_rfc3339(now_utc()),
+        "detail": detail,
+        "timestamp": to_rfc3339(now_utc()),
+        "input": input_payload,
     }
     ctx.dropped.append(record)
-    ctx.logger.warning(f"Dropping risk acceptance {record['id']}: {reason}")
-    emit_audit_event(ctx, "exception_dropped", record)
 
 
 def save_outputs(ctx: FetchContext, payload: Dict[str, Any]) -> None:
@@ -55,67 +73,96 @@ def save_outputs(ctx: FetchContext, payload: Dict[str, Any]) -> None:
     save_json(ctx.dropped_file, {"dropped_exceptions": ctx.dropped})
 
 
+def _draft_exception(
+    ctx: FetchContext,
+    ra: Dict[str, Any],
+    finding_candidate: Dict[str, Any],
+) -> Dict[str, Any]:
+    tool = sanitize_text(finding_candidate.get("tool")).lower()
+    rule_id = sanitize_text(finding_candidate.get("rule_id"))
+    resource = sanitize_text(finding_candidate.get("resource"))
+
+    requested_by = parse_requested_by(ra)
+    approved_by = parse_approved_by(ra)
+    decision = parse_decision(ra)
+    approved_at = parse_approved_at(ra)
+    expires_at = parse_expires_at(ra)
+
+    return {
+        "id": stable_exception_id(tool, rule_id, resource) if tool and rule_id and resource else "",
+        "tool": tool,
+        "rule_id": rule_id,
+        "resource": resource,
+        "severity": sanitize_text(finding_candidate.get("severity")).upper(),
+        "requested_by": requested_by,
+        "approved_by": approved_by,
+        "approved_at": to_rfc3339(approved_at) if approved_at else "",
+        "expires_at": to_rfc3339(expires_at) if expires_at else "",
+        "decision": decision,
+        "source": "defectdojo",
+        "status": parse_status(ra) or "",
+    }
+
+
+def _deduplicate_exceptions(exceptions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    by_id: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+
+    for item in exceptions:
+        identifier = sanitize_text(item.get("id"))
+        if not identifier:
+            continue
+        canonical = json.dumps(item, separators=(",", ":"), sort_keys=True)
+        previous = by_id.get(identifier)
+        if previous is None or canonical < previous[0]:
+            by_id[identifier] = (canonical, item)
+
+    ordered_ids = sorted(by_id.keys())
+    return [by_id[item_id][1] for item_id in ordered_ids]
+
+
 def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    mapped: List[Dict[str, Any]] = []
+    accepted: List[Dict[str, Any]] = []
 
     for ra in raw_ras:
-        if not is_active_accepted(ra):
+        ra_identifier = risk_acceptance_id(ra)
+        findings = accepted_findings(ra)
+
+        if not findings:
+            reason = "parsing_error"
+            detail = "no accepted findings available"
+            drop(ctx, ra_identifier, reason, detail, ra)
+            emit_audit_event(ctx, ra, None, "rejected", reason)
             continue
 
-        ex, error = extract_v2_exception(ctx, ra)
-        if ex is None:
-            drop(ctx, ra, error or "unknown mapping error")
-            continue
+        valid_for_ra = 0
+        for finding in findings:
+            finding_dict = finding if isinstance(finding, dict) else {"title": sanitize_text(finding)}
+            candidate = normalize_finding_candidate(ctx, ra, finding_dict)
+            normalized_exception = _draft_exception(ctx, ra, candidate)
 
-        mapped.append(ex)
-        emit_audit_event(
-            ctx,
-            "exception_mapped",
-            {
-                "exception_id": ex["exception_id"],
-                "scanner": ex["scanner"],
-                "scope_type": ex["scope_type"],
-                "break_glass": ex["break_glass"],
-                "expires_at": ex.get("expires_at"),
-            },
-        )
+            is_valid, reason, detail = validate_normalized_exception(ctx, normalized_exception)
+            if not is_valid:
+                reject_reason = reason or "parsing_error"
+                drop(ctx, ra_identifier, reject_reason, detail or "validation failed", finding_dict)
+                emit_audit_event(ctx, finding_dict, normalized_exception, "rejected", reject_reason)
+                continue
 
-    approval_durations: List[float] = []
-    active_break_glass = 0
-    active_by_severity = {sev: 0 for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]}
+            accepted.append(normalized_exception)
+            valid_for_ra += 1
+            emit_audit_event(ctx, finding_dict, normalized_exception, "accepted")
 
-    for ex in mapped:
-        sev = ex.get("severity", "MEDIUM")
-        if sev in active_by_severity:
-            active_by_severity[sev] += 1
-        if ex.get("break_glass", False):
-            active_break_glass += 1
+        if valid_for_ra == 0:
+            reason = "parsing_error"
+            detail = "no valid findings parsed"
+            drop(ctx, ra_identifier, reason, detail, ra)
 
-        approved_at = parse_datetime(safe_str(ex.get("approved_at")))
-        created_at = parse_datetime(safe_str(ex.get("created_at")))
-        if approved_at and created_at and approved_at >= created_at:
-            approval_durations.append((approved_at - created_at).total_seconds() / 3600.0)
-
-    avg_approval_hours = round(sum(approval_durations) / len(approval_durations), 2) if approval_durations else 0.0
+    deduplicated = _deduplicate_exceptions(accepted)
 
     meta = {
         "source": "defectdojo",
-        "repo": ctx.ci_project_path,
-        "branch": ctx.ci_commit_ref_name,
-        "legacy_mode": ctx.legacy_compat and legacy_window_open(ctx),
-        "legacy_sunset": ctx.legacy_sunset_date,
-        "total_raw": len(raw_ras),
-        "total_mapped": len(mapped),
+        "total_raw_risk_acceptances": len(raw_ras),
+        "total_valid_exceptions": len(deduplicated),
         "total_dropped": len(ctx.dropped),
-        "governance_metrics": {
-            "active_by_severity": active_by_severity,
-            "active_break_glass": active_break_glass,
-            "expired_dropped": len([d for d in ctx.dropped if "expired" in d.get("reason", "")]),
-            "avg_approval_time_hours": avg_approval_hours,
-        },
     }
 
-    if ctx.legacy_compat and not legacy_window_open(ctx):
-        ctx.logger.warning("Legacy compatibility window is closed by sunset date")
-
-    return mapped, meta
+    return deduplicated, meta

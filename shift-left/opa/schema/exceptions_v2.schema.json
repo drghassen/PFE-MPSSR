@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CloudSentinel Enterprise Exceptions v2",
+  "title": "CloudSentinel Exceptions v2 (DefectDojo Compatible)",
   "type": "object",
   "additionalProperties": false,
   "required": ["cloudsentinel"],
@@ -23,20 +23,6 @@
               "type": "string",
               "format": "date-time"
             },
-            "legacy_compatibility": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["enabled", "sunset_date"],
-              "properties": {
-                "enabled": {
-                  "type": "boolean"
-                },
-                "sunset_date": {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              }
-            },
             "metadata": {
               "type": "object"
             },
@@ -56,120 +42,67 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "exception_id",
-        "enabled",
-        "status",
-        "scanner",
+        "id",
+        "tool",
         "rule_id",
-        "resource_id",
-        "repo",
-        "branch_scope",
-        "scope_type",
+        "resource",
         "severity",
-        "break_glass",
-        "approved_by_role",
         "requested_by",
         "approved_by",
         "approved_at",
-        "justification",
-        "created_at",
-        "schema_version"
+        "expires_at",
+        "decision",
+        "source",
+        "status"
       ],
       "properties": {
-        "exception_id": {
+        "id": {
           "type": "string",
-          "pattern": "^[0-9a-fA-F-]{36}$"
+          "pattern": "^[a-f0-9]{64}$"
         },
-        "enabled": {
-          "type": "boolean"
-        },
-        "status": {
+        "tool": {
           "type": "string",
-          "enum": ["APPROVED"]
-        },
-        "source_system": {
-          "type": "string"
-        },
-        "source_id": {
-          "type": "string"
-        },
-        "scanner": {
-          "type": "string",
-          "enum": ["gitleaks", "checkov", "trivy"]
+          "enum": ["checkov", "trivy", "gitleaks"]
         },
         "rule_id": {
           "type": "string",
           "minLength": 1
         },
-        "resource_id": {
+        "resource": {
           "type": "string",
           "minLength": 1
-        },
-        "fingerprint": {
-          "type": "string"
-        },
-        "resource_hash": {
-          "type": "string"
-        },
-        "repo": {
-          "type": "string",
-          "minLength": 1
-        },
-        "branch_scope": {
-          "type": "string",
-          "minLength": 1
-        },
-        "scope_type": {
-          "type": "string",
-          "enum": ["commit", "branch", "repo", "global"]
         },
         "severity": {
           "type": "string",
-          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
-        },
-        "break_glass": {
-          "type": "boolean"
-        },
-        "incident_id": {
-          "type": "string"
-        },
-        "approved_by_role": {
-          "type": "string"
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
         },
         "requested_by": {
           "type": "string",
-          "format": "email"
+          "minLength": 1
         },
         "approved_by": {
           "type": "string",
-          "format": "email"
-        },
-        "justification": {
-          "type": "string",
           "minLength": 1
-        },
-        "expires_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "created_at": {
-          "type": "string",
-          "format": "date-time"
         },
         "approved_at": {
           "type": "string",
           "format": "date-time"
         },
-        "accepted_finding_ids": {
-          "type": "array",
-          "items": {"type": ["integer", "string"]}
-        },
-        "commit_sha": {
-          "type": "string"
-        },
-        "schema_version": {
+        "expires_at": {
           "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+          "format": "date-time"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["accept", "mitigate", "fix", "transfer", "avoid"]
+        },
+        "source": {
+          "type": "string",
+          "const": "defectdojo"
+        },
+        "status": {
+          "type": "string",
+          "const": "approved"
         }
       }
     }
