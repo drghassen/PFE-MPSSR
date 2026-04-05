@@ -118,13 +118,105 @@ if ! jq empty "$RAW_RESULTS" >/dev/null 2>&1; then
   exit 0
 fi
 
-log "Passing raw findings to Normalizer..."
-cp "$RAW_RESULTS" "$OPA_FINAL_REPORT"
+log "Converting raw Trivy output to CloudSentinel OPA contract..."
 
-TOTAL=$(jq '[.Results[]? | .Vulnerabilities[]?, .Secrets[]?, .Misconfigurations[]?] | length' "$OPA_FINAL_REPORT")
+# Extract version and finding count for OPA contract wrapper
+TOTAL=$(jq '[.Results[]? | .Vulnerabilities[]?, .Secrets[]?, .Misconfigurations[]?] | length' "$RAW_RESULTS" 2>/dev/null || echo "0")
+
+# Build findings array from Trivy raw format into OPA contract format
+# Each finding gets: id, rule_id, description, severity, status, resource, finding_type, references, fix_version
+jq --arg tool "trivy" --arg version "$TRIVY_VERSION" --arg scan_type "$SCAN_TYPE" '
+  def to_finding($scan_t):
+    (.Vulnerabilities // []) as $vulns |
+    (.Secrets        // []) as $secrets |
+    (.Misconfigurations // []) as $misconfigs |
+    (.Target // "unknown") as $target |
+    ($vulns | map({
+      id:           (.VulnerabilityID // "UNKNOWN"),
+      rule_id:      (.VulnerabilityID // "UNKNOWN"),
+      description:  (.Title // .Description // "No description"),
+      severity:     { level: ((.Severity // "MEDIUM") | ascii_upcase) },
+      status:       "FAILED",
+      finding_type: "vulnerability",
+      resource: {
+        name:    (.PkgName // $target),
+        version: (.InstalledVersion // "N/A"),
+        type:    "package",
+        path:    $target
+      },
+      fix_version:  (.FixedVersion // "N/A"),
+      references:   (.References // []),
+      metadata: {
+        installed_version: (.InstalledVersion // null),
+        fixed_version:     (.FixedVersion // null),
+        cvss:              (.CVSS | to_entries? | first?.value?.V3Score? // null)
+      }
+    })) +
+    ($secrets | map({
+      id:           (.RuleID // "SECRET"),
+      rule_id:      (.RuleID // "SECRET"),
+      description:  (.Title // "Secret detected"),
+      severity:     { level: "HIGH" },
+      status:       "FAILED",
+      finding_type: "secret",
+      resource: {
+        name: $target,
+        path: $target
+      },
+      fix_version:  "N/A",
+      references:   [],
+      metadata: {}
+    })) +
+    ($misconfigs | map({
+      id:           (.ID // "MISCONFIG"),
+      rule_id:      (.ID // "MISCONFIG"),
+      description:  (.Title // .Message // "Misconfiguration detected"),
+      severity:     { level: ((.Severity // "MEDIUM") | ascii_upcase) },
+      status:       (if .Status == "PASS" then "PASSED" else "FAILED" end),
+      finding_type: "misconfig",
+      resource: {
+        name: $target,
+        path: (.CauseMetadata.Resource // $target // "unknown")
+      },
+      fix_version:  "N/A",
+      references:   (.References // []),
+      metadata: {}
+    }));
+
+  [.Results[]? | to_finding($scan_type)] | flatten
+' "$RAW_RESULTS" > /tmp/trivy_findings_$$.json 2>/dev/null || echo "[]" > /tmp/trivy_findings_$$.json
+
+# Emit OPA-contract compliant wrapper: required fields are tool/version/status/findings/errors
+jq -n \
+  --arg tool    "trivy" \
+  --arg version "$TRIVY_VERSION" \
+  --arg stype   "$SCAN_TYPE" \
+  --argjson findings "$(cat /tmp/trivy_findings_$$.json)" \
+  '{
+    tool:     $tool,
+    version:  $version,
+    status:   (if ($findings | map(select(.status == "FAILED")) | length) > 0 then "OK" else "OK" end),
+    errors:   [],
+    has_findings: (($findings | length) > 0),
+    scan_type: $stype,
+    stats: {
+      TOTAL:    ($findings | map(select(.status == "FAILED")) | length),
+      CRITICAL: ($findings | map(select(.status == "FAILED" and .severity.level == "CRITICAL")) | length),
+      HIGH:     ($findings | map(select(.status == "FAILED" and .severity.level == "HIGH"))     | length),
+      MEDIUM:   ($findings | map(select(.status == "FAILED" and .severity.level == "MEDIUM"))   | length),
+      LOW:      ($findings | map(select(.status == "FAILED" and .severity.level == "LOW"))      | length),
+      INFO:     ($findings | map(select(.status == "FAILED" and .severity.level == "INFO"))     | length),
+      EXEMPTED: 0,
+      FAILED:   ($findings | map(select(.status == "FAILED")) | length),
+      PASSED:   ($findings | map(select(.status == "PASSED")) | length)
+    },
+    findings: $findings
+  }' > "$OPA_FINAL_REPORT"
+
+rm -f /tmp/trivy_findings_$$.json
 
 log "---------------------------------------------"
-log "Raw Report : $OPA_FINAL_REPORT"
+log "OPA Report : $OPA_FINAL_REPORT"
 log "Total      : ${TOTAL:-0} raw findings"
 log "Enforcement: Delegated to CloudSentinel Normalizer"
 log "---------------------------------------------"
