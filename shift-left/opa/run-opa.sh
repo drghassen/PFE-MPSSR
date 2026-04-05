@@ -56,6 +56,15 @@ if [[ -n "${CI:-}" ]]; then
   EXCEPTIONS_FILE="${OUTPUT_DIR}/exceptions.json"
 else
   EXCEPTIONS_FILE="${OPA_EXCEPTIONS_FILE:-${OUTPUT_DIR}/exceptions.json}"
+  # Bootstrap empty exceptions file for local/advisory mode.
+  # In CI, this file is populated by fetch-exceptions.py from DefectDojo.
+  # Locally, a valid empty structure is the correct safe default.
+  if [[ ! -f "$EXCEPTIONS_FILE" ]]; then
+    mkdir -p "$(dirname "$EXCEPTIONS_FILE")"
+    printf '{"exceptions":[],"schema_version":"1.0","legacy_compatibility":{"enabled":false,"sunset_date":"2099-12-31T23:59:59Z"}}\n' \
+      > "$EXCEPTIONS_FILE"
+    log_warn "exceptions.json not found locally — bootstrapped empty file at ${EXCEPTIONS_FILE}"
+  fi
 fi
 
 DECISION_FILE="${OPA_DECISION_FILE:-${OUTPUT_DIR}/opa_decision.json}"

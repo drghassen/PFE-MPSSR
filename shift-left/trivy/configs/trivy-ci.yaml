@@ -48,8 +48,9 @@ secret:
 # OPA is the enforcement layer — Trivy always exits 0
 exit-code: 0
 
-# CVE allowlist managed by security team with expiry dates
-ignorefile: .trivyignore
+# CVE allowlist: .trivyignore is DISABLED in CI.
+# Exception management in CI is enforced exclusively via OPA + DefectDojo.
+# Do NOT add ignorefile here — it causes a FATAL when the path cannot be resolved.
 
 # Always show whether a fix is available
 show-suppressed: false
