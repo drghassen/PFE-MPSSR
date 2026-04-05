@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-test -f .cloudsentinel/gitleaks_opa.json
-test -f .cloudsentinel/checkov_opa.json
-test -f .cloudsentinel/trivy_opa.json
+test -f .cloudsentinel/gitleaks_raw.json
+test -f .cloudsentinel/checkov_raw.json
+test -f shift-left/trivy/reports/raw/trivy-fs-raw.json
+test -f shift-left/trivy/reports/raw/trivy-config-raw.json
+test -f shift-left/trivy/reports/raw/trivy-image-raw.json
 test -f .cloudsentinel/golden_report.json
 test -f .cloudsentinel/exceptions.json
-python3 ci/libs/cloudsentinel_contracts.py validate-scanner-contract \
-  --report .cloudsentinel/gitleaks_opa.json \
-  --report .cloudsentinel/checkov_opa.json \
-  --report .cloudsentinel/trivy_opa.json
+
+jq -e 'type=="array"' .cloudsentinel/gitleaks_raw.json >/dev/null
+jq -e 'type=="object" and (.results | type=="object")' .cloudsentinel/checkov_raw.json >/dev/null
+jq -e 'type=="object"' shift-left/trivy/reports/raw/trivy-fs-raw.json >/dev/null
+jq -e 'type=="object"' shift-left/trivy/reports/raw/trivy-config-raw.json >/dev/null
+jq -e 'type=="object"' shift-left/trivy/reports/raw/trivy-image-raw.json >/dev/null
 
 python3 ci/libs/cloudsentinel_contracts.py validate-schema \
   --document .cloudsentinel/golden_report.json \

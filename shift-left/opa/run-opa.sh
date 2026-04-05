@@ -61,9 +61,9 @@ else
   # Locally, a valid empty structure is the correct safe default.
   if [[ ! -f "$EXCEPTIONS_FILE" ]]; then
     mkdir -p "$(dirname "$EXCEPTIONS_FILE")"
-    printf '{"exceptions":[],"schema_version":"1.0","legacy_compatibility":{"enabled":false,"sunset_date":"2099-12-31T23:59:59Z"}}\n' \
+    printf '{"cloudsentinel":{"exceptions":{"schema_version":"2.0.0","generated_at":"2099-01-01T00:00:00Z","legacy_compatibility":{"enabled":false,"sunset_date":"2099-12-31T23:59:59Z"},"metadata":{"source":"local-bootstrap","total_raw":0,"total_mapped":0,"total_dropped":0},"exceptions":[]}}}\n' \
       > "$EXCEPTIONS_FILE"
-    log_warn "exceptions.json not found locally — bootstrapped empty file at ${EXCEPTIONS_FILE}"
+    echo -e "${YELLOW}[OPA]${NC} ${BOLD}WARN${NC}  exceptions.json not found locally - bootstrapped empty file at ${EXCEPTIONS_FILE}" >&2
   fi
 fi
 

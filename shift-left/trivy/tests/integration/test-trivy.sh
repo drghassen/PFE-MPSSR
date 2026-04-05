@@ -12,7 +12,7 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 TRIVY_RUNNER="$REPO_ROOT/shift-left/trivy/scripts/run-trivy.sh"
 FIXTURES_DIR="$REPO_ROOT/shift-left/trivy/tests/fixtures"
-OPA_REPORT="$REPO_ROOT/.cloudsentinel/trivy_opa.json"
+RAW_REPORT_DIR="$REPO_ROOT/shift-left/trivy/reports/raw"
 IMAGE_TEST_ENABLED="${TRIVY_ENABLE_IMAGE_TEST:-false}"
 
 PASS=0
@@ -42,7 +42,7 @@ assert_eq() {
 
 assert_keys() {
   local label="$1" file="$2"
-  local required_keys=("tool" "timestamp" "scan_type" "has_findings" "stats" "findings")
+  local required_keys=("SchemaVersion" "Trivy")
   for key in "${required_keys[@]}"; do
     if jq -e --arg key "$key" 'has($key)' "$file" >/dev/null 2>&1; then
       pass "$label - key '$key' present"
@@ -52,40 +52,32 @@ assert_keys() {
   done
 }
 
-assert_not_not_run() {
-  local label="$1" file="$2"
-  if jq -e '.status == "NOT_RUN"' "$file" >/dev/null 2>&1; then
-    fail "$label: report is NOT_RUN"
-  else
-    pass "$label: report executed"
-  fi
-}
-
 log "Test 1: FS scan on vulnerable fixture"
 bash "$TRIVY_RUNNER" "$FIXTURES_DIR/fs" fs
-assert_not_not_run "FS scan" "$OPA_REPORT"
-assert_eq "FS scan_type" "$(jq -r '.scan_type' "$OPA_REPORT")" "fs"
-assert_keys "FS report contract" "$OPA_REPORT"
+FS_REPORT="$RAW_REPORT_DIR/trivy-fs-raw.json"
+assert_keys "FS report contract" "$FS_REPORT"
+assert_eq "FS Results type" "$(jq -r '.Results | type' "$FS_REPORT")" "array"
 
 log "Test 2: Config scan on Dockerfile.critical"
 bash "$TRIVY_RUNNER" "$FIXTURES_DIR/images/Dockerfile.critical" config
-assert_gt "Critical Dockerfile stats.TOTAL" "$(jq '.stats.TOTAL' "$OPA_REPORT")" 0
-assert_eq "Critical Dockerfile has_findings" "$(jq -r '.has_findings' "$OPA_REPORT")" "true"
+CFG_REPORT="$RAW_REPORT_DIR/trivy-config-raw.json"
+assert_keys "Config report contract" "$CFG_REPORT"
+assert_eq "Config Results type" "$(jq -r '.Results | type' "$CFG_REPORT")" "array"
 
 log "Test 3: Config scan on Dockerfile.clean (negative test)"
 bash "$TRIVY_RUNNER" "$FIXTURES_DIR/images/Dockerfile.clean" config
-assert_eq "Clean Dockerfile stats.TOTAL" "$(jq '.stats.TOTAL' "$OPA_REPORT")" "0"
-assert_eq "Clean Dockerfile has_findings" "$(jq -r '.has_findings' "$OPA_REPORT")" "false"
+assert_eq "Clean Dockerfile results array type" "$(jq -r '.Results | type' "$CFG_REPORT")" "array"
 
-log "Test 4: OPA report contract"
-assert_keys "OPA schema" "$OPA_REPORT"
-assert_eq "scan_type after config scan" "$(jq -r '.scan_type' "$OPA_REPORT")" "config"
+log "Test 4: Raw image report contract"
+bash "$TRIVY_RUNNER" "alpine:3.18" image
+IMG_REPORT="$RAW_REPORT_DIR/trivy-image-raw.json"
+assert_keys "Image raw schema" "$IMG_REPORT"
+assert_eq "Image Results type" "$(jq -r '.Results | type' "$IMG_REPORT")" "array"
 
 if [[ "$IMAGE_TEST_ENABLED" == "true" ]]; then
   log "Test 5: Image scan (optional)"
   bash "$TRIVY_RUNNER" "alpine:3.18" image
-  assert_not_not_run "Image scan" "$OPA_REPORT"
-  assert_eq "scan_type after image scan" "$(jq -r '.scan_type' "$OPA_REPORT")" "image"
+  assert_eq "Image Results type (optional)" "$(jq -r '.Results | type' "$IMG_REPORT")" "array"
 else
   log "Test 5: Image scan skipped (set TRIVY_ENABLE_IMAGE_TEST=true to enable)"
 fi

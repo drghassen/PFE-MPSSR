@@ -59,8 +59,10 @@
         "git": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["branch", "commit", "commit_date", "author_email", "pipeline_id"],
+          "required": ["repo", "repository", "branch", "commit", "commit_date", "author_email", "pipeline_id"],
           "properties": {
+            "repo": { "type": "string" },
+            "repository": { "type": "string" },
             "branch": { "type": "string" },
             "commit": { "type": "string" },
             "commit_date": { "type": "string", "format": "date-time" },
