@@ -13,10 +13,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_DIR="$BASE_DIR/configs"
 REPORT_DIR="$BASE_DIR/reports/raw"
+SCAN_MODE="${SCAN_MODE:-local}"
+[[ -n "${CI:-}" ]] && SCAN_MODE="ci"
+
 IGNORE_FILE="$BASE_DIR/.trivyignore"
 IGNORE_ARGS=()
 if [[ -f "$IGNORE_FILE" ]]; then
-  IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+  if [[ "$SCAN_MODE" == "ci" ]]; then
+    echo -e "\033[1;33m[CloudSentinel][Trivy][WARN]\033[0m .trivyignore is IGNORED in CI mode. Use DefectDojo/OPA for exceptions." >&2
+  else
+    IGNORE_ARGS=(--ignorefile "$IGNORE_FILE")
+  fi
 fi
 
 log()  { echo -e "\033[1;34m[CloudSentinel][Trivy][CONFIG]\033[0m $*"; }
@@ -36,9 +43,7 @@ else
   exit 1
 fi
 
-# Detect CI mode
-SCAN_MODE="${SCAN_MODE:-local}"
-[[ -n "${CI:-}" ]] && SCAN_MODE="ci"
+# SCAN_MODE already detected above
 
 CONFIG_FILE="$CONFIG_DIR/trivy.yaml"
 [[ "$SCAN_MODE" == "ci" ]] && CONFIG_FILE="$CONFIG_DIR/trivy-ci.yaml"
