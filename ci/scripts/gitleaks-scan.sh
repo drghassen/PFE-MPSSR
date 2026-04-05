@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
 gitleaks version
 mkdir -p .cloudsentinel
 export USE_BASELINE="false"

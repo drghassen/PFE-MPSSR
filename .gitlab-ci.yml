@@ -38,7 +38,7 @@ stages:
   - contract
   - decide
   - report
-  # - deploy
+  - deploy
 
 .default_tools: &default_tools
   image: "${SCAN_TOOLS_IMAGE}"
@@ -237,7 +237,7 @@ upload-to-defectdojo:
     paths:
       - .cloudsentinel/dojo-responses/
   when: always
-  allow_failure: true
+  allow_failure: false
 
 deploy-infrastructure:
   image: "${DEPLOY_TOOLS_IMAGE}"
@@ -246,7 +246,6 @@ deploy-infrastructure:
   needs:
     - job: opa-decision
       artifacts: true
-    - job: upload-to-defectdojo
   script:
     - bash ci/scripts/deploy-infrastructure.sh
   artifacts:

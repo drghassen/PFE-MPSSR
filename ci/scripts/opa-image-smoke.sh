@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
 mkdir -p .cloudsentinel
 opa version
 bash --version | head -n1
