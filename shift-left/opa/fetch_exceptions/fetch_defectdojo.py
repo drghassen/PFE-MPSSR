@@ -34,6 +34,37 @@ def _fetch_json(url: str, headers: Dict[str, str], timeout: int, logger: Logger)
     return body
 
 
+def _resolve_user_identity(
+    dojo_url: str,
+    headers: Dict[str, str],
+    raw_value: Any,
+    user_cache: Dict[str, str],
+    logger: Logger,
+) -> str:
+    if isinstance(raw_value, dict):
+        candidate = sanitize_text(raw_value.get("username") or raw_value.get("email"))
+        return candidate
+
+    token = sanitize_text(raw_value)
+    if not token:
+        return ""
+    if not token.isdigit():
+        return token
+
+    if token in user_cache:
+        return user_cache[token]
+
+    endpoint = f"{dojo_url}/api/v2/users/{token}/"
+    try:
+        user_payload = _fetch_json(endpoint, headers, 10, logger)
+    except DefectDojoFetchError:
+        return token
+
+    resolved = sanitize_text(user_payload.get("username") or user_payload.get("email") or token)
+    user_cache[token] = resolved
+    return resolved
+
+
 def _extract_finding_id(item: Any) -> str:
     if isinstance(item, int):
         return str(item)
@@ -52,8 +83,18 @@ def _enrich_with_accepted_findings(
     logger: Logger,
 ) -> None:
     finding_cache: Dict[str, Dict[str, Any]] = {}
+    user_cache: Dict[str, str] = {}
 
     for ra in risk_acceptances:
+        ra["owner"] = _resolve_user_identity(dojo_url, headers, ra.get("owner"), user_cache, logger)
+        ra["accepted_by"] = _resolve_user_identity(
+            dojo_url,
+            headers,
+            ra.get("accepted_by"),
+            user_cache,
+            logger,
+        )
+
         raw_findings = ra.get("accepted_findings", [])
         if not isinstance(raw_findings, list) or not raw_findings:
             continue

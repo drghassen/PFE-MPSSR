@@ -135,14 +135,19 @@ def normalize_decision(value: Any) -> str:
     aliases = {
         "accept": "accept",
         "accepted": "accept",
+        "a": "accept",
         "mitigate": "mitigate",
         "mitigation": "mitigate",
+        "m": "mitigate",
         "fix": "fix",
         "fixed": "fix",
         "remediate": "fix",
         "remediation": "fix",
+        "f": "fix",
         "transfer": "transfer",
+        "t": "transfer",
         "avoid": "avoid",
+        "v": "avoid",
     }
     return aliases.get(raw, "")
 

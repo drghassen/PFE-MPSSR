@@ -98,7 +98,22 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
     if explicit:
         return explicit
     texts = _finding_texts(ra, finding)
-    return parse_tool_from_text(*texts)
+    by_text = parse_tool_from_text(*texts)
+    if by_text:
+        return by_text
+
+    inferred_rule = extract_rule_id(
+        finding.get("vuln_id_from_tool"),
+        finding.get("title"),
+        finding.get("name"),
+        finding.get("description"),
+        ra.get("name"),
+    ).upper()
+    if inferred_rule.startswith("CKV"):
+        return "checkov"
+    if inferred_rule.startswith("CVE-"):
+        return "trivy"
+    return ""
 
 
 def _severity_from_finding(ctx: FetchContext, ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
@@ -112,6 +127,7 @@ def _rule_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         finding.get("title"),
         finding.get("name"),
         finding.get("test_title"),
+        finding.get("description"),
         ra.get("name"),
     )
     if explicit:

@@ -118,8 +118,17 @@ def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
     if not findings:
         return None, "no accepted findings available"
 
-    first_finding = findings[0] if isinstance(findings[0], dict) else {"title": sanitize_text(findings[0])}
-    candidate = normalize_finding_candidate(CTX, ra, first_finding)
+    def _finding_richness(item: Any) -> int:
+        if not isinstance(item, dict):
+            return 0
+        keys = ["title", "name", "description", "severity", "file_path", "path", "component_name"]
+        return sum(1 for key in keys if sanitize_text(item.get(key)))
+
+    best_finding = max(
+        [item if isinstance(item, dict) else {"title": sanitize_text(item)} for item in findings],
+        key=_finding_richness,
+    )
+    candidate = normalize_finding_candidate(CTX, ra, best_finding)
     normalized = _draft_exception(ra, candidate)
 
     is_valid, reason, detail = validate_normalized_exception(CTX, normalized)

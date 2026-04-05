@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .fetch_utils import (
     cf,
+    first_non_empty,
     has_wildcard,
     normalize_decision,
     normalize_severity,
@@ -55,7 +56,12 @@ def parse_approved_by(ra: Dict[str, Any]) -> str:
 
 
 def parse_decision(ra: Dict[str, Any]) -> str:
-    return normalize_decision(cf(ra, "decision") or ra.get("decision"))
+    raw = first_non_empty(
+        cf(ra, "decision", "recommendation"),
+        ra.get("decision"),
+        ra.get("recommendation"),
+    )
+    return normalize_decision(raw)
 
 
 def parse_expires_at(ra: Dict[str, Any]) -> Optional[datetime]:
