@@ -39,9 +39,13 @@ class CloudSentinelNormalizer:
 
         self.schema_strict = os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT", "false").lower() == "true"
 
-        # Gate thresholds are controlled via strictly protected CI/CD variables
-        self.critical_max = self._parse_int(os.environ.get("CRITICAL_MAX"), 0)
-        self.high_max = self._parse_int(os.environ.get("HIGH_MAX"), 2)
+        # In CI, enforce fixed gate thresholds to prevent bypass via CI variable overrides.
+        if os.environ.get("CI"):
+            self.critical_max = 0
+            self.high_max = 2
+        else:
+            self.critical_max = self._parse_int(os.environ.get("CRITICAL_MAX"), 0)
+            self.high_max = self._parse_int(os.environ.get("HIGH_MAX"), 2)
 
         self.timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         self.git_branch = self._run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], "unknown")
@@ -50,7 +54,6 @@ class CloudSentinelNormalizer:
         self.git_author_email = self._run_cmd(
             ["git", "log", "-1", "--format=%ae"], "unknown@example.invalid"
         )
-        self.git_repository = self._resolve_repository()
         self.pipeline_id = os.environ.get("CI_PIPELINE_ID", "local")
 
         self.severity_lut = {
@@ -89,21 +92,6 @@ class CloudSentinelNormalizer:
             return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL).strip()
         except Exception:
             return fallback
-
-    def _resolve_repository(self):
-        ci_repo = os.environ.get("CI_PROJECT_PATH")
-        if ci_repo:
-            return ci_repo
-
-        remote_url = self._run_cmd(["git", "remote", "get-url", "origin"], "")
-        if remote_url.endswith(".git"):
-            remote_url = remote_url[:-4]
-        if remote_url.startswith("git@"):
-            _, _, path = remote_url.partition(":")
-            return path or "unknown"
-        if "://" in remote_url:
-            return remote_url.rstrip("/").rsplit("/", 2)[-2] + "/" + remote_url.rstrip("/").rsplit("/", 1)[-1]
-        return "unknown"
 
     def hash_file(self, filepath):
         if not os.path.isfile(filepath):
@@ -474,7 +462,6 @@ class CloudSentinelNormalizer:
                 "environment": self.env.lower(),
                 "execution": {"mode": self.exec_mode},
                 "git": {
-                    "repository": self.git_repository,
                     "branch": self.git_branch,
                     "commit": self.git_commit,
                     "commit_date": self.git_commit_date,

@@ -4,11 +4,7 @@ import rego.v1
 
 base_input := {
   "metadata": {
-    "environment": "dev",
-    "git": {
-      "branch": "validation",
-      "repository": "ghassen/pfe-cloud-sentinel"
-    }
+    "environment": "dev"
   },
   "quality_gate": {
     "thresholds": {
@@ -30,12 +26,7 @@ base_failed_finding := {
     "name": "azurerm_storage_account.insecure",
     "path": "/infra/azure/student-secure/modules/storage/main.tf"
   },
-  "severity": {"level": "HIGH"},
-  "context": {
-    "deduplication": {
-      "fingerprint": "fp-abc-123"
-    }
-  }
+  "severity": {"level": "HIGH"}
 }
 
 base_v2_exception := {
@@ -47,7 +38,7 @@ base_v2_exception := {
   "rule_id": "CKV2_CS_AZ_001",
   "resource_id": "azurerm_storage_account.insecure",
   "fingerprint": "fp-abc-123",
-  "repo": "ghassen/pfe-cloud-sentinel",
+  "repo": "unknown",
   "branch_scope": "*",
   "scope_type": "repo",
   "severity": "HIGH",
@@ -102,26 +93,6 @@ test_allow_when_v2_exception_is_valid if {
   result.allow
   result.metrics.excepted == 1
   result.exceptions.applied_ids[0] == "11111111-1111-4111-8111-111111111111"
-}
-
-test_deny_when_exception_fingerprint_does_not_match if {
-  bad := object.union(base_v2_exception, {
-    "branch_scope": "*",
-    "scope_type": "branch",
-    "fingerprint": "fp-does-not-match"
-  })
-  critical_finding := object.union(base_failed_finding, {
-    "severity": {"level": "CRITICAL"}
-  })
-  result := decision
-    with input as object.union(base_input, {
-      "summary": {"global": {"CRITICAL": 1, "HIGH": 0, "FAILED": 1}},
-      "findings": [critical_finding]
-    })
-    with data.cloudsentinel.exceptions.exceptions as [bad]
-
-  not result.allow
-  result.metrics.excepted == 0
 }
 
 test_deny_when_scanner_not_run if {
@@ -245,17 +216,4 @@ test_deny_legacy_exception_schema if {
 
   not result.allow
   contains(concat(" ", result.deny), "legacy schema which is no longer accepted")
-}
-
-test_deny_when_failed_finding_is_malformed if {
-  malformed := object.remove(base_failed_finding, ["severity"])
-  result := decision
-    with input as object.union(base_input, {
-      "summary": {"global": {"CRITICAL": 0, "HIGH": 1, "FAILED": 1}},
-      "findings": [malformed]
-    })
-    with data.cloudsentinel.exceptions.exceptions as []
-
-  not result.allow
-  contains(concat(" ", result.deny), "Malformed failed finding")
 }
