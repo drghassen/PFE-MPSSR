@@ -9,6 +9,8 @@ default:
     - docker
 
 variables:
+  GIT_STRATEGY: clone
+  GIT_DEPTH: "0"
   SCAN_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
   DEPLOY_TOOLS_IMAGE: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
   TOFU_VERSION: "1.8.8"
@@ -29,7 +31,7 @@ variables:
   HIGH_MAX: "2"
   RETRY_GUARD_MAX_RETRIES: "3"
   RETRY_GUARD_MIN_INTERVAL_SEC: "120"
-  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin"
+  APPSEC_ALLOWED_USERS: "appsec-bot,appsec-admin,drghassen"
 
 stages:
   - guard
