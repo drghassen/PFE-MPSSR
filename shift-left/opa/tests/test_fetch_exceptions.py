@@ -15,148 +15,88 @@ def rfc3339(dt: datetime) -> str:
 
 
 class FetchExceptionsMappingTests(unittest.TestCase):
+    def setUp(self):
+        fetch_exceptions.DROPPED.clear()
+
     def base_ra(self):
         now = datetime.now(timezone.utc)
         return {
             "id": 101,
-            "name": "CKV2_CS_AZ_001",
-            "owner": "dev@example.com",
-            "approver": "security@example.com",
-            "created": rfc3339(now - timedelta(days=2)),
-            "accepted_date": rfc3339(now - timedelta(days=1)),
+            "name": "Accept CKV2_CS_AZ_001",
+            "owner": "Dev-Team",
+            "accepted_by": "Security-Team",
+            "decision": "Accept",
+            "created": rfc3339(now - timedelta(days=1)),
             "expiration_date": (now + timedelta(days=10)).strftime("%Y-%m-%d"),
-            "description": "Temporary exception with compensating control",
+            "status": "approved",
             "is_active": True,
-            "status": "APPROVED",
-            "custom_fields": {
-                "scanner": "checkov",
-                "resource_id": "azurerm_storage_account.insecure",
-                "fingerprint": "fp-abc-123",
-                "repo": "cloud-infra",
-                "scope_type": "repo",
-                "branch_scope": "main",
-                "severity": "HIGH",
-                "approved_by_role": "APPSEC_L3",
-                "requested_by": "dev@example.com",
-                "approved_by": "security@example.com",
-                "status": "APPROVED",
-                "approved_at": rfc3339(now - timedelta(days=1)),
-            },
+            "accepted_findings": [
+                "[HIGH] CKV2_CS_AZ_001 /infra/azure/storage/main.tf (Checkov Scan)"
+            ],
+            "notes": "temporary risk acceptance",
         }
 
-    def test_extract_v2_exception_has_required_enterprise_fields(self):
+    def test_extract_v2_exception_has_required_strict_fields(self):
         ra = self.base_ra()
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
         self.assertIsNone(error)
         self.assertIsNotNone(ex)
-        self.assertRegex(ex["exception_id"], r"^[0-9a-f-]{36}$")
-        self.assertEqual(ex["scanner"], "checkov")
+        self.assertRegex(ex["id"], r"^[a-f0-9]{64}$")
+        self.assertEqual(ex["tool"], "checkov")
         self.assertEqual(ex["rule_id"], "CKV2_CS_AZ_001")
-        self.assertEqual(ex["resource_id"], "azurerm_storage_account.insecure")
-        self.assertEqual(ex["fingerprint"], "fp-abc-123")
-        self.assertEqual(ex["scope_type"], "repo")
-        self.assertEqual(ex["approved_by_role"], "APPSEC_L3")
+        self.assertEqual(ex["resource"], "infra/azure/storage/main.tf")
         self.assertEqual(ex["severity"], "HIGH")
-        self.assertEqual(ex["status"], "APPROVED")
-        self.assertTrue(ex["approved_at"].endswith("Z"))
+        self.assertEqual(ex["decision"], "accept")
+        self.assertEqual(ex["requested_by"], "dev-team")
+        self.assertEqual(ex["approved_by"], "security-team")
+        self.assertEqual(ex["source"], "defectdojo")
+        self.assertEqual(ex["status"], "approved")
 
-    def test_extract_v2_exception_rejects_missing_fingerprint(self):
+    def test_extract_v2_exception_rejects_four_eyes_violation(self):
         ra = self.base_ra()
-        ra["custom_fields"].pop("fingerprint")
-        ex, error = fetch_exceptions.extract_v2_exception(ra)
-
-        self.assertIsNone(ex)
-        self.assertIn("missing fingerprint/resource_hash", error)
-
-    def test_extract_v2_exception_uses_recommendation_details_fingerprint_fallback(self):
-        ra = self.base_ra()
-        ra["custom_fields"] = {
-            "requested_by": "dev@example.com",
-            "approved_by": "security@example.com",
-            "approved_by_role": "APPSEC_L3",
-            "status": "APPROVED",
-            "approved_at": ra["accepted_date"],
-        }
-        ra["name"] = "CKV2_CS_AZ_021"
-        ra["path"] = "azurerm_network_security_rule.rdp_any_allow"
-        ra["recommendation_details"] = (
-            "Q0tWMl9DU19BWl8wMjE6L2luZnJhL2F6dXJlL2Rldi90ZXN0cy9jaGVja292L2ZpeHR1cmVzL25zZ19vcGVuXzIyLnRmOjIz"
-        )
-
-        ex, error = fetch_exceptions.extract_v2_exception(ra)
-
-        self.assertIsNone(error)
-        self.assertIsNotNone(ex)
-        self.assertEqual(ex["rule_id"], "CKV2_CS_AZ_021")
-        self.assertEqual(ex["resource_id"], "azurerm_network_security_rule.rdp_any_allow")
-        self.assertEqual(
-            ex["fingerprint"],
-            "Q0tWMl9DU19BWl8wMjE6L2luZnJhL2F6dXJlL2Rldi90ZXN0cy9jaGVja292L2ZpeHR1cmVzL25zZ19vcGVuXzIyLnRmOjIz",
-        )
-        self.assertEqual(ex["requested_by"], "dev@example.com")
-
-    def test_extract_v2_exception_rejects_non_approved_status(self):
-        ra = self.base_ra()
-        ra["status"] = "accepted"
-        ra["custom_fields"]["status"] = "accepted"
+        ra["accepted_by"] = "Dev-Team"
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
         self.assertIsNone(ex)
-        self.assertIn("expected APPROVED", error)
+        self.assertIn("four_eyes_violation", error)
 
-    def test_extract_v2_exception_rejects_missing_approved_by(self):
+    def test_extract_v2_exception_rejects_missing_expiration(self):
         ra = self.base_ra()
-        ra["custom_fields"].pop("approved_by")
-        ra["approver"] = ""
+        ra["expiration_date"] = ""
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
         self.assertIsNone(ex)
-        self.assertIn("invalid approved_by email", error)
+        self.assertIn("missing_fields", error)
 
-    def test_extract_v2_exception_rejects_missing_approved_at(self):
+    def test_extract_v2_exception_rejects_invalid_severity(self):
         ra = self.base_ra()
-        ra["custom_fields"].pop("approved_at")
-        ra["accepted_date"] = ""
-        ra["updated"] = ""
+        ra["accepted_findings"] = ["CKV2_CS_AZ_001 infra/main.tf severity=UNKNOWN (Checkov Scan)"]
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
         self.assertIsNone(ex)
-        self.assertIn("missing or invalid approved_at", error)
+        self.assertIn("invalid_severity", error)
 
-    def test_extract_v2_exception_rejects_missing_requested_by_without_fallback(self):
+    def test_extract_v2_exception_rejects_wildcard_resource(self):
         ra = self.base_ra()
-        ra["custom_fields"].pop("requested_by")
-        ra["owner"] = 1
+        ra["accepted_findings"] = ["CKV2_CS_AZ_001 infra/**/*.tf HIGH (Checkov Scan)"]
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
         self.assertIsNone(ex)
-        self.assertIn("invalid requested_by email", error)
+        self.assertIn("parsing_error", error)
 
-    def test_extract_v2_exception_uses_accepted_finding_component_for_resource(self):
+    def test_extract_v2_exception_fuzzy_fallback_uses_detail_title(self):
         ra = self.base_ra()
-        ra["custom_fields"] = {
-            "requested_by": "dev@example.com",
-            "approved_by": "security@example.com",
-            "approved_by_role": "APPSEC_L3",
-            "status": "APPROVED",
-            "approved_at": ra["accepted_date"],
-        }
-        ra["name"] = "CKV2_CS_AZ_021"
-        ra["path"] = "No proof has been supplied"
-        ra["recommendation_details"] = (
-            "Q0tWMl9DU19BWl8wMjE6L2luZnJhL2F6dXJlL2Rldi90ZXN0cy9jaGVja292L2ZpeHR1cmVzL25zZ19vcGVuXzIyLnRmOjIz"
-        )
-        ra["accepted_findings"] = [178]
+        ra["accepted_findings"] = ["CKV2_CS_AZ_001 Storage encryption missing (Checkov Scan)"]
         ra["accepted_finding_details"] = [
             {
-                "id": 178,
-                "component_name": "azurerm_network_security_rule.rdp_any_allow",
-                "severity": "CRITICAL",
+                "title": "CKV2_CS_AZ_001 Storage encryption missing (Checkov Scan)",
+                "severity": "HIGH",
+                "file_path": "infra/azure/storage/main.tf",
             }
         ]
 
@@ -164,23 +104,21 @@ class FetchExceptionsMappingTests(unittest.TestCase):
 
         self.assertIsNone(error)
         self.assertIsNotNone(ex)
-        self.assertEqual(ex["resource_id"], "azurerm_network_security_rule.rdp_any_allow")
-        self.assertEqual(ex["severity"], "CRITICAL")
-        self.assertEqual(ex["accepted_finding_ids"], [178])
+        self.assertEqual(ex["tool"], "checkov")
+        self.assertEqual(ex["rule_id"], "CKV2_CS_AZ_001")
 
-    def test_extract_v2_exception_rejects_break_glass_ttl_over_7_days(self):
+    def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
-        now = datetime.now(timezone.utc)
-        ra["custom_fields"]["break_glass"] = "true"
-        ra["custom_fields"]["incident_id"] = "INC-42"
-        ra["created"] = rfc3339(now - timedelta(days=1))
-        ra["expiration_date"] = (now + timedelta(days=10)).strftime("%Y-%m-%d")
+        ra["accepted_findings"] = []
 
-        ex, error = fetch_exceptions.extract_v2_exception(ra)
-        self.assertIsNone(ex)
-        self.assertIn("break-glass TTL exceeds", error)
+        mapped, meta = fetch_exceptions.map_risk_acceptances([ra])
 
-    def test_is_active_accepted_requires_explicit_active_and_approved(self):
+        self.assertEqual(mapped, [])
+        self.assertEqual(meta["total_valid_exceptions"], 0)
+        self.assertGreaterEqual(meta["total_dropped"], 1)
+        self.assertTrue(any(x["reason"] == "parsing_error" for x in fetch_exceptions.DROPPED))
+
+    def test_is_active_accepted_requires_active_and_approved_status(self):
         ra = self.base_ra()
         self.assertTrue(fetch_exceptions.is_active_accepted(ra))
 
@@ -189,16 +127,8 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertFalse(fetch_exceptions.is_active_accepted(ra_inactive))
 
         ra_pending = dict(ra)
-        ra_pending["status"] = "PENDING"
-        ra_pending["custom_fields"] = dict(ra["custom_fields"])
-        ra_pending["custom_fields"]["status"] = "PENDING"
+        ra_pending["status"] = "pending"
         self.assertFalse(fetch_exceptions.is_active_accepted(ra_pending))
-
-        ra_missing_status = dict(ra)
-        ra_missing_status["status"] = ""
-        ra_missing_status["custom_fields"] = dict(ra["custom_fields"])
-        ra_missing_status["custom_fields"]["status"] = ""
-        self.assertFalse(fetch_exceptions.is_active_accepted(ra_missing_status))
 
 
 if __name__ == "__main__":

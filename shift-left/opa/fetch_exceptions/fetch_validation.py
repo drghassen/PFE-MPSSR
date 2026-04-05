@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Validation and mapping rules for enterprise exceptions."""
+"""Validation rules for CloudSentinel DefectDojo exception ingestion."""
 
 from __future__ import annotations
 
-import re
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging import Logger
@@ -12,18 +10,15 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .fetch_utils import (
     cf,
-    first_non_empty,
-    normalize_path,
-    normalize_role,
-    normalize_scope,
+    has_wildcard,
+    normalize_decision,
     normalize_severity,
-    parse_bool,
-    parse_datetime,
-    role_rank,
-    safe_str,
-    to_rfc3339,
-    valid_email,
     now_utc,
+    parse_datetime,
+    sanitize_text,
+    sanitize_username,
+    sha256_hex,
+    to_rfc3339,
 )
 
 
@@ -33,344 +28,145 @@ class FetchContext:
     dojo_url: str
     dojo_api_key: str
     repo_root: str
-    ci_project_name: str
-    ci_project_path: str
-    ci_commit_ref_name: str
-    ci_commit_sha: str
     output_file: str
     dropped_file: str
     audit_log_file: str
-    legacy_compat: bool
-    legacy_sunset_date: str
-    allowed_approver_roles: Set[str]
-    global_scope_allowed_roles: Set[str]
-    break_glass_max_days: int
-    allowed_scope_types: Set[str]
-    severity_enum: Set[str]
-    role_ranks: Dict[str, int]
     schema_version: str
+    severity_enum: Set[str]
+    allowed_tools: Set[str]
+    allowed_decisions: Set[str]
+    enforce_approver_allowlist: bool
+    approver_allowlist: Set[str]
+    fuzzy_threshold: float
     dropped: List[Dict[str, Any]] = field(default_factory=list)
 
 
-def guess_scanner(rule_id: str, raw_scanner: str) -> str:
-    candidate = safe_str(raw_scanner).lower()
-    if candidate in {"gitleaks", "checkov", "trivy"}:
-        return candidate
-    rid = safe_str(rule_id).upper()
-    if rid.startswith("CKV"):
-        return "checkov"
-    if rid.startswith("CVE-"):
-        return "trivy"
-    return "gitleaks"
+def stable_exception_id(tool: str, rule_id: str, resource: str) -> str:
+    seed = f"{tool}{rule_id}{resource}"
+    return sha256_hex(seed)
 
 
-def extract_rule_id_hint(*values: Any) -> str:
-    pattern = re.compile(r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+)\b", re.IGNORECASE)
-    for value in values:
-        text = safe_str(value)
-        if not text:
-            continue
-        match = pattern.search(text)
-        if match:
-            return match.group(1).upper()
-    return ""
+def parse_requested_by(ra: Dict[str, Any]) -> str:
+    return sanitize_username(cf(ra, "requested_by") or ra.get("owner"))
 
 
-def looks_like_fingerprint(value: Any) -> bool:
-    text = safe_str(value)
-    if len(text) < 16:
-        return False
-    if re.search(r"\s", text):
-        return False
-    return True
+def parse_approved_by(ra: Dict[str, Any]) -> str:
+    return sanitize_username(cf(ra, "approved_by") or ra.get("accepted_by"))
 
 
-def principal_email(value: Any) -> str:
-    if isinstance(value, dict):
-        return first_non_empty(value.get("email"), value.get("username"), value.get("user"))
-    return safe_str(value)
-
-
-def choose_email(*candidates: Any) -> str:
-    for candidate in candidates:
-        email = principal_email(candidate)
-        if email and valid_email(email):
-            return email
-    return ""
-
-
-def accepted_finding_details(ra: Dict[str, Any]) -> List[Dict[str, Any]]:
-    details = ra.get("accepted_finding_details", [])
-    if not isinstance(details, list):
-        return []
-    return [x for x in details if isinstance(x, dict)]
-
-
-def accepted_finding_resource_id(ra: Dict[str, Any]) -> str:
-    for finding in accepted_finding_details(ra):
-        resource = first_non_empty(
-            finding.get("component_name"),
-            finding.get("unique_id_from_tool"),
-            finding.get("file_path"),
-            finding.get("vuln_id_from_tool"),
-        )
-        if resource:
-            return resource
-    return ""
-
-
-def accepted_finding_severity(ra: Dict[str, Any]) -> str:
-    for finding in accepted_finding_details(ra):
-        sev = safe_str(finding.get("severity"))
-        if sev:
-            return sev
-    return ""
-
-
-def looks_like_proof_path(value: Any) -> bool:
-    text = safe_str(value).lower()
-    if not text:
-        return False
-    return "no proof has been supplied" in text or text.startswith("http://") or text.startswith("https://")
-
-
-def generate_exception_uuid(ctx: FetchContext, ra: Dict[str, Any]) -> str:
-    preferred = first_non_empty(
-        cf(ra, "exception_id", "uuid"),
-        safe_str(ra.get("uuid")),
-    )
-    if preferred:
-        try:
-            return str(uuid.UUID(preferred))
-        except ValueError:
-            pass
-
-    seed = f"{ctx.dojo_url}|RA|{safe_str(ra.get('id'))}|{safe_str(ra.get('name'))}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
+def parse_decision(ra: Dict[str, Any]) -> str:
+    return normalize_decision(cf(ra, "decision") or ra.get("decision"))
 
 
 def parse_expires_at(ra: Dict[str, Any]) -> Optional[datetime]:
-    return parse_datetime(
-        first_non_empty(
-            cf(ra, "expires_at", "expiration_date"),
-            ra.get("expiration_date"),
-            ra.get("expires_at"),
-        )
-    )
-
-
-def parse_created_at(ra: Dict[str, Any]) -> Optional[datetime]:
-    return parse_datetime(
-        first_non_empty(
-            cf(ra, "created_at", "request_date"),
-            ra.get("created"),
-            ra.get("request_date"),
-        )
-    )
+    raw = cf(ra, "expires_at", "expiration_date") or ra.get("expiration_date")
+    return parse_datetime(raw, end_of_day=True)
 
 
 def parse_approved_at(ra: Dict[str, Any]) -> Optional[datetime]:
-    return parse_datetime(
-        first_non_empty(
-            cf(ra, "approved_at", "acceptance_date"),
-            ra.get("accepted_date"),
-            ra.get("updated"),
-        )
+    raw = (
+        cf(ra, "approved_at", "created")
+        or ra.get("created")
+        or ra.get("accepted_date")
+        or ra.get("updated")
     )
+    return parse_datetime(raw)
 
 
-def resolve_break_glass(ra: Dict[str, Any]) -> bool:
-    return parse_bool(first_non_empty(cf(ra, "break_glass"), ra.get("break_glass")))
-
-
-def legacy_window_open(ctx: FetchContext) -> bool:
-    sunset = parse_datetime(ctx.legacy_sunset_date)
-    if not sunset:
-        return False
-    return now_utc() <= sunset
+def parse_status(ra: Dict[str, Any]) -> str:
+    return sanitize_text(cf(ra, "status") or ra.get("status")).lower()
 
 
 def is_active_accepted(ra: Dict[str, Any]) -> bool:
-    is_active = parse_bool(ra.get("is_active", False))
-    if not is_active:
-        return False
-
-    status = safe_str(first_non_empty(cf(ra, "status"), ra.get("status"))).upper()
-    return status == "APPROVED"
+    status = parse_status(ra)
+    is_active_raw = cf(ra, "is_active") or ra.get("is_active")
+    is_active = str(is_active_raw).strip().lower() in {"true", "1", "yes", "on"}
+    return is_active and status == "approved"
 
 
-def extract_v2_exception(ctx: FetchContext, ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    ra_id = safe_str(ra.get("id")) or "unknown"
-    status = safe_str(first_non_empty(cf(ra, "status"), ra.get("status"))).upper()
+def validate_normalized_exception(ctx: FetchContext, exception_obj: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
+    requested_by = sanitize_username(exception_obj.get("requested_by"))
+    approved_by = sanitize_username(exception_obj.get("approved_by"))
 
-    rule_id = first_non_empty(cf(ra, "rule_id", "rule", "check_id"), ra.get("rule_id"), ra.get("name"))
-    inferred_rule_id = extract_rule_id_hint(
-        cf(ra, "rule_id", "rule", "check_id"),
-        ra.get("rule_id"),
-        ra.get("name"),
-        ra.get("title"),
-        ra.get("description"),
-        ra.get("recommendation_details"),
-    )
-    if inferred_rule_id:
-        rule_id = inferred_rule_id
-    scanner = guess_scanner(rule_id, first_non_empty(cf(ra, "scanner", "tool"), ra.get("tool")))
+    if not requested_by or not approved_by:
+        return False, "four_eyes_violation", "requested_by and approved_by are mandatory"
+    if requested_by == approved_by:
+        return False, "four_eyes_violation", "requested_by equals approved_by"
+    if ctx.enforce_approver_allowlist and approved_by not in ctx.approver_allowlist:
+        return False, "four_eyes_violation", "approved_by is not in configured approver allowlist"
 
-    requested_by = choose_email(
-        cf(ra, "requested_by", "owner_email"),
-        ra.get("requested_by"),
-        ra.get("owner_email"),
-        ra.get("owner"),
-    )
-    approved_by = choose_email(
-        cf(ra, "approved_by", "approver_email"),
-        ra.get("approved_by"),
-        ra.get("approver"),
-        ra.get("accepted_by"),
-    )
-    approved_by_role = normalize_role(
-        first_non_empty(
-            cf(ra, "approved_by_role", "approver_role"),
-            ra.get("approved_by_role"),
-            "APPSEC_L1",
-        )
-    )
+    severity = normalize_severity(exception_obj.get("severity"), ctx.severity_enum)
+    if not severity:
+        return False, "invalid_severity", "severity must be one of CRITICAL|HIGH|MEDIUM|LOW"
 
-    scope_type = normalize_scope(
-        first_non_empty(cf(ra, "scope_type"), ra.get("scope_type"), "repo"),
-        ctx.allowed_scope_types,
-    )
-    branch_scope = first_non_empty(cf(ra, "branch_scope"), ra.get("branch_scope"), ctx.ci_commit_ref_name or "*")
-    repo = first_non_empty(cf(ra, "repo", "repository"), ra.get("repository"), ctx.ci_project_path)
+    missing_fields = [
+        key
+        for key in ["tool", "rule_id", "resource", "approved_at", "expires_at", "decision"]
+        if not sanitize_text(exception_obj.get(key))
+    ]
+    if missing_fields:
+        return False, "missing_fields", f"missing required fields: {','.join(missing_fields)}"
 
-    resource_id = first_non_empty(
-        cf(ra, "resource_id", "resource_name"),
-        ra.get("resource_name"),
-        accepted_finding_resource_id(ra),
-    )
-    if not resource_id:
-        path_hint = safe_str(ra.get("path"))
-        if path_hint and not looks_like_proof_path(path_hint):
-            resource_id = path_hint
-    resource_id = normalize_path(resource_id)
+    if sanitize_text(exception_obj.get("tool")).lower() not in ctx.allowed_tools:
+        return False, "missing_fields", "tool is invalid"
 
-    fingerprint = first_non_empty(cf(ra, "fingerprint", "resource_hash", "finding_hash"), ra.get("fingerprint"))
-    fallback_fingerprint = first_non_empty(
-        ra.get("resource_hash"),
-        ra.get("finding_hash"),
-        ra.get("recommendation_details"),
-    )
-    if not fingerprint and looks_like_fingerprint(fallback_fingerprint):
-        fingerprint = safe_str(fallback_fingerprint)
+    if sanitize_text(exception_obj.get("decision")).lower() not in ctx.allowed_decisions:
+        return False, "missing_fields", "decision is invalid"
 
-    resource_hash = first_non_empty(
-        cf(ra, "resource_hash", "fingerprint"),
-        ra.get("resource_hash"),
-        fingerprint,
-    )
-    if not resource_hash and looks_like_fingerprint(ra.get("recommendation_details")):
-        resource_hash = safe_str(ra.get("recommendation_details"))
+    if sanitize_text(exception_obj.get("status")).lower() != "approved":
+        return False, "missing_fields", "status must be approved"
 
-    severity = normalize_severity(
-        first_non_empty(
-            cf(ra, "severity", "max_severity"),
-            ra.get("severity"),
-            accepted_finding_severity(ra),
-            "HIGH",
-        ),
-        ctx.severity_enum,
-    )
-    break_glass = resolve_break_glass(ra)
-    incident_id = first_non_empty(cf(ra, "incident_id"), ra.get("incident_id"))
-    justification = first_non_empty(
-        cf(ra, "justification", "reason"),
-        ra.get("decision_details"),
-        ra.get("reason"),
-        ra.get("description"),
-        ra.get("recommendation"),
-    )
+    if sanitize_text(exception_obj.get("source")).lower() != "defectdojo":
+        return False, "missing_fields", "source must be defectdojo"
 
-    commit_sha = first_non_empty(
-        cf(ra, "commit_sha", "commit_hash"),
-        ra.get("commit_hash"),
-        ctx.ci_commit_sha,
-    )
-    commit_sha = commit_sha[:40]
+    resource = sanitize_text(exception_obj.get("resource"))
+    if has_wildcard(resource):
+        return False, "parsing_error", "wildcard resources are forbidden"
 
-    created_at = parse_created_at(ra)
-    expires_at = parse_expires_at(ra)
-    approved_at = parse_approved_at(ra)
-
-    if status != "APPROVED":
-        return None, f"invalid status: expected APPROVED, got {status or 'empty'}"
-    if not created_at:
-        return None, "missing or invalid created_at/request_date"
+    approved_at = parse_datetime(exception_obj.get("approved_at"))
     if not approved_at:
-        return None, "missing or invalid approved_at/acceptance_date"
-    if expires_at and expires_at <= now_utc():
-        return None, "exception already expired"
+        return False, "missing_fields", "approved_at is invalid"
 
-    if not justification:
-        return None, "missing required justification"
-    if not rule_id:
-        return None, "missing required rule_id"
-    if not resource_id:
-        return None, "missing required resource_id"
-    if not (fingerprint or resource_hash):
-        return None, "missing fingerprint/resource_hash (required for strict matching)"
+    expires_at = parse_datetime(exception_obj.get("expires_at"), end_of_day=True)
+    if not expires_at:
+        return False, "missing_fields", "expires_at is invalid"
 
-    if not valid_email(requested_by):
-        return None, f"invalid requested_by email: {requested_by}"
-    if not valid_email(approved_by):
-        return None, f"invalid approved_by email: {approved_by}"
-    if requested_by.strip().lower() == approved_by.strip().lower():
-        return None, "separation of duties violated: requested_by equals approved_by"
+    if now_utc() >= expires_at:
+        return False, "missing_fields", "expires_at is in the past"
 
-    if approved_by_role not in ctx.allowed_approver_roles:
-        return None, f"approved_by_role not allowed: {approved_by_role}"
+    if approved_at > now_utc():
+        return False, "missing_fields", "approved_at cannot be in the future"
 
-    if scope_type == "global" and approved_by_role not in ctx.global_scope_allowed_roles:
-        return None, "global scope requires elevated AppSec role"
+    return True, None, None
 
-    if break_glass:
-        if not expires_at:
-            return None, "break-glass exception requires expires_at"
-        ttl_days = (expires_at - now_utc()).total_seconds() / 86400.0
-        if not incident_id:
-            return None, "break-glass exception requires incident_id"
-        if ttl_days > ctx.break_glass_max_days:
-            return None, f"break-glass TTL exceeds {ctx.break_glass_max_days} days"
-        if role_rank(approved_by_role, ctx.role_ranks) < role_rank("APPSEC_L3", ctx.role_ranks):
-            return None, "break-glass requires approver role APPSEC_L3 or higher"
 
-    ex = {
-        "exception_id": generate_exception_uuid(ctx, ra),
-        "schema_version": ctx.schema_version,
-        "enabled": True,
-        "status": status,
-        "source_system": "defectdojo",
-        "source_id": f"RA-{ra_id}",
-        "scanner": scanner,
-        "rule_id": rule_id,
-        "resource_id": resource_id,
-        "resource_hash": resource_hash or fingerprint,
-        "fingerprint": fingerprint or resource_hash,
-        "repo": repo,
-        "branch_scope": branch_scope,
-        "scope_type": scope_type,
-        "severity": severity,
-        "break_glass": break_glass,
-        "incident_id": incident_id,
-        "approved_by_role": approved_by_role,
-        "requested_by": requested_by,
-        "approved_by": approved_by,
-        "justification": justification,
-        "created_at": to_rfc3339(created_at),
+def build_base_exception(
+    ctx: FetchContext,
+    tool: str,
+    rule_id: str,
+    resource: str,
+    severity: str,
+    requested_by: str,
+    approved_by: str,
+    approved_at: datetime,
+    expires_at: datetime,
+    decision: str,
+) -> Dict[str, Any]:
+    cleaned_tool = sanitize_text(tool).lower()
+    cleaned_rule = sanitize_text(rule_id)
+    cleaned_resource = sanitize_text(resource)
+
+    return {
+        "id": stable_exception_id(cleaned_tool, cleaned_rule, cleaned_resource),
+        "tool": cleaned_tool,
+        "rule_id": cleaned_rule,
+        "resource": cleaned_resource,
+        "severity": normalize_severity(severity, ctx.severity_enum),
+        "requested_by": sanitize_username(requested_by),
+        "approved_by": sanitize_username(approved_by),
         "approved_at": to_rfc3339(approved_at),
-        "commit_sha": commit_sha,
-        "accepted_finding_ids": ra.get("accepted_findings", []),
+        "expires_at": to_rfc3339(expires_at),
+        "decision": sanitize_text(decision).lower(),
+        "source": "defectdojo",
+        "status": "approved",
     }
-    if expires_at:
-        ex["expires_at"] = to_rfc3339(expires_at)
-
-    return ex, None

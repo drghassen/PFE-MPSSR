@@ -275,3 +275,13 @@ version: ## Afficher les versions des outils
 	@echo "OPA:       $$(opa version 2>/dev/null | head -n1 || echo 'Non installé')"
 	@echo "Terraform: $$(terraform version 2>/dev/null | head -n1 || echo 'Non installé')"
 	@echo "Custodian: $$(custodian version 2>/dev/null || echo 'Non installé')"
+
+
+##@ Réseau & Sync
+
+sync-ip: ## Synchroniser l'IP WSL avec les variables CI/CD GitLab
+	@echo "$(GREEN)🔄 Synchronisation de l'IP WSL avec GitLab...$(RESET)"
+	@/bin/bash ./update_gitlab_dojo_ip.sh
+
+check-ip: ## Afficher l'IP actuelle de WSL
+	@echo "$(GREEN)📍 IP WSL actuelle :$(RESET) $$(ip addr show eth0 | awk '/inet / {print $$2}' | cut -d/ -f1 | head -n 1)"

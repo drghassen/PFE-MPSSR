@@ -30,25 +30,18 @@ base_failed_finding := {
 }
 
 base_v2_exception := {
-  "exception_id": "11111111-1111-4111-8111-111111111111",
-  "schema_version": "2.0.0",
-  "enabled": true,
-  "status": "APPROVED",
-  "scanner": "checkov",
+  "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tool": "checkov",
   "rule_id": "CKV2_CS_AZ_001",
-  "resource_id": "azurerm_storage_account.insecure",
-  "fingerprint": "fp-abc-123",
-  "repo": "unknown",
-  "branch_scope": "*",
-  "scope_type": "repo",
+  "resource": "azurerm_storage_account.insecure",
   "severity": "HIGH",
-  "break_glass": false,
-  "approved_by_role": "APPSEC_L3",
-  "requested_by": "dev@example.com",
-  "approved_by": "security@example.com",
-  "justification": "Temporary exception with compensating controls",
-  "created_at": "2026-02-21T08:00:00Z",
-  "approved_at": "2026-02-21T09:00:00Z"
+  "requested_by": "dev-team",
+  "approved_by": "security-team",
+  "approved_at": "2026-01-01T00:00:00Z",
+  "expires_at": "2099-01-01T00:00:00Z",
+  "decision": "accept",
+  "source": "defectdojo",
+  "status": "approved"
 }
 
 test_allow_when_thresholds_respected if {
@@ -92,7 +85,7 @@ test_allow_when_v2_exception_is_valid if {
 
   result.allow
   result.metrics.excepted == 1
-  result.exceptions.applied_ids[0] == "11111111-1111-4111-8111-111111111111"
+  result.exceptions.applied_ids[0] == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
 test_deny_when_scanner_not_run if {
@@ -134,7 +127,7 @@ test_allow_when_scanners_not_run_in_local_mode if {
 }
 
 test_deny_when_exception_status_not_approved if {
-  bad := object.union(base_v2_exception, {"status": "PENDING"})
+  bad := object.union(base_v2_exception, {"status": "pending"})
   result := decision
     with input as object.union(base_input, {
       "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
@@ -143,7 +136,7 @@ test_deny_when_exception_status_not_approved if {
     with data.cloudsentinel.exceptions.exceptions as [bad]
 
   not result.allow
-  contains(concat(" ", result.deny), "status must be APPROVED")
+  contains(concat(" ", result.deny), "status must be approved")
 }
 
 test_deny_when_exception_missing_approved_by if {
@@ -159,23 +152,8 @@ test_deny_when_exception_missing_approved_by if {
   contains(concat(" ", result.deny), "approved_by is required")
 }
 
-test_deny_when_exception_missing_approved_at if {
-  bad := object.remove(base_v2_exception, ["approved_at"])
-  result := decision
-    with input as object.union(base_input, {
-      "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
-      "findings": []
-    })
-    with data.cloudsentinel.exceptions.exceptions as [bad]
-
-  not result.allow
-  contains(concat(" ", result.deny), "approved_at is required")
-}
-
 test_deny_when_exception_is_expired if {
   expired := object.union(base_v2_exception, {
-    "created_at": "2019-01-01T00:00:00Z",
-    "approved_at": "2019-01-02T00:00:00Z",
     "expires_at": "2020-01-01T00:00:00Z"
   })
   result := decision
@@ -189,31 +167,18 @@ test_deny_when_exception_is_expired if {
   contains(concat(" ", result.deny), "expires_at is in the past")
 }
 
-test_deny_legacy_exception_schema if {
-  legacy := {
-    "id": "EXC-LEGACY-1",
-    "enabled": true,
-    "tool": "checkov",
-    "rule_id": "CKV2_CS_AZ_001",
-    "resource_path": "/infra/azure/student-secure/modules/storage/main.tf",
-    "environments": ["dev"],
-    "max_severity": "HIGH",
-    "reason": "legacy format",
-    "ticket": "SEC-LEGACY",
-    "requested_by": "dev@example.com",
-    "approved_by": "security@example.com",
-    "commit_hash": "abc1234",
-    "request_date": "2026-02-21T08:00:00Z",
-    "expires_at": "2099-01-01T00:00:00Z"
-  }
+test_deny_when_exception_schema_is_malformed if {
+  malformed := object.union(base_v2_exception, {
+    "id": "short"
+  })
 
   result := decision
     with input as object.union(base_input, {
       "summary": {"global": {"CRITICAL": 0, "HIGH": 0, "FAILED": 0}},
       "findings": []
     })
-    with data.cloudsentinel.exceptions.exceptions as [legacy]
+    with data.cloudsentinel.exceptions.exceptions as [malformed]
 
   not result.allow
-  contains(concat(" ", result.deny), "legacy schema which is no longer accepted")
+  contains(concat(" ", result.deny), "malformed")
 }
