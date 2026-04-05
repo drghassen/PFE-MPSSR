@@ -107,6 +107,41 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["tool"], "checkov")
         self.assertEqual(ex["rule_id"], "CKV2_CS_AZ_001")
 
+    def test_extract_v2_exception_accepts_defectdojo_ui_native_fields(self):
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 2,
+            "name": "Accept: Ensure That SSH Access Is Restricted From the Internet",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "ghassendridi007@gmail.com",
+            "created": rfc3339(now - timedelta(hours=2)),
+            "expiration_date": rfc3339(now + timedelta(days=1)),
+            "status": "APPROVED",
+            "is_active": True,
+            "accepted_findings": [364],
+            "accepted_finding_details": [
+                {
+                    "id": 364,
+                    "title": "Ensure That SSH Access Is Restricted From the Internet",
+                    "severity": "Medium",
+                    "description": "Check Type: terraform\nCheck Id: CKV_AZURE_10\nEnsure that SSH access is restricted from the internet",
+                    "file_path": "/modules/network/main.tf",
+                    "component_name": "module.network.azurerm_network_security_group.public",
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["decision"], "accept")
+        self.assertEqual(ex["tool"], "checkov")
+        self.assertEqual(ex["rule_id"], "CKV_AZURE_10")
+        self.assertEqual(ex["resource"], "modules/network/main.tf")
+        self.assertEqual(ex["severity"], "MEDIUM")
+
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
         ra["accepted_findings"] = []
