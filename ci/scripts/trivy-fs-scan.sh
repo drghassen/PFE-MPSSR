@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
-bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET}" "fs"
+DEFAULT_TRIVY_TARGET="infra/azure/student-secure"
+DEFAULT_TRIVY_SKIP_DIRS="infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
+if [ -n "${CI:-}" ]; then
+  export TRIVY_SKIP_DIRS="${DEFAULT_TRIVY_SKIP_DIRS}"
+  TRIVY_TARGET_EFF="${DEFAULT_TRIVY_TARGET}"
+else
+  export TRIVY_SKIP_DIRS="${TRIVY_SKIP_DIRS:-${DEFAULT_TRIVY_SKIP_DIRS}}"
+  TRIVY_TARGET_EFF="${TRIVY_TARGET:-${DEFAULT_TRIVY_TARGET}}"
+fi
+bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET_EFF}" "fs"
 cp .cloudsentinel/trivy_opa.json .cloudsentinel/trivy_fs_opa.json
 chmod -R a+r shift-left/trivy/reports/raw .cloudsentinel/trivy_fs_opa.json 2>/dev/null || true
 jq -r '"[scan-summary] trivy-fs=" + ((.stats.TOTAL // 0) | tostring) + " state=" + (.status // "unknown")' .cloudsentinel/trivy_fs_opa.json

@@ -174,6 +174,20 @@ finding_resource_id(f) := "" if {
 
 finding_severity_level(f) := upper(trim_space(object.get(object.get(f, "severity", {}), "level", "LOW")))
 
+finding_has_explicit_severity(f) if {
+  sev := upper(trim_space(object.get(object.get(f, "severity", {}), "level", "")))
+  sev != ""
+  severity_rank[sev] >= 1
+}
+
+finding_has_required_identity(f) if {
+  finding_tool(f) != ""
+  finding_rule_id(f) != ""
+  finding_fingerprint(f) != ""
+  finding_resource_id(f) != ""
+  finding_has_explicit_severity(f)
+}
+
 is_v2_exception(ex) if {
   trim_space(object.get(ex, "exception_id", "")) != ""
 }
@@ -501,15 +515,6 @@ fingerprint_exact_match(ex, f) if {
   fp == exception_fingerprint(ex)
 }
 
-resource_rule_repo_match(ex, f) if {
-  rid := lower(trim_space(exception_resource_id(ex)))
-  frid := lower(trim_space(finding_resource_id(f)))
-  rid != ""
-  frid != ""
-  rid == frid
-  exception_repo(ex) == input_repo
-}
-
 legacy_path_match(ex, f) if {
   sp := normalize_path(object.get(ex, "resource_path", ""))
   fp := normalize_path(object.get(object.get(f, "resource", {}), "path", ""))
@@ -541,19 +546,6 @@ exception_match_method(ex, f) := "fingerprint_exact" if {
   fingerprint_exact_match(ex, f)
 }
 
-exception_match_method(ex, f) := "resource_rule_repo" if {
-  is_v2_exception(ex)
-  not fingerprint_exact_match(ex, f)
-  resource_rule_repo_match(ex, f)
-}
-
-exception_match_method(ex, f) := "scope_controlled" if {
-  is_v2_exception(ex)
-  not fingerprint_exact_match(ex, f)
-  not resource_rule_repo_match(ex, f)
-  scope_match(ex)
-}
-
 exception_match_method(ex, f) := "legacy_resource_selector" if {
   not is_v2_exception(ex)
   legacy_resource_selector_match(ex, f)
@@ -583,6 +575,12 @@ candidate_exceptions_for_finding(f) := [ex |
   ex := active_valid_enabled_exceptions[_]
   exception_tool(ex) == finding_tool(f)
 ]
+
+malformed_failed_finding_ids[fid] if {
+  f := failed_findings[_]
+  not finding_has_required_identity(f)
+  fid := trim_space(object.get(f, "id", "unknown"))
+}
 
 legacy_exception_after_sunset[ex_id] if {
   ex := exceptions_store[_]
@@ -774,6 +772,11 @@ deny[msg] if {
 deny[msg] if {
   not thresholds_valid
   msg := "Invalid threshold configuration: critical_max/high_max must be numeric"
+}
+
+deny[msg] if {
+  malformed_failed_finding_ids[fid]
+  msg := sprintf("Malformed failed finding %s: tool/rule/resource/fingerprint/severity are required", [fid])
 }
 
 deny[msg] if {
