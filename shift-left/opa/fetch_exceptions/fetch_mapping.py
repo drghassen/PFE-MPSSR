@@ -100,6 +100,12 @@ def save_outputs(ctx: FetchContext, payload: Dict[str, Any]) -> None:
     save_json(ctx.output_file, payload)
     save_json(ctx.dropped_file, {"dropped_exceptions": ctx.dropped})
 
+def normalize_path(p: str) -> str:
+    if not p:
+        return ""
+    p = p.strip().replace("\\", "/")  # unify slashes
+    p = p.lstrip("./")  # remove leading ./ or /
+    return p.lower()  # lowercase pour éviter mismatch
 
 def _draft_exception(
     ctx: FetchContext,
@@ -108,7 +114,7 @@ def _draft_exception(
 ) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
-    resource = sanitize_text(finding_candidate.get("resource"))
+    resource = normalize_path(sanitize_text(finding_candidate.get("resource")))
 
     requested_by = parse_requested_by(ra)
     approved_by = parse_approved_by(ra)
