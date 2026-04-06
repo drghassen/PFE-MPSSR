@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from .fetch_utils import (
+    derive_trivy_secret_rule_id,
     derive_rule_id_from_title,
     extract_path_from_text,
     extract_rule_id,
@@ -118,6 +119,27 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         return "checkov"
     if inferred_rule.startswith("CVE-"):
         return "trivy"
+
+    secret_rule = derive_trivy_secret_rule_id(
+        finding.get("title"),
+        finding.get("description"),
+        finding.get("name"),
+        ra.get("name"),
+    )
+    if secret_rule:
+        return "trivy"
+
+    tags = finding.get("tags", [])
+    if isinstance(tags, list):
+        normalized_tags = {sanitize_text(tag).lower() for tag in tags}
+        if "secret" in normalized_tags:
+            return "trivy"
+
+    if sanitize_text(finding.get("title")).lower().startswith("secret detected in"):
+        return "trivy"
+
+    if "**category:**" in sanitize_text(finding.get("description")).lower():
+        return "trivy"
     return ""
 
 
@@ -137,6 +159,15 @@ def _rule_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
     )
     if explicit:
         return explicit
+
+    trivy_secret_rule = derive_trivy_secret_rule_id(
+        finding.get("title"),
+        finding.get("description"),
+        finding.get("name"),
+        ra.get("name"),
+    )
+    if trivy_secret_rule:
+        return trivy_secret_rule
 
     title = _finding_title(finding) or sanitize_text(ra.get("name"))
     return derive_rule_id_from_title(title)

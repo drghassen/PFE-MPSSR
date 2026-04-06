@@ -177,6 +177,38 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertIsNotNone(ex)
         self.assertEqual(ex["status"], "approved")
 
+    def test_extract_v2_exception_infers_trivy_secret_rule_and_tool(self):
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 4,
+            "name": "Accept: Secret Detected in modules/compute/main.tf - GitHub Personal Access Token",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "ghassendridi007@gmail.com",
+            "created": rfc3339(now - timedelta(hours=1)),
+            "expiration_date": rfc3339(now + timedelta(days=2)),
+            "is_active": True,
+            "accepted_findings": [369],
+            "accepted_finding_details": [
+                {
+                    "id": 369,
+                    "title": "Secret Detected in modules/compute/main.tf - GitHub Personal Access Token",
+                    "description": "GitHub Personal Access Token\n**Category:** GitHub",
+                    "severity": "Critical",
+                    "file_path": "modules/compute/main.tf",
+                    "tags": ["secret"],
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+        self.assertIsNone(error)
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["tool"], "trivy")
+        self.assertEqual(ex["rule_id"], "github-pat")
+        self.assertEqual(ex["resource"], "modules/compute/main.tf")
+        self.assertEqual(ex["severity"], "CRITICAL")
+
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
         ra["accepted_findings"] = []
