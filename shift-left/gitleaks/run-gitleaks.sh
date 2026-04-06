@@ -43,28 +43,6 @@ if [[ "$SCAN_MODE" != "ci" && "$SCAN_MODE" != "local" ]]; then
   [[ -n "${CI:-}" ]] && SCAN_MODE="ci" || SCAN_MODE="local"
 fi
 
-USE_RANGE="false"
-BEFORE=""
-CURRENT=""
-ZERO_SHA="0000000000000000000000000000000000000000"
-
-if [[ "$SCAN_MODE" == "ci" ]]; then
-  BEFORE="${CI_COMMIT_BEFORE_SHA:-}"
-  CURRENT="${CI_COMMIT_SHA:-HEAD}"
-
-  if [[ -n "$BEFORE" && "$BEFORE" != "$ZERO_SHA" ]]; then
-    if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || ! git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
-      if git remote get-url origin >/dev/null 2>&1; then
-        git fetch --no-tags --depth="${GITLEAKS_FETCH_DEPTH:-200}" origin "$CURRENT" "$BEFORE" >/dev/null 2>&1 || true
-      fi
-    fi
-
-    if git cat-file -e "$BEFORE^{commit}" 2>/dev/null && git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
-      USE_RANGE="true"
-    fi
-  fi
-fi
-
 log "Starting raw scan (mode=$SCAN_MODE, max_size=${MAX_SIZE_MB}MB)..."
 
 set +e
@@ -75,11 +53,8 @@ if [[ "$SCAN_MODE" == "local" ]]; then
     run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
   fi
 else
-  if [[ "$USE_RANGE" == "true" ]]; then
-    run_cmd gitleaks detect --source "$REPO_ROOT" --log-opts="${BEFORE}..${CURRENT}" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
-  else
-    run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
-  fi
+  # CI must scan the full checked-out repository snapshot (no commit history).
+  run_cmd gitleaks detect --no-git --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
 fi
 RC=$?
 set -e
