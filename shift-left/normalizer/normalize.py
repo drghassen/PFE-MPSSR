@@ -36,7 +36,10 @@ class CloudSentinelNormalizer:
         self.high_max = 2 if os.environ.get("CI") else self._to_int(os.environ.get("HIGH_MAX"), 2)
 
         self.ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.git_branch = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], "unknown")
+        self.git_branch = (
+            os.environ.get("CI_COMMIT_REF_NAME", "").strip()
+            or self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], "unknown")
+        )
         self.git_commit = self._run(["git", "rev-parse", "HEAD"], "unknown")
         self.git_commit_date = self._run(["git", "log", "-1", "--format=%cI"], self.ts)
         self.git_author_email = self._run(["git", "log", "-1", "--format=%ae"], "unknown@example.invalid")
