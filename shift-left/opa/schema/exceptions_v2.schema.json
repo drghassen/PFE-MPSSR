@@ -103,6 +103,31 @@
         "status": {
           "type": "string",
           "const": "approved"
+        },
+        "scope": {
+          "type": "object",
+          "description": "CI pipeline context injected at fetch time. Not stored in DefectDojo.",
+          "additionalProperties": false,
+          "properties": {
+            "repos": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Empty = no repo restriction. Populated from CI_PROJECT_PATH."
+            },
+            "branches": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Empty = no branch restriction. Populated from CI_COMMIT_REF_NAME."
+            },
+            "environments": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["dev", "test", "staging", "prod"]
+              },
+              "description": "Empty = no environment restriction. Populated from CI_ENVIRONMENT_NAME."
+            }
+          }
         }
       }
     }

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from .fetch_normalization import accepted_findings, normalize_finding_candidate, risk_acceptance_id
@@ -19,6 +20,33 @@ from .fetch_validation import (
     stable_exception_id,
     validate_normalized_exception,
 )
+
+
+def _build_ci_scope() -> dict:
+    """
+    Injects pipeline execution context into the exception scope.
+    These values are NOT sourced from DefectDojo — they come from CI environment variables.
+    DefectDojo manages risk lifecycle; the fetch layer binds that risk to a CI context.
+    """
+    scope: dict = {}
+
+    repo = os.environ.get("CI_PROJECT_PATH", "").strip()
+    if repo:
+        scope["repos"] = [repo]
+
+    branch = os.environ.get("CI_COMMIT_REF_NAME", "").strip()
+    if branch:
+        scope["branches"] = [branch]
+
+    env = (
+        os.environ.get("CI_ENVIRONMENT_NAME", "")
+        or os.environ.get("ENVIRONMENT", "")
+    ).strip().lower()
+    valid_envs = {"dev", "test", "staging", "prod"}
+    if env in valid_envs:
+        scope["environments"] = [env]
+
+    return scope
 
 
 def emit_audit_event(
@@ -101,6 +129,7 @@ def _draft_exception(
         "decision": decision,
         "source": "defectdojo",
         "status": parse_status(ra) or "",
+        "scope": _build_ci_scope(),
     }
 
 
