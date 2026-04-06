@@ -4,10 +4,9 @@ set -euo pipefail
 ################################################################################
 # CloudSentinel — Trivy Filesystem / SCA Scanner
 # Scope  : Language package vulnerabilities (npm, pip, maven, go, etc.)
-#          + Secrets in source files (complement to Gitleaks for CI layers)
 # Output : reports/raw/trivy-fs-raw.json
-# Note   : Source-level secret enforcement → Gitleaks (pre-commit + CI)
-#          Trivy secret scan here catches CI-stage secrets missed by Gitleaks
+# Note   : Source-level secret enforcement is handled exclusively by Gitleaks
+#          (pre-commit + CI). Trivy FS here is vuln-only.
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,7 +75,7 @@ trivy fs \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
-# --scanners: vuln for SCA, secret for files containing credentials
+# --scanners: vuln only (secrets are scanned by Gitleaks only)
 # RC handling:
 #   0/1 -> scan executed (findings may exist)
 #   >1  -> technical failure
@@ -85,7 +84,7 @@ trivy fs \
   --config "$CONFIG_FILE" \
   "${IGNORE_ARGS[@]}" \
   "${SKIP_ARGS[@]}" \
-  --scanners vuln,secret \
+  --scanners vuln \
   --format json \
   --output "$OUTPUT_FILE" \
   "$TARGET"
@@ -97,5 +96,5 @@ if [[ "$TRIVY_RC" -gt 1 ]]; then
   exit 1
 fi
 
-FINDING_COUNT=$(jq '[.Results[]? | (.Vulnerabilities // []) + (.Secrets // []) | length] | add // 0' "$OUTPUT_FILE" 2>/dev/null || echo "?")
+FINDING_COUNT=$(jq '[.Results[]? | (.Vulnerabilities // []) | length] | add // 0' "$OUTPUT_FILE" 2>/dev/null || echo "?")
 log "Scan complete. Findings: $FINDING_COUNT → $OUTPUT_FILE"
