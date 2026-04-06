@@ -148,6 +148,35 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         ra["is_active"] = True
         self.assertTrue(fetch_exceptions.is_active_accepted(ra))
 
+    def test_extract_v2_exception_infers_approved_status_when_missing(self):
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 2,
+            "name": "Accept: Ensure That SSH Access Is Restricted From the Internet",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "ghassendridi007@gmail.com",
+            "created": rfc3339(now - timedelta(hours=2)),
+            "expiration_date": rfc3339(now + timedelta(days=1)),
+            "is_active": True,
+            "accepted_findings": [364],
+            "accepted_finding_details": [
+                {
+                    "id": 364,
+                    "title": "Ensure That SSH Access Is Restricted From the Internet",
+                    "severity": "Medium",
+                    "description": "Check Type: terraform\nCheck Id: CKV_AZURE_10\nEnsure that SSH access is restricted from the internet",
+                    "file_path": "/modules/network/main.tf",
+                    "component_name": "module.network.azurerm_network_security_group.public",
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+        self.assertIsNone(error)
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["status"], "approved")
+
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
         ra["accepted_findings"] = []

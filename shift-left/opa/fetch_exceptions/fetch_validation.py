@@ -88,7 +88,18 @@ def parse_status(ra: Dict[str, Any]) -> str:
         "accept": "approved",
         "a": "approved",
     }
-    return aliases.get(raw, raw)
+    normalized = aliases.get(raw, raw)
+    if normalized:
+        return normalized
+
+    # DefectDojo Risk Acceptance objects may omit explicit status while still
+    # carrying accepted_by + decision/recommendation.
+    accepted_by = sanitize_text(cf(ra, "approved_by") or ra.get("accepted_by"))
+    decision = parse_decision(ra)
+    if accepted_by and decision:
+        return "approved"
+
+    return ""
 
 
 def is_active_accepted(ra: Dict[str, Any]) -> bool:
