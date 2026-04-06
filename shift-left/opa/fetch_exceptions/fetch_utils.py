@@ -16,6 +16,14 @@ RULE_ID_PATTERN = re.compile(r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+)\b", re.IGNORECASE
 PATH_PATTERN = re.compile(r"(?:[A-Za-z]:[\\/]|[./~])?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+")
 WILDCARD_PATH_PATTERN = re.compile(r"[A-Za-z0-9._/-]*[\*\?][A-Za-z0-9._/*?-]*")
 
+TRIVY_SECRET_RULE_ALIASES = {
+    "github personal access token": "github-pat",
+    "github pat": "github-pat",
+    "aws access key id": "aws-access-key-id",
+    "aws secret access key": "aws-secret-access-key",
+    "google api key": "google-api-key",
+}
+
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -177,6 +185,18 @@ def parse_tool_from_text(*values: Any) -> str:
             return "trivy"
         if "(gitleaks scan)" in lowered or "gitleaks" in lowered:
             return "gitleaks"
+    return ""
+
+
+def derive_trivy_secret_rule_id(*values: Any) -> str:
+    for value in values:
+        text = sanitize_text(value)
+        if not text:
+            continue
+        lowered = text.lower()
+        for key, rule_id in TRIVY_SECRET_RULE_ALIASES.items():
+            if key in lowered:
+                return rule_id
     return ""
 
 
