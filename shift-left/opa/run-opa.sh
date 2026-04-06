@@ -273,6 +273,12 @@ APPLIED_IDS="$(jq -r '.result.exceptions.applied_ids // [] | join(", ")' "$DECIS
 APPLIED_COUNT="$(jq -r '.result.exceptions.applied_count // 0' "$DECISION_FILE")"
 INVALID_IDS="$(jq -r '.result.exceptions.invalid_enabled_ids // [] | join(", ")' "$DECISION_FILE")"
 DENY_COUNT="$(jq -r  '.result.deny // [] | length'           "$DECISION_FILE")"
+ACTIVE_EXC_CRITICAL="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.CRITICAL // 0' "$DECISION_FILE")"
+ACTIVE_EXC_HIGH="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.HIGH // 0' "$DECISION_FILE")"
+ACTIVE_EXC_MEDIUM="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.MEDIUM // 0' "$DECISION_FILE")"
+ACTIVE_EXC_LOW="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.LOW // 0' "$DECISION_FILE")"
+ACTIVE_EXC_INFO="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.INFO // 0' "$DECISION_FILE")"
+ACTIVE_EXC_TOTAL=$((ACTIVE_EXC_CRITICAL + ACTIVE_EXC_HIGH + ACTIVE_EXC_MEDIUM + ACTIVE_EXC_LOW + ACTIVE_EXC_INFO))
 
 log_header "Decision Report"
 
@@ -289,6 +295,9 @@ printf "  %-22s  %s\n"               "LOW"                  "${LOW}"
 echo   "  ──────────────────────────────"
 printf "  %-22s  %s\n"               "Total failed"         "${EFFECTIVE}"
 printf "  ${DIM}%-22s  %s${NC}\n"    "Excepted (suppressed)"  "${EXCEPTED}"
+echo ""
+printf "  ${DIM}%-22s  %s${NC}\n"    "Active exceptions"      "${ACTIVE_EXC_TOTAL}"
+printf "  ${DIM}%-22s  %s${NC}\n"    "Active exceptions sev"  "C:${ACTIVE_EXC_CRITICAL} H:${ACTIVE_EXC_HIGH} M:${ACTIVE_EXC_MEDIUM} L:${ACTIVE_EXC_LOW} I:${ACTIVE_EXC_INFO}"
 
 if [[ -n "$APPLIED_IDS" ]]; then
   echo ""
