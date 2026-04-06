@@ -11,3 +11,9 @@ python3 shift-left/normalizer/normalize.py
 jq '.summary' .cloudsentinel/golden_report.json
 jq '.quality_gate' .cloudsentinel/golden_report.json
 timeout 30 python3 shift-left/opa/fetch-exceptions.py
+
+if [[ -f .cloudsentinel/exceptions.json ]]; then
+  VALID_EXCEPTIONS="$(jq -r '.cloudsentinel.exceptions.metadata.total_valid_exceptions // 0' .cloudsentinel/exceptions.json)"
+  DROPPED_EXCEPTIONS="$(jq -r '.cloudsentinel.exceptions.metadata.total_dropped // 0' .cloudsentinel/exceptions.json)"
+  echo "[exceptions] valid=${VALID_EXCEPTIONS} dropped=${DROPPED_EXCEPTIONS}"
+fi
