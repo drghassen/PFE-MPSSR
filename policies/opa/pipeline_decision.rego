@@ -148,6 +148,44 @@ exception_has_wildcard(ex) if {
   contains(exception_resource(ex), "?")
 }
 
+exception_scope_matches_repo(ex) if {
+    repos := object.get(object.get(ex, "scope", {}), "repos", [])
+    count(repos) == 0
+}
+
+exception_scope_matches_repo(ex) if {
+    repos := object.get(object.get(ex, "scope", {}), "repos", [])
+    count(repos) > 0
+    current_repo := lower(trim_space(object.get(git_meta, "repo", "")))
+    some r in repos
+    lower(trim_space(r)) == current_repo
+}
+
+exception_scope_matches_env(ex) if {
+    envs := object.get(object.get(ex, "scope", {}), "environments", [])
+    count(envs) == 0
+}
+
+exception_scope_matches_env(ex) if {
+    envs := object.get(object.get(ex, "scope", {}), "environments", [])
+    count(envs) > 0
+    some e in envs
+    lower(trim_space(e)) == environment
+}
+
+exception_scope_matches_branch(ex) if {
+    branches := object.get(object.get(ex, "scope", {}), "branches", [])
+    count(branches) == 0
+}
+
+exception_scope_matches_branch(ex) if {
+    branches := object.get(object.get(ex, "scope", {}), "branches", [])
+    count(branches) > 0
+    current_branch := lower(trim_space(object.get(git_meta, "branch", "")))
+    some b in branches
+    lower(trim_space(b)) == current_branch
+}
+
 exception_timestamp_fields_parse(ex) if {
   time.parse_rfc3339_ns(exception_approved_at(ex))
   time.parse_rfc3339_ns(exception_expires_at(ex))
@@ -233,6 +271,9 @@ exception_matches_finding(ex, f) if {
   exception_tool(ex) == finding_tool(f)
   exception_rule(ex) == finding_rule_id(f)
   exception_resource(ex) == lower(trim_space(finding_resource_id(f)))
+  exception_scope_matches_repo(ex)
+  exception_scope_matches_env(ex)
+  exception_scope_matches_branch(ex)
 }
 
 applied_exception_ids[ex_id] if {
