@@ -149,41 +149,41 @@ exception_has_wildcard(ex) if {
 }
 
 exception_scope_matches_repo(ex) if {
-    repos := object.get(object.get(ex, "scope", {}), "repos", [])
-    count(repos) == 0
+  repos := object.get(object.get(ex, "scope", {}), "repos", [])
+  count(repos) == 0
 }
 
 exception_scope_matches_repo(ex) if {
-    repos := object.get(object.get(ex, "scope", {}), "repos", [])
-    count(repos) > 0
-    current_repo := lower(trim_space(object.get(git_meta, "repo", "")))
-    some r in repos
-    lower(trim_space(r)) == current_repo
+  repos := object.get(object.get(ex, "scope", {}), "repos", [])
+  count(repos) > 0
+  current_repo := lower(trim_space(object.get(git_meta, "repo", "")))
+  some r in repos
+  lower(trim_space(r)) == current_repo
 }
 
 exception_scope_matches_env(ex) if {
-    envs := object.get(object.get(ex, "scope", {}), "environments", [])
-    count(envs) == 0
+  envs := object.get(object.get(ex, "scope", {}), "environments", [])
+  count(envs) == 0
 }
 
 exception_scope_matches_env(ex) if {
-    envs := object.get(object.get(ex, "scope", {}), "environments", [])
-    count(envs) > 0
-    some e in envs
-    lower(trim_space(e)) == environment
+  envs := object.get(object.get(ex, "scope", {}), "environments", [])
+  count(envs) > 0
+  some e in envs
+  lower(trim_space(e)) == environment
 }
 
 exception_scope_matches_branch(ex) if {
-    branches := object.get(object.get(ex, "scope", {}), "branches", [])
-    count(branches) == 0
+  branches := object.get(object.get(ex, "scope", {}), "branches", [])
+  count(branches) == 0
 }
 
 exception_scope_matches_branch(ex) if {
-    branches := object.get(object.get(ex, "scope", {}), "branches", [])
-    count(branches) > 0
-    current_branch := lower(trim_space(object.get(git_meta, "branch", "")))
-    some b in branches
-    lower(trim_space(b)) == current_branch
+  branches := object.get(object.get(ex, "scope", {}), "branches", [])
+  count(branches) > 0
+  current_branch := lower(trim_space(object.get(git_meta, "branch", "")))
+  some b in branches
+  lower(trim_space(b)) == current_branch
 }
 
 exception_timestamp_fields_parse(ex) if {
