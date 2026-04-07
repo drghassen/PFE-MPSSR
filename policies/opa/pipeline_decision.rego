@@ -297,19 +297,23 @@ applied_exception_audit[item] if {
   }
 }
 
-partial_mismatch_reasons(ex, f) := reasons if {
-  reasons := [msg |
-    conditions := [
-      {"cond": exception_resource(ex) != lower(trim_space(finding_resource_id(f))), "msg": "Resource path mismatch"},
-      {"cond": not exception_scope_matches_repo(ex), "msg": "Scope repo mismatch"},
-      {"cond": not exception_scope_matches_env(ex), "msg": "Scope environment mismatch"},
-      {"cond": not exception_scope_matches_branch(ex), "msg": "Scope branch mismatch"}
-    ]
-    c := conditions[_]
-    c.cond == true
-    msg := c.msg
-  ]
+partial_mismatch_reasons_set(ex, f) contains "Resource path mismatch" if {
+  exception_resource(ex) != lower(trim_space(finding_resource_id(f)))
 }
+
+partial_mismatch_reasons_set(ex, f) contains "Scope repo mismatch" if {
+  not exception_scope_matches_repo(ex)
+}
+
+partial_mismatch_reasons_set(ex, f) contains "Scope environment mismatch" if {
+  not exception_scope_matches_env(ex)
+}
+
+partial_mismatch_reasons_set(ex, f) contains "Scope branch mismatch" if {
+  not exception_scope_matches_branch(ex)
+}
+
+partial_mismatch_reasons(ex, f) := [msg | msg := partial_mismatch_reasons_set(ex, f)[_]]
 
 partial_matches_audit[item] if {
   f := failed_findings[_]
