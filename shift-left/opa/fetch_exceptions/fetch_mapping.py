@@ -8,7 +8,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from .fetch_normalization import accepted_findings, normalize_finding_candidate, risk_acceptance_id
-from .fetch_utils import ensure_dir, now_utc, sanitize_text, save_json, to_rfc3339
+from .fetch_utils import ensure_dir, normalize_path, now_utc, sanitize_text, save_json, to_rfc3339
 from .fetch_validation import (
     FetchContext,
     parse_approved_at,
@@ -100,12 +100,6 @@ def save_outputs(ctx: FetchContext, payload: Dict[str, Any]) -> None:
     save_json(ctx.output_file, payload)
     save_json(ctx.dropped_file, {"dropped_exceptions": ctx.dropped})
 
-def normalize_path(p: str) -> str:
-    if not p:
-        return ""
-    p = p.strip().replace("\\", "/")  # unify slashes
-    p = p.lstrip("./")  # remove leading ./ or /
-    return p.lower()  # lowercase pour éviter mismatch
 
 def _draft_exception(
     ctx: FetchContext,
@@ -114,7 +108,7 @@ def _draft_exception(
 ) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
-    resource = normalize_path(sanitize_text(finding_candidate.get("resource")))
+    resource = normalize_path(finding_candidate.get("resource"))
 
     requested_by = parse_requested_by(ra)
     approved_by = parse_approved_by(ra)

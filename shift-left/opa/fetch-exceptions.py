@@ -88,17 +88,11 @@ def save_outputs(payload: Dict[str, Any]) -> None:
 def fetch_risk_acceptances() -> List[Dict[str, Any]]:
     return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, logger)
 
-def normalize_path(p: str) -> str:
-    if not p:
-        return ""
-    p = p.strip().replace("\\", "/")  # unify slashes
-    p = p.lstrip("./")  # remove leading ./ or /
-    return p.lower()  # lowercase pour éviter mismatch
 
 def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any]) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
-    resource = normalize_path(sanitize_text(finding_candidate.get("resource")))
+    resource = normalize_path(finding_candidate.get("resource"))
 
     approved_at = parse_approved_at(ra)
     expires_at = parse_expires_at(ra)
