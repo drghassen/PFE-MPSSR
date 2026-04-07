@@ -139,7 +139,7 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["decision"], "accept")
         self.assertEqual(ex["tool"], "checkov")
         self.assertEqual(ex["rule_id"], "CKV_AZURE_10")
-        self.assertEqual(ex["resource"], "modules/network/main.tf")
+        self.assertEqual(ex["resource"], "module.network.azurerm_network_security_group.public")
         self.assertEqual(ex["severity"], "MEDIUM")
 
     def test_is_active_accepted_supports_status_alias_a(self):
