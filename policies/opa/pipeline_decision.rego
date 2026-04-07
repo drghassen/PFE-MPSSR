@@ -297,6 +297,36 @@ applied_exception_audit[item] if {
   }
 }
 
+partial_mismatch_reasons(ex, f) := reasons if {
+  reasons := [msg |
+    conditions := [
+      {"cond": exception_resource(ex) != lower(trim_space(finding_resource_id(f))), "msg": "Resource path mismatch"},
+      {"cond": not exception_scope_matches_repo(ex), "msg": "Scope repo mismatch"},
+      {"cond": not exception_scope_matches_env(ex), "msg": "Scope environment mismatch"},
+      {"cond": not exception_scope_matches_branch(ex), "msg": "Scope branch mismatch"}
+    ]
+    c := conditions[_]
+    c.cond == true
+    msg := c.msg
+  ]
+}
+
+partial_matches_audit[item] if {
+  f := failed_findings[_]
+  ex := active_valid_enabled_exceptions[_]
+  exception_tool(ex) == finding_tool(f)
+  exception_rule(ex) == finding_rule_id(f)
+  not exception_matches_finding(ex, f)
+  
+  item := {
+    "exception_id": exception_id(ex),
+    "rule_id": exception_rule(ex),
+    "mismatch_reasons": partial_mismatch_reasons(ex, f),
+    "expected_exception_resource": exception_resource(ex),
+    "actual_finding_resource": finding_resource_id(f)
+  }
+}
+
 is_excepted_finding(f) if {
   ex := candidate_exceptions_for_finding(f)[_]
   exception_matches_finding(ex, f)
@@ -469,6 +499,7 @@ decision := {
     "applied_ids": sort([id | applied_exception_ids[id]]),
     "applied_count": count(applied_exception_ids),
     "applied_audit": [item | applied_exception_audit[item]],
+    "partial_matches_audit": [item | partial_matches_audit[item]],
     "strict_prod_violations": sort([id | prod_critical_exception_violation[id]]),
     "invalid_enabled_ids": sort([id | invalid_enabled_exception_ids[id]]),
     "expired_enabled_ids": sort([id | expired_enabled_exception_ids[id]]),
