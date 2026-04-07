@@ -297,23 +297,32 @@ applied_exception_audit[item] if {
   }
 }
 
-partial_mismatch_reasons_set(ex, f) contains "Resource path mismatch" if {
+_resource_mismatch(ex, f) if {
   exception_resource(ex) != lower(trim_space(finding_resource_id(f)))
 }
 
-partial_mismatch_reasons_set(ex, f) contains "Scope repo mismatch" if {
+_repo_mismatch(ex) if {
   not exception_scope_matches_repo(ex)
 }
 
-partial_mismatch_reasons_set(ex, f) contains "Scope environment mismatch" if {
+_env_mismatch(ex) if {
   not exception_scope_matches_env(ex)
 }
 
-partial_mismatch_reasons_set(ex, f) contains "Scope branch mismatch" if {
+_branch_mismatch(ex) if {
   not exception_scope_matches_branch(ex)
 }
 
-partial_mismatch_reasons(ex, f) := [msg | msg := partial_mismatch_reasons_set(ex, f)[_]]
+partial_mismatch_reasons(ex, f) := array.concat(
+  array.concat(
+    array.concat(
+      [m | _resource_mismatch(ex, f); m := sprintf("Resource path mismatch: exception='%s' finding='%s'", [exception_resource(ex), lower(trim_space(finding_resource_id(f)))])],
+      [m | _repo_mismatch(ex); m := sprintf("Scope repo mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "repos", []), lower(trim_space(object.get(git_meta, "repo", "")))])]
+    ),
+    [m | _env_mismatch(ex); m := sprintf("Scope environment mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "environments", []), environment])]
+  ),
+  [m | _branch_mismatch(ex); m := sprintf("Scope branch mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "branches", []), lower(trim_space(object.get(git_meta, "branch", "")))])]
+)
 
 partial_matches_audit[item] if {
   f := failed_findings[_]
