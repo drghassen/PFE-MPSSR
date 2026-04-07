@@ -174,11 +174,13 @@ def _rule_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
 
 
 def _resource_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
+    # Priority: component_name (logical resource address used by OPA finding_resource_id)
+    # then file_path (fallback for tools that don't expose a logical resource name)
     explicit = normalize_path(
-        finding.get("file_path")
-        or finding.get("path")
-        or finding.get("component_name")
+        finding.get("component_name")
         or finding.get("unique_id_from_tool")
+        or finding.get("file_path")
+        or finding.get("path")
     )
     if explicit:
         return explicit
