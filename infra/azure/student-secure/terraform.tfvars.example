@@ -14,3 +14,4 @@ key_vault_cmk_expiration_date = "2030-01-01T00:00:00Z"
 # Optional: reference an existing key instead of creating it with Terraform.
 # key_vault_existing_cmk_key_id = "https://<vault-name>.vault.azure.net/keys/<key-name>/<key-version>"
 key_vault_existing_cmk_key_id = ""
+# admin_password = "ChangeMeNow@2026#"   # min 12 chars: lower + upper + digit + special

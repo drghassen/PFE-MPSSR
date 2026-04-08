@@ -28,7 +28,8 @@
     "terraform_working_dir": "{{ cloudsentinel.terraform_working_dir }}",
     "started_at": "{{ cloudsentinel.started_at }}",
     "finished_at": "{{ cloudsentinel.finished_at }}",
-    "duration_ms": {{ cloudsentinel.duration_ms }}
+    "duration_ms": {{ cloudsentinel.duration_ms }},
+    "run_status": "{{ cloudsentinel.run_status }}"
   },
   "drift": {
     "detected": {{ drift.detected | lower }},

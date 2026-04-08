@@ -3,28 +3,23 @@ resource "azurerm_log_analytics_workspace" "this" {
   location            = var.location
   resource_group_name = var.resource_group_name
   sku                 = "PerGB2018"
-  retention_in_days   = 30
+  retention_in_days   = 90
   tags                = var.tags
 }
 
-resource "azurerm_monitor_log_profile" "activity" {
-  name = "activity-log-profile-${replace(var.base_name, "-", "")}"
+resource "azurerm_monitor_diagnostic_setting" "activity_log" {
+  name               = "diag-activity-${replace(var.base_name, "-", "")}"
+  target_resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Insights/diagnosticSettings/activity"
   storage_account_id = var.storage_account_id
 
-  categories = [
-    "Action",
-    "Delete",
-    "Write"
-  ]
-
-  locations = [
-    "global",
-    var.location
-  ]
-
-  retention_policy {
-    enabled = true
-    days    = 365
+  enabled_log {
+    category = "Administrative"
+  }
+  enabled_log {
+    category = "Security"
+  }
+  enabled_log {
+    category = "Policy"
   }
 }
 

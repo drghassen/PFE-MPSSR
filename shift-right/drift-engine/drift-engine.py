@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from utils.azure_client import AzureResourceClient, load_azure_env
 from utils.defectdojo_client import DefectDojoClient, DefectDojoConfig
-from utils.json_normalizer import drift_items_to_defectdojo_generic_findings, normalize_terraform_plan
+from utils.json_normalizer import classify_drift_severity, drift_items_to_defectdojo_generic_findings, normalize_terraform_plan
 from utils.terraform_runner import TerraformRunner
 
 
@@ -280,8 +280,26 @@ def build_report_context(
     errors: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Builds the Jinja2 context used to render `drift-report.json`."""
-    severity_id = 1 if not detected else 3
-    severity = "Informational" if not detected else "Medium"
+    _OCSF_ORDER = ["Informational", "Low", "Medium", "High", "Critical"]
+    _OCSF_ID    = {"Informational": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}
+
+    if not detected:
+        severity = "Informational"
+    else:
+        _item_severities = [
+            classify_drift_severity(
+                str(item.get("type") or ""),
+                item.get("changed_paths") or [],
+            )
+            for item in drift_items
+        ]
+        severity = (
+            max(_item_severities, key=lambda s: _OCSF_ORDER.index(s))
+            if _item_severities
+            else "Medium"
+        )
+
+    severity_id = _OCSF_ID.get(severity, 3)
 
     ocsf = {
         "version": config.engine.ocsf_version,
@@ -313,6 +331,7 @@ def build_report_context(
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "duration_ms": int((finished_at - started_at).total_seconds() * 1000),
+        "run_status": "error" if errors else ("drifted" if detected else "clean"),
     }
 
     terraform = {
@@ -562,6 +581,10 @@ def main(argv: list[str]) -> int:
                 "remediation": "Check Terraform workspace settings and backend permissions.",
             }
         )
+        finished_at = _utc_now()
+        emit_report(finished_at=finished_at, exit_code=1, detected=False)
+        logger.error("run_failed", run_id=run_id, reason="workspace_error", output_path=str(out_path))
+        return 1
 
     plan_cmd = tf_runner.plan_refresh_only(
         plan_path=tf_plan_path,

@@ -33,3 +33,8 @@ variable "network_security_ids" {
 variable "tags" {
   type = map(string)
 }
+
+variable "subscription_id" {
+  type        = string
+  description = "Azure subscription ID (required for activity log diagnostic setting)."
+}

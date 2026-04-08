@@ -19,7 +19,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   network_interface_ids           = [azurerm_network_interface.this.id]
   admin_username                  = var.admin_username
   disable_password_authentication = false
-  admin_password                  = "ghp_xxXXXXxxXXXXxxXXXXxxXXXXxxXXXXxxXXXX"
+  admin_password                  = var.admin_password
   allow_extension_operations      = false
   # Azure Student subscriptions often do not have EncryptionAtHost feature enabled.
   encryption_at_host_enabled      = false
