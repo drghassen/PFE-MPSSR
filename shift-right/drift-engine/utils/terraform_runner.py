@@ -33,11 +33,17 @@ class TerraformRunner:
         working_dir: Path,
         env: Mapping[str, str] | None = None,
         terraform_bin: str = "terraform",
-        timeout_s: int = 170,
+        timeout_s: int | None = None,
     ) -> None:
         self.working_dir = working_dir
         self.terraform_bin = terraform_bin
-        self.timeout_s = timeout_s
+
+        # Priority: explicit arg > TF_PLAN_TIMEOUT_S env var > default 600s
+        if timeout_s is not None:
+            self.timeout_s = timeout_s
+        else:
+            _env_val = os.getenv("TF_PLAN_TIMEOUT_S", "").strip()
+            self.timeout_s = int(_env_val) if _env_val.isdigit() else 600
 
         merged_env = dict(os.environ)
         if env:

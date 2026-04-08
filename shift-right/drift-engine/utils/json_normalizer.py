@@ -151,6 +151,27 @@ def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, l
     return summary, items
 
 
+_SEVERITY_MAP: dict[tuple[str, str], str] = {
+    ("azurerm_network_security_group",      "security_rule"):       "Critical",
+    ("azurerm_network_security_rule",       "access"):              "Critical",
+    ("azurerm_linux_virtual_machine",       "admin_password"):      "Critical",
+    ("azurerm_key_vault",                   "access_policy"):       "High",
+    ("azurerm_key_vault",                   "network_acls"):        "High",
+    ("azurerm_storage_account",             "min_tls_version"):     "High",
+    ("azurerm_storage_account",             "allow_blob_public_access"): "High",
+    ("azurerm_sql_server",                  "administrator_login_password"): "Critical",
+    ("azurerm_monitor_diagnostic_setting",  "enabled_log"):         "Medium",
+    ("azurerm_log_analytics_workspace",     "retention_in_days"):   "Low",
+}
+
+def classify_drift_severity(resource_type: str, changed_paths: list[str]) -> str:
+    for path in changed_paths:
+        segment = path.split(".")[0]
+        key = (resource_type, segment)
+        if key in _SEVERITY_MAP:
+            return _SEVERITY_MAP[key]
+    return "Medium"
+
 def drift_items_to_defectdojo_generic_findings(
     items: list[dict[str, Any]],
     scan_date: str,
@@ -167,10 +188,15 @@ def drift_items_to_defectdojo_generic_findings(
         changed_paths = item.get("changed_paths") or []
         provider_name = item.get("provider_name") or "unknown"
 
+        severity = classify_drift_severity(
+            str(item.get("type") or ""),
+            item.get("changed_paths") or [],
+        )
+
         findings.append(
             {
                 "title": f"Terraform drift detected: {address}",
-                "severity": default_severity,
+                "severity": severity,
                 "date": scan_date,
                 "description": (
                     "CloudSentinel Drift Engine detected a configuration drift between Terraform state "

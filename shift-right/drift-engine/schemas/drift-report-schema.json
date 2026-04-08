@@ -35,7 +35,11 @@
         "terraform_working_dir": { "type": "string" },
         "started_at": { "type": "string", "format": "date-time" },
         "finished_at": { "type": "string", "format": "date-time" },
-        "duration_ms": { "type": "integer", "minimum": 0 }
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "run_status": {
+  "type": "string",
+  "enum": ["clean", "drifted", "error"]
+}
       }
     },
     "drift": {

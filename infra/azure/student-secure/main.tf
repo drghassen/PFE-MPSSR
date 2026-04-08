@@ -103,4 +103,5 @@ module "compute" {
   admin_username       = var.admin_username
   admin_ssh_public_key = var.admin_ssh_public_key
   tags                 = local.tags
+  admin_password = var.admin_password
 }

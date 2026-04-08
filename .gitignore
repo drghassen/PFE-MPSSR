@@ -39,4 +39,7 @@ shift-left/trivy/results.json
 checkov_scan.log
 tmp_ex.json
 
-
+shift-right/drift-engine/output/
+shift-right/drift-engine/drift-report.json
+shift-right/drift-engine/drift-report.latest.json
+shift-right/drift-engine/drift-report*.json
