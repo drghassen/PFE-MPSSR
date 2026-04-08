@@ -1,0 +1,8 @@
+policies:
+  - name: list-resource-groups
+    resource: azure.resourcegroup
+    filters:
+      - type: value
+        key: name
+        value: "cloudsentinel"
+        op: contains

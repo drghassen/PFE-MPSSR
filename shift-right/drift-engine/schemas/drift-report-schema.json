@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cloudsentinel.io/schemas/drift-report-schema.json",
+  "title": "CloudSentinel Drift Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ocsf", "cloudsentinel", "drift", "terraform", "errors"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "ocsf": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "class_uid", "category_uid", "type_uid", "time", "severity_id", "severity"],
+      "properties": {
+        "version": { "type": "string" },
+        "class_uid": { "type": "integer" },
+        "category_uid": { "type": "integer" },
+        "type_uid": { "type": "integer" },
+        "time": { "type": "string", "format": "date-time" },
+        "severity_id": { "type": "integer" },
+        "severity": { "type": "string" }
+      }
+    },
+    "cloudsentinel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "engine", "engine_version", "terraform_workspace", "terraform_working_dir", "started_at", "finished_at", "duration_ms"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "engine": { "type": "string" },
+        "engine_version": { "type": "string" },
+        "tenant_id": { "type": ["string", "null"] },
+        "subscription_id": { "type": ["string", "null"] },
+        "terraform_workspace": { "type": "string" },
+        "terraform_working_dir": { "type": "string" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "drift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["detected", "exit_code", "summary", "items"],
+      "properties": {
+        "detected": { "type": "boolean" },
+        "exit_code": { "type": "integer" },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resources_changed", "resources_by_action", "provider_names"],
+          "properties": {
+            "resources_changed": { "type": "integer", "minimum": 0 },
+            "resources_by_action": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+            "provider_names": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "items": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+      }
+    },
+    "terraform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "init", "plan"],
+      "properties": {
+        "version": { "type": ["string", "null"] },
+        "init": { "type": "object", "additionalProperties": true },
+        "plan": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "message"],
+        "properties": {
+          "type": { "type": "string" },
+          "message": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true },
+          "remediation": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

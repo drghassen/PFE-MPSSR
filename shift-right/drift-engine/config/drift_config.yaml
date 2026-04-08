@@ -1,0 +1,39 @@
+engine:
+  name: cloudsentinel-drift-engine
+  version: 0.1.0
+  ocsf_version: 1.3.0
+
+azure:
+  # Used only for optional validation/enrichment. Terraform itself authenticates via ARM_* env vars.
+  subscription_id: ${ARM_SUBSCRIPTION_ID}
+  tenant_id: ${ARM_TENANT_ID}
+  validate_access: false
+  list_resource_groups: false
+
+terraform:
+  working_dir: ${TF_WORKING_DIR:-.}
+  workspace: ${TF_WORKSPACE:-default}
+  init:
+    upgrade: false
+    reconfigure: false
+    backend: true
+  plan:
+    lock_timeout: 60s
+    parallelism: 10
+    refresh_only: true
+
+report:
+  output_path: ${DRIFT_OUTPUT_PATH:-output/drift-report.json}
+  include_plan_json: true
+  include_raw_terraform_stdout: false
+  template_path: templates/drift-report-template.j2
+
+defectdojo:
+  enabled: ${DRIFT_PUSH_TO_DEFECTDOJO:-false}
+  base_url: ${DEFECTDOJO_URL:-}
+  api_key: ${DEFECTDOJO_API_KEY:-}
+  engagement_id: ${DEFECTDOJO_ENGAGEMENT_ID:-}
+  test_title: CloudSentinel Drift Engine
+  close_old_findings: true
+  deduplication_on_engagement: true
+  minimum_severity: Info

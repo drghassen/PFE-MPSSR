@@ -1,0 +1,3 @@
+policies:
+  - name: test-rg
+    resource: azure.resourcegroup
