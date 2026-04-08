@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0.0",
+  "ocsf": {
+    "version": "1.3.0",
+    "class_uid": 2001,
+    "category_uid": 2,
+    "type_uid": 200100,
+    "time": "2026-04-07T23:36:45.893594+00:00",
+    "severity_id": 1,
+    "severity": "Informational",
+    "activity_name": "Detect",
+    "activity_id": 1,
+    "metadata": {
+      "product": {
+        "name": "CloudSentinel Drift Engine",
+        "vendor_name": "CloudSentinel",
+        "version": "0.1.0"
+      }
+    }
+  },
+  "cloudsentinel": {
+    "run_id": "c677ce95-9186-4765-b05d-07727381f032",
+    "engine": "cloudsentinel-drift-engine",
+    "engine_version": "0.1.0",
+    "tenant_id": null,
+    "subscription_id": null,
+    "terraform_workspace": "default",
+    "terraform_working_dir": "/work/iac",
+    "started_at": "2026-04-07T23:36:45.080033+00:00",
+    "finished_at": "2026-04-07T23:36:45.893594+00:00",
+    "duration_ms": 813
+  },
+  "drift": {
+    "detected": false,
+    "exit_code": 1,
+    "summary": {
+      "resources_changed": 0,
+      "resources_by_action": {},
+      "provider_names": []
+    },
+    "items": []
+  },
+  "terraform": {
+    "version": "1.8.5",
+    "init": {
+      "cmd": "terraform init -input=false -no-color",
+      "duration_ms": 24,
+      "return_code": 0
+    },
+    "plan": {
+      "cmd": "terraform plan -refresh-only -detailed-exitcode -input=false -no-color -lock-timeout=60s -parallelism=10 -out=/tmp/cloudsentinel-drift/c677ce95-9186-4765-b05d-07727381f032/tfplan",
+      "duration_ms": 22,
+      "return_code": 1
+    }
+  },
+  "errors": [
+    {
+      "details": {
+        "cmd": "terraform plan -refresh-only -detailed-exitcode -input=false -no-color -lock-timeout=60s -parallelism=10 -out=/tmp/cloudsentinel-drift/c677ce95-9186-4765-b05d-07727381f032/tfplan",
+        "stderr": "\nError: No configuration files\n\nPlan requires configuration to be present. Planning without a configuration\nwould mark everything for destruction, which is normally not what is desired.\nIf you would like to destroy everything, run plan with the -destroy option.\nOtherwise, create a Terraform configuration file (.tf file) and try again.\n",
+        "stdout": ""
+      },
+      "message": "terraform plan -refresh-only failed",
+      "remediation": "Verify Terraform configuration and Azure credentials (ARM_*).",
+      "type": "TerraformPlanError"
+    }
+  ]
+}

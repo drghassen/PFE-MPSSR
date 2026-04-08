@@ -1,0 +1,42 @@
+name: drift-engine
+services:
+  drift-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Azure auth for Terraform provider (pass-through from host / .env)
+      ARM_CLIENT_ID: ${ARM_CLIENT_ID:-}
+      ARM_CLIENT_SECRET: ${ARM_CLIENT_SECRET:-}
+      ARM_TENANT_ID: ${ARM_TENANT_ID:-}
+      ARM_SUBSCRIPTION_ID: ${ARM_SUBSCRIPTION_ID:-}
+      ARM_USE_MSI: ${ARM_USE_MSI:-}
+      # Drift engine runtime
+      TF_WORKING_DIR: /work/iac
+      # Keep Terraform runtime data out of the mounted IaC folder (prevents permission issues and reduces host drift)
+      TF_DATA_DIR: /tmp/cloudsentinel-tfdata
+      TF_WORKSPACE: ${TF_WORKSPACE:-default}
+      DRIFT_CONFIG_PATH: /app/config/drift_config.yaml
+      DRIFT_OUTPUT_PATH: /work/output/drift-report.json
+      DRIFT_PUSH_TO_DEFECTDOJO: ${DRIFT_PUSH_TO_DEFECTDOJO:-false}
+      TF_BACKEND_CONFIG_JSON: ${TF_BACKEND_CONFIG_JSON:-}
+      TF_BACKEND_RESOURCE_GROUP_NAME: ${TF_BACKEND_RESOURCE_GROUP_NAME:-}
+      TF_BACKEND_STORAGE_ACCOUNT_NAME: ${TF_BACKEND_STORAGE_ACCOUNT_NAME:-}
+      TF_BACKEND_CONTAINER_NAME: ${TF_BACKEND_CONTAINER_NAME:-}
+      TF_BACKEND_KEY: ${TF_BACKEND_KEY:-}
+      TF_BACKEND_USE_AZUREAD_AUTH: ${TF_BACKEND_USE_AZUREAD_AUTH:-}
+      # DefectDojo (optional)
+      DEFECTDOJO_URL: ${DEFECTDOJO_URL:-}
+      DEFECTDOJO_API_KEY: ${DEFECTDOJO_API_KEY:-}
+      DEFECTDOJO_ENGAGEMENT_ID: ${DEFECTDOJO_ENGAGEMENT_ID:-}
+    volumes:
+      # Default points to the sample IaC in this repo; override with an absolute path if needed.
+      - ${TF_IAC_PATH:-../../infra/azure/student-secure}:/work/iac:ro
+      - drift_output:/work/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Uses Dockerfile ENTRYPOINT + CMD. Override args only if needed:
+    # command: ["--config", "/app/config/drift_config.yaml"]
+
+volumes:
+  drift_output: {}

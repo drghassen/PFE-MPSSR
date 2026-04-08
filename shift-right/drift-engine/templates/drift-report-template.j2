@@ -1,0 +1,49 @@
+{
+  "schema_version": "{{ schema_version }}",
+  "ocsf": {
+    "version": "{{ ocsf.version }}",
+    "class_uid": {{ ocsf.class_uid }},
+    "category_uid": {{ ocsf.category_uid }},
+    "type_uid": {{ ocsf.type_uid }},
+    "time": "{{ ocsf.time }}",
+    "severity_id": {{ ocsf.severity_id }},
+    "severity": "{{ ocsf.severity }}",
+    "activity_name": "{{ ocsf.activity_name }}",
+    "activity_id": {{ ocsf.activity_id }},
+    "metadata": {
+      "product": {
+        "name": "{{ ocsf.metadata.product.name }}",
+        "vendor_name": "{{ ocsf.metadata.product.vendor_name }}",
+        "version": "{{ ocsf.metadata.product.version }}"
+      }
+    }
+  },
+  "cloudsentinel": {
+    "run_id": "{{ cloudsentinel.run_id }}",
+    "engine": "{{ cloudsentinel.engine }}",
+    "engine_version": "{{ cloudsentinel.engine_version }}",
+    "tenant_id": {{ cloudsentinel.tenant_id | tojson }},
+    "subscription_id": {{ cloudsentinel.subscription_id | tojson }},
+    "terraform_workspace": "{{ cloudsentinel.terraform_workspace }}",
+    "terraform_working_dir": "{{ cloudsentinel.terraform_working_dir }}",
+    "started_at": "{{ cloudsentinel.started_at }}",
+    "finished_at": "{{ cloudsentinel.finished_at }}",
+    "duration_ms": {{ cloudsentinel.duration_ms }}
+  },
+  "drift": {
+    "detected": {{ drift.detected | lower }},
+    "exit_code": {{ drift.exit_code }},
+    "summary": {
+      "resources_changed": {{ drift.summary.resources_changed }},
+      "resources_by_action": {{ drift.summary.resources_by_action | tojson }},
+      "provider_names": {{ drift.summary.provider_names | tojson }}
+    },
+    "items": {{ drift["items"] | tojson }}
+  },
+  "terraform": {
+    "version": {{ terraform.version | tojson }},
+    "init": {{ terraform.init | tojson }},
+    "plan": {{ terraform.plan | tojson }}
+  },
+  "errors": {{ errors | tojson }}
+}
