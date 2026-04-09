@@ -29,7 +29,8 @@ report:
   template_path: templates/drift-report-template.j2
 
 defectdojo:
-  enabled: ${DRIFT_PUSH_TO_DEFECTDOJO:-false}
+  # Mandatory for traceability in CloudSentinel shift-right.
+  enabled: true
   base_url: ${DEFECTDOJO_URL:-}
   api_key: ${DEFECTDOJO_API_KEY:-}
   engagement_id: ${DEFECTDOJO_ENGAGEMENT_ID:-}
