@@ -26,6 +26,11 @@ variable "location" {
   default     = "norwayeast"
 }
 
+variable "subscription_id" {
+  description = "Azure subscription ID (used for activity log diagnostic setting)."
+  type        = string
+}
+
 variable "admin_username" {
   description = "Linux VM admin username."
   type        = string
