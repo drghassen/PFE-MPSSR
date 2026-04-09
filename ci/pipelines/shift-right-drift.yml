@@ -12,45 +12,26 @@ stages:
 
 drift-detect:
   stage: drift
-  image: docker:26.1.4
-  services:
-    - name: docker:26.1.4-dind
-      alias: docker
+  # Run the Drift Engine directly (no Docker-in-Docker, no image build).
+  image:
+    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/drift-engine:latest
+    entrypoint: [""]
   before_script: []
   variables:
     GIT_STRATEGY: fetch
-    DOCKER_HOST: "tcp://docker:2375"
-    DOCKER_TLS_CERTDIR: ""
+    TF_WORKING_DIR: "${CI_PROJECT_DIR}/infra/azure/student-secure"
+    DRIFT_OUTPUT_PATH: "${CI_PROJECT_DIR}/shift-right/drift-engine/output/drift-report.json"
+    TF_PLUGIN_CACHE_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/tf-plugin-cache"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
     - when: never
   script:
     - set -euo pipefail
-    - mkdir -p shift-right/drift-engine/output .cloudsentinel
-    # Ensure the drift-engine container user (uid 10001) can write the report artifact.
-    - chmod -R 0777 shift-right/drift-engine/output
-    - docker version
-    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
-    - DRIFT_ENGINE_IMAGE="${DRIFT_ENGINE_IMAGE:-${CI_REGISTRY_IMAGE}/drift-engine:latest}"
-    - docker pull "${DRIFT_ENGINE_IMAGE}"
+    - mkdir -p shift-right/drift-engine/output .cloudsentinel "${TF_PLUGIN_CACHE_DIR}"
     - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
     - set +e
-    - >
-      docker run --rm
-      -e ARM_CLIENT_ID -e ARM_CLIENT_SECRET -e ARM_TENANT_ID -e ARM_SUBSCRIPTION_ID -e ARM_USE_MSI
-      -e TF_BACKEND_CONFIG_JSON
-      -e TF_BACKEND_RESOURCE_GROUP_NAME -e TF_BACKEND_STORAGE_ACCOUNT_NAME -e TF_BACKEND_CONTAINER_NAME
-      -e TF_BACKEND_KEY -e TF_BACKEND_USE_AZUREAD_AUTH
-      -e TF_VAR_admin_password
-      -e TF_VAR_admin_ssh_public_key
-      -e TF_VAR_subscription_id
-      -e DEFECTDOJO_URL -e DEFECTDOJO_API_KEY -e DEFECTDOJO_ENGAGEMENT_ID
-      -e TF_WORKING_DIR=/work/iac -e TF_DATA_DIR=/tmp/cloudsentinel-tfdata -e TF_WORKSPACE=${TF_WORKSPACE:-default}
-      -e DRIFT_OUTPUT_PATH=/work/output/drift-report.json
-      -v "${CI_PROJECT_DIR}/infra/azure/student-secure:/work/iac:ro"
-      -v "${CI_PROJECT_DIR}/shift-right/drift-engine/output:/work/output"
-      "${DRIFT_ENGINE_IMAGE}"
+    - python /app/drift-engine.py --config /app/config/drift_config.yaml
     - rc="$?"
     - set -e
     - echo "DRIFT_ENGINE_EXIT_CODE=${rc}" > .cloudsentinel/drift_engine.env
@@ -58,6 +39,10 @@ drift-detect:
     - test -f shift-right/drift-engine/output/drift-report.json
     - if [ "${rc}" -eq 1 ]; then exit 1; fi
     - exit 0
+  cache:
+    key: shift-right-drift-tf-plugin-cache
+    paths:
+      - .cloudsentinel/tf-plugin-cache/
   artifacts:
     when: always
     expire_in: 30 days
