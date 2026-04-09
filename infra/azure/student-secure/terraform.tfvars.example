@@ -1,6 +1,7 @@
 project_name         = "csstudent"
 environment          = "dev"
 location             = "norwayeast"
+subscription_id      = "8eef52e8-b918-4aec-8a36-fb2218e65f77"
 admin_username       = "cloudadmin"
 admin_ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ...replace-me"
 admin_allowed_cidr   = "198.51.100.25/32"

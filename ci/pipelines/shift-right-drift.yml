@@ -1,0 +1,78 @@
+# ============================================================================
+# CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline
+# ============================================================================
+default:
+  tags:
+    - cloudsentinel
+    - docker
+
+stages:
+  - drift
+  - remediate
+
+drift-detect:
+  stage: drift
+  image: docker:26.1.4
+  before_script: []
+  variables:
+    GIT_STRATEGY: fetch
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - mkdir -p shift-right/drift-engine/output .cloudsentinel
+    - docker version
+    - docker build -t "cloudsentinel-drift-engine:${CI_PIPELINE_ID}" shift-right/drift-engine
+    - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
+    - set +e
+    - >
+      docker run --rm
+      -e ARM_CLIENT_ID -e ARM_CLIENT_SECRET -e ARM_TENANT_ID -e ARM_SUBSCRIPTION_ID -e ARM_USE_MSI
+      -e TF_BACKEND_CONFIG_JSON
+      -e TF_BACKEND_RESOURCE_GROUP_NAME -e TF_BACKEND_STORAGE_ACCOUNT_NAME -e TF_BACKEND_CONTAINER_NAME
+      -e TF_BACKEND_KEY -e TF_BACKEND_USE_AZUREAD_AUTH
+      -e TF_VAR_admin_password
+      -e TF_VAR_admin_ssh_public_key
+      -e TF_VAR_subscription_id
+      -e DEFECTDOJO_URL -e DEFECTDOJO_API_KEY -e DEFECTDOJO_ENGAGEMENT_ID
+      -e TF_WORKING_DIR=/work/iac -e TF_DATA_DIR=/tmp/cloudsentinel-tfdata -e TF_WORKSPACE=${TF_WORKSPACE:-default}
+      -e DRIFT_OUTPUT_PATH=/work/output/drift-report.json
+      -v "${CI_PROJECT_DIR}/infra/azure/student-secure:/work/iac:ro"
+      -v "${CI_PROJECT_DIR}/shift-right/drift-engine/output:/work/output"
+      "cloudsentinel-drift-engine:${CI_PIPELINE_ID}"
+    - rc="$?"
+    - set -e
+    - echo "DRIFT_ENGINE_EXIT_CODE=${rc}" > .cloudsentinel/drift_engine.env
+    - if [ "${rc}" -eq 2 ]; then echo "DRIFT_DETECTED=true" >> .cloudsentinel/drift_engine.env; else echo "DRIFT_DETECTED=false" >> .cloudsentinel/drift_engine.env; fi
+    - test -f shift-right/drift-engine/output/drift-report.json
+    - if [ "${rc}" -eq 1 ]; then exit 1; fi
+    - exit 0
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - shift-right/drift-engine/output/drift-report.json
+      - .cloudsentinel/drift_engine.env
+    reports:
+      dotenv: .cloudsentinel/drift_engine.env
+
+# Placeholder: Cloud Custodian is the only remediation engine.
+# Implement your `c7n` policies here; keep it a no-op when DRIFT_ENGINE_EXIT_CODE != 2.
+custodian-remediate:
+  stage: remediate
+  image: alpine:3.20
+  before_script: []
+  needs:
+    - job: drift-detect
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE:-}"
+    - if [ "${DRIFT_ENGINE_EXIT_CODE:-0}" -ne 2 ]; then echo "No drift -> skip remediation"; exit 0; fi
+    - echo "Drift detected -> trigger Cloud Custodian remediation here"

@@ -19,7 +19,7 @@ output "private_endpoint_id" {
 }
 
 output "customer_managed_key_id" {
-  value = azurerm_storage_account_customer_managed_key.this.id
+  value = try(azurerm_storage_account_customer_managed_key.this[0].id, null)
 }
 
 output "cmk_key_id" {

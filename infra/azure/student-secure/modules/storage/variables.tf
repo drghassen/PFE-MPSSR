@@ -15,11 +15,21 @@ variable "key_vault_id" {
 }
 
 variable "key_vault_key_id" {
-  type = string
+  type     = string
+  nullable = true
+  default  = null
 
   validation {
-    condition     = can(regex("^https://[^/]+/keys/[^/]+(?:/[^/]+)?$", trimspace(var.key_vault_key_id)))
-    error_message = "key_vault_key_id must be a valid Key Vault key URL: https://<vault>/keys/<name>[/<version>]."
+    condition = (
+      trimspace(var.key_vault_key_id != null ? var.key_vault_key_id : "") == "" ||
+      can(
+        regex(
+          "^https://[^/]+/keys/[^/]+(?:/[^/]+)?$",
+          trimspace(var.key_vault_key_id != null ? var.key_vault_key_id : ""),
+        )
+      )
+    )
+    error_message = "key_vault_key_id must be null/empty or a valid Key Vault key URL: https://<vault>/keys/<name>[/<version>]."
   }
 }
 
