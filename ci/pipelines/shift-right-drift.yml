@@ -29,6 +29,8 @@ drift-detect:
   script:
     - set -euo pipefail
     - mkdir -p shift-right/drift-engine/output .cloudsentinel
+    # Ensure the drift-engine container user (uid 10001) can write the report artifact.
+    - chmod -R 0777 shift-right/drift-engine/output
     - docker version
     - docker build -t "cloudsentinel-drift-engine:${CI_PIPELINE_ID}" shift-right/drift-engine
     - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
