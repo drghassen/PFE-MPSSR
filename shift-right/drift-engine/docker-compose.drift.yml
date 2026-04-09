@@ -25,6 +25,7 @@ services:
       TF_BACKEND_CONTAINER_NAME: ${TF_BACKEND_CONTAINER_NAME:-}
       TF_BACKEND_KEY: ${TF_BACKEND_KEY:-}
       TF_BACKEND_USE_AZUREAD_AUTH: ${TF_BACKEND_USE_AZUREAD_AUTH:-}
+      TF_VAR_admin_password: ${TF_VAR_admin_password:-}
       # DefectDojo (optional)
       DEFECTDOJO_URL: ${DEFECTDOJO_URL:-}
       DEFECTDOJO_API_KEY: ${DEFECTDOJO_API_KEY:-}

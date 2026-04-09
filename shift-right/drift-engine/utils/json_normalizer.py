@@ -18,6 +18,11 @@ def _actions_key(actions: list[str]) -> str:
 
 
 def _iter_resource_changes(plan_json: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    # For refresh-only plans, Terraform/OpenTofu may put the actual drift under
+    # `resource_drift` instead of `resource_changes`.
+    for item in plan_json.get("resource_drift") or []:
+        if isinstance(item, dict):
+            yield item
     for item in plan_json.get("resource_changes") or []:
         if isinstance(item, dict):
             yield item
@@ -100,15 +105,17 @@ def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, l
     provider_names: set[str] = set()
     resources_by_action: dict[str, int] = {}
 
+    seen: set[str] = set()
     for rc in _iter_resource_changes(plan_json):
+        address = str(rc.get("address") or "")
+        if address and address in seen:
+            continue
+        if address:
+            seen.add(address)
+
         change = _safe_dict(rc.get("change"))
         actions = _safe_list_str(change.get("actions"))
 
-        # In refresh-only plans, no-op means no drift for that resource.
-        if actions == ["no-op"]:
-            continue
-
-        address = str(rc.get("address") or "")
         mode = str(rc.get("mode") or "managed")
         rtype = str(rc.get("type") or "")
         name = str(rc.get("name") or "")
@@ -120,6 +127,11 @@ def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, l
         after = change.get("after")
 
         changed_paths = _diff_paths(before, after)
+
+        # For `plan -refresh-only`, provider often reports `actions=["no-op"]` even when
+        # the state is refreshed to different values. Treat "no-op + diff" as drift.
+        if not changed_paths:
+            continue
 
         action_key = _actions_key(actions)
         resources_by_action[action_key] = resources_by_action.get(action_key, 0) + 1
@@ -140,8 +152,39 @@ def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, l
                 "actions": actions,
                 "resource_id": resource_id,
                 "changed_paths": changed_paths,
+                "drifted": True,
             }
         )
+
+    # Also capture output-level drift, which can be the only thing that changes in refresh-only plans.
+    output_changes = plan_json.get("output_changes") or {}
+    if isinstance(output_changes, dict):
+        for out_name, out_change in sorted(output_changes.items()):
+            if not isinstance(out_name, str):
+                continue
+            if not isinstance(out_change, dict):
+                continue
+            before = out_change.get("before")
+            after = out_change.get("after")
+            changed_paths = _diff_paths(before, after)
+            if not changed_paths:
+                continue
+            actions = _safe_list_str(out_change.get("actions")) or ["update"]
+            action_key = _actions_key(actions)
+            resources_by_action[action_key] = resources_by_action.get(action_key, 0) + 1
+            items.append(
+                {
+                    "address": f"output.{out_name}",
+                    "mode": "output",
+                    "type": "output",
+                    "name": out_name,
+                    "provider_name": None,
+                    "actions": actions,
+                    "resource_id": None,
+                    "changed_paths": changed_paths,
+                    "drifted": True,
+                }
+            )
 
     summary = DriftSummary(
         resources_changed=len(items),

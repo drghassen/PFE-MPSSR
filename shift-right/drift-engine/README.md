@@ -17,13 +17,14 @@ Commande cœur:
 Codes de sortie du conteneur (CloudSentinel):
 
 - `0` : aucun drift détecté
-- `1` : drift détecté **ou** erreur (init/plan/API…)
+- `2` : drift détecté
+- `1` : erreur (init/plan/API/DefectDojo…)
 
 ## Prérequis
 
 - Terraform projet prêt (local state ou backend `azurerm`)
 - Auth Azure via variables `ARM_*` (Service Principal) ou Managed Identity
-- (Optionnel) DefectDojo accessible + `ENGAGEMENT_ID`
+- DefectDojo accessible + `ENGAGEMENT_ID` (obligatoire pour la traçabilité Shift-Right)
 
 ## Fichiers clés
 
@@ -47,14 +48,13 @@ Managed Identity (fallback):
 - `ARM_CLIENT_ID` (optionnel si user-assigned MI)
 - `ARM_SUBSCRIPTION_ID` (recommandé)
 
-## DefectDojo (optionnel)
+## DefectDojo (obligatoire)
 
 Variables:
 
 - `DEFECTDOJO_URL`
 - `DEFECTDOJO_API_KEY`
 - `DEFECTDOJO_ENGAGEMENT_ID`
-- `DRIFT_PUSH_TO_DEFECTDOJO=true`
 
 Le moteur utilise `scan_type=Generic Findings Import` et peut fermer les anciens findings via `close_old_findings=true`.
 
@@ -75,6 +75,7 @@ mkdir -p shift-right/drift-engine/output
 docker run --rm \
   --env-file shift-right/drift-engine/.env.example \
   -e ARM_CLIENT_ID=... -e ARM_CLIENT_SECRET=... -e ARM_TENANT_ID=... -e ARM_SUBSCRIPTION_ID=... \
+  -e DEFECTDOJO_URL=... -e DEFECTDOJO_API_KEY=... -e DEFECTDOJO_ENGAGEMENT_ID=... \
   -e TF_WORKING_DIR=/work/iac \
   -e TF_DATA_DIR=/tmp/cloudsentinel-tfdata \
   -e TF_LOCKFILE_MODE=readonly \
