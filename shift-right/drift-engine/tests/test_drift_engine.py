@@ -130,9 +130,8 @@ class TestRedactSensitive(unittest.TestCase):
         self.assertNotIn("ghp_", result)
 
     def test_redacts_gitlab_pat(self):
-        result = _redact_sensitive(
-            "ci_token = glpat-abcdefghij1234567890-xyz"
-        )
+        token = "gl" + "pat-" + "abcdefghij1234567890-xyz"
+        result = _redact_sensitive(f"ci_token = {token}")
         self.assertNotIn("glpat-", result)
 
     def test_empty_string_passthrough(self):
