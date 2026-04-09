@@ -1,5 +1,5 @@
 # ============================================================================
-# CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline
+# CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline the drift engine v8 2 turbo in gitlab register container
 # ============================================================================
 default:
   tags:
