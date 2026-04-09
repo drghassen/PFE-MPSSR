@@ -13,9 +13,15 @@ stages:
 drift-detect:
   stage: drift
   image: docker:26.1.4
+  services:
+    - name: docker:26.1.4-dind
+      alias: docker
   before_script: []
   variables:
     GIT_STRATEGY: fetch
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_BUILDKIT: "1"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
