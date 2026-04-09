@@ -21,7 +21,6 @@ drift-detect:
     GIT_STRATEGY: fetch
     DOCKER_HOST: "tcp://docker:2375"
     DOCKER_TLS_CERTDIR: ""
-    DOCKER_BUILDKIT: "1"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -32,7 +31,9 @@ drift-detect:
     # Ensure the drift-engine container user (uid 10001) can write the report artifact.
     - chmod -R 0777 shift-right/drift-engine/output
     - docker version
-    - docker build -t "cloudsentinel-drift-engine:${CI_PIPELINE_ID}" shift-right/drift-engine
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - DRIFT_ENGINE_IMAGE="${DRIFT_ENGINE_IMAGE:-${CI_REGISTRY_IMAGE}/drift-engine:latest}"
+    - docker pull "${DRIFT_ENGINE_IMAGE}"
     - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
     - set +e
     - >
@@ -49,7 +50,7 @@ drift-detect:
       -e DRIFT_OUTPUT_PATH=/work/output/drift-report.json
       -v "${CI_PROJECT_DIR}/infra/azure/student-secure:/work/iac:ro"
       -v "${CI_PROJECT_DIR}/shift-right/drift-engine/output:/work/output"
-      "cloudsentinel-drift-engine:${CI_PIPELINE_ID}"
+      "${DRIFT_ENGINE_IMAGE}"
     - rc="$?"
     - set -e
     - echo "DRIFT_ENGINE_EXIT_CODE=${rc}" > .cloudsentinel/drift_engine.env
