@@ -25,6 +25,7 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
         self.trivy_raw_dir = self.repo_root / "shift-left" / "trivy" / "reports" / "raw"
         self.cloud_dir.mkdir(parents=True, exist_ok=True)
         self.trivy_raw_dir.mkdir(parents=True, exist_ok=True)
+        (self.trivy_raw_dir / "image").mkdir(parents=True, exist_ok=True)
 
         self.backup_dir = Path(tempfile.mkdtemp(prefix="cs-normalizer-test-"))
         self.tracked_files = [
@@ -33,7 +34,7 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
             self.cloud_dir / "golden_report.json",
             self.trivy_raw_dir / "trivy-fs-raw.json",
             self.trivy_raw_dir / "trivy-config-raw.json",
-            self.trivy_raw_dir / "trivy-image-raw.json",
+            self.trivy_raw_dir / "image" / "trivy-image-scan-tools-raw.json",
         ]
         self.existing = {}
         for src in self.tracked_files:
@@ -67,6 +68,8 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
                 shutil.copy2(self.backup_dir / src.name, src)
             else:
                 src.unlink(missing_ok=True)
+        for name in ["scan-tools", "deploy-tools", "opa"]:
+            (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(missing_ok=True)
         shutil.rmtree(self.backup_dir, ignore_errors=True)
 
     def _write(self, path: Path, payload):
@@ -95,11 +98,18 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
             empty = {"SchemaVersion": 2, "Trivy": {"Version": "0.69.1"}, "Results": []}
             self._write(self.trivy_raw_dir / "trivy-fs-raw.json", empty)
             self._write(self.trivy_raw_dir / "trivy-config-raw.json", empty)
-            self._write(self.trivy_raw_dir / "trivy-image-raw.json", empty)
+            image_dir = self.trivy_raw_dir / "image"
+            image_dir.mkdir(parents=True, exist_ok=True)
+            for name in ["scan-tools", "deploy-tools", "opa"]:
+                self._write(
+                    image_dir / f"trivy-image-{name}-raw.json",
+                    empty,
+                )
         else:
             (self.trivy_raw_dir / "trivy-fs-raw.json").unlink(missing_ok=True)
             (self.trivy_raw_dir / "trivy-config-raw.json").unlink(missing_ok=True)
-            (self.trivy_raw_dir / "trivy-image-raw.json").unlink(missing_ok=True)
+            for name in ["scan-tools", "deploy-tools", "opa"]:
+                (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(missing_ok=True)
 
     def _generate(self):
         self._seed_raw(include_trivy=True)

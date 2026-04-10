@@ -1,51 +1,78 @@
-# 🔍 Gitleaks — Scanner de Secrets (Shift-Left)
+# Gitleaks — Scanner de Secrets (Shift-Left)
 
 > **Protégez vos credentials** : Arrête les clés d'API et mots de passe avant le commit, ou les intercepte dans la CI/CD si échappé.
 
-Gitleaks est le composant le plus rapide du Shift-Left. Il opère en première ligne (Tier 1) pour scanner l'historique de Git à la recherche d'entropie (mots de passe) et de patterns (clés AWS, GCP, Azure, tokens personnels).
+Gitleaks est le composant de première ligne (Tier 1) du Shift-Left. Il détecte les secrets hardcodés par analyse d'entropie et de patterns (clés AWS, GCP, Azure, tokens personnels, etc.).
 
 ---
 
-## 📐 Fonctionnement (Wrapper V5.0)
+## Fonctionnement
 
 Dans le pattern de séparation de CloudSentinel, Gitleaks ne bloque jamais directement un pipeline.
+OPA est le seul point de décision (`run-opa.sh --enforce` en CI, `--advisory` en local).
+
 Le script `run-gitleaks.sh` encapsule l'outil pour :
-1.  Rediriger tous les résultats sécuremment (`--redact` activé obligatoirement).
-2.  Normaliser et fusionner la sortie sous un format OPA-ready (`gitleaks_opa.json`).
-3.  Toujours renvoyer un "exit 0" pour laisser le mot final au Policy Decision Point (OPA).
-
-### Exécution Contextuelle
-- **Mode CI** : Scanne par défaut le `commit-range` (`$CI_MERGE_REQUEST_TARGET_BRANCH_SHA..HEAD`) pour ne pas surcharger la pipeline avec tout l'historique. Fallback sur un "full repo scan" si le range échoue.
-- **Mode Local** : Invoqué par le pre-commit hook pour scanner uniquement `git diff --staged`. Extrêmement rapide (< 0.5s).
+1. Rediriger tous les résultats sécurisement (`--redact` activé sur tous les modes).
+2. Toujours renvoyer un exit code permettant à OPA de décider.
 
 ---
 
-## 🛠️ Configuration (`gitleaks.toml`)
+## Configuration (`gitleaks.toml`)
 
-Les règles par défaut de Gitleaks sont souvent trop bruyantes. CloudSentinel utilise un `gitleaks.toml` propriétaire :
-*   `useDefault = false` (Contrôle total des expressions régulières).
-*   17 règles spécifiques aux Cloud Providers.
-*   Allowlisting massif sur fichiers (`vendor/`, `.terraform/`, `package-lock.json`, etc.)
-*   Allowlisting regex (SHA256, localhost, variables d'environnements factices).
+- `useDefault = true` — modèle hybride : règles upstream Gitleaks (maintenues par la communauté) + règles custom Azure.
+- Règles custom : Azure SAS tokens, Azure Storage connection strings, Azure AD credentials.
+- Allowlist : `.terraform/`, `tests/fixtures/`, fichiers de lock, images binaires, IDs Terraform, connexions locales.
 
 ---
 
-## 🚀 Utilisation
+## Modes de scan
 
-**En local (Développeur) :**
+### CI — Scan principal (signal OPA / gate pipeline)
+
 ```bash
-# S'exécute automatiquement via le Hook pre-commit
-# Output visible dans le shell
+gitleaks detect --no-git --source <repo> --redact ...
 ```
 
-**Pipeline Manuelle (Admin) :**
+- **Output** : `.cloudsentinel/gitleaks_raw.json`
+- Scanne le snapshot complet du repository (fichiers présents dans le workspace CI).
+- C'est le **seul signal OPA**. Ce fichier est la source de vérité pour la décision pipeline.
+
+### CI — Scan range secondaire (enrichissement metadata, best-effort)
+
 ```bash
-bash shift-left/gitleaks/run-gitleaks.sh
-# Checkez .cloudsentinel/gitleaks_opa.json
+gitleaks detect --source <repo> --log-opts <range> --redact ...
 ```
+
+- **Output** : `.cloudsentinel/gitleaks_range_raw.json`
+- Enrichit les findings du scan principal avec les metadata git (commit, author, date) quand un matching par clé composite (RuleID, File, StartLine, EndLine) est trouvé.
+- **Jamais gating, jamais un signal OPA.**
+- Absent ou invalide = ignoré silencieusement (best-effort).
+- Range sélectionné automatiquement :
+  - `CI_MERGE_REQUEST_TARGET_BRANCH_SHA..CI_COMMIT_SHA` si disponible (MR)
+  - `CI_COMMIT_BEFORE_SHA..CI_COMMIT_SHA` si disponible (push)
+  - `--max-count=200` sinon (fallback limité)
+
+### Local — Protection pre-commit (staged)
+
+```bash
+gitleaks protect --staged --redact ...
+```
+
+- Invoqué automatiquement par le pre-commit hook.
+- Scanne uniquement `git diff --staged`. Extrêmement rapide (< 0.5s).
+
+### Local — Scan complet du repository
+
+```bash
+SCAN_TARGET=repo bash shift-left/gitleaks/run-gitleaks.sh
+```
+
+- Scanne l'ensemble du repository local.
 
 ---
 
-## 📚 Bonnes Pratiques Gitleaks
-1.  **Redaction** : Impossible de commiter `run-gitleaks.sh` sans le flag `--redact`. L'audit JSON ne doit contenir aucun secret en clair.
-2.  **Baseline** : Si un vieux repostory hérite de secrets ineffaçables, générez un `gitleaks.baseline.json` et ajoutez `export GITLEAKS_BASELINE=".gitleaks.baseline.json"` dans le `.env`.
+## Bonnes pratiques
+
+1. **Redaction** : `--redact` activé sur tous les modes. L'audit JSON ne contient aucun secret en clair.
+2. **Baseline** : Si un repository hérite de secrets ineffaçables dans l'historique, générez un `gitleaks.baseline.json` et référencez-le dans `gitleaks.toml`.
+3. **Fingerprint** : Non utilisé comme clé de matching entre le scan principal (`--no-git`) et le scan range (`--log-opts`) — incompatibles structurellement. La clé composite (RuleID, File, StartLine, EndLine) est utilisée.

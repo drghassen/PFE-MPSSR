@@ -27,6 +27,7 @@
   "CKV2_CS_AZ_028": { "category": "APPSERVICE", "severity": "MEDIUM" },
   "CKV2_CS_AZ_029": { "category": "IDENTITY",   "severity": "MEDIUM" },
   "CKV2_CS_AZ_030": { "category": "IDENTITY",   "severity": "MEDIUM" },
+  "CKV2_CS_AZ_031": { "category": "IAM",        "severity": "CRITICAL" },
 
   "CKV_AZURE_1":  { "category": "DATABASE",   "severity": "HIGH" },
   "CKV_AZURE_2":  { "category": "LOGGING",    "severity": "MEDIUM" },

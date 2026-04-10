@@ -11,7 +11,7 @@ chmod +x shift-left/checkov/run-checkov.sh
 
 # Hardcoded scan target / skip paths
 readonly DEFAULT_SCAN_TARGET="infra/azure/student-secure"
-SCAN_TARGET_EFF="${DEFAULT_SCAN_TARGET}"
+SCAN_TARGET_EFF="${CHECKOV_SCAN_TARGET:-${DEFAULT_SCAN_TARGET}}"
 
 bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET_EFF}"
 

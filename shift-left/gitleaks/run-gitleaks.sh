@@ -68,4 +68,48 @@ fi
 jq -e 'type=="array"' "$REPORT_RAW_OUT" >/dev/null || { err "gitleaks raw output invalid JSON array"; exit 2; }
 
 log "Raw report ready: $REPORT_RAW_OUT"
+
+# --- Scan range secondaire (enrichissement metadata — non-gating) ---
+# ENRICHISSEMENT UNIQUEMENT : gitleaks_range_raw.json n'alimente jamais OPA.
+# Signal OPA = gitleaks_raw.json (scan principal --no-git) uniquement.
+if [[ -n "${CI:-}" ]]; then
+  RANGE_OUT="$OUT_DIR/gitleaks_range_raw.json"
+  LOG_OPTS=""
+  ZERO_SHA="0000000000000000000000000000000000000000"
+
+  if [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}" \
+        && "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}" != "$ZERO_SHA" ]]; then
+    LOG_OPTS="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}..${CI_COMMIT_SHA:-HEAD}"
+  elif [[ -n "${CI_COMMIT_BEFORE_SHA:-}" \
+          && "${CI_COMMIT_BEFORE_SHA}" != "$ZERO_SHA" ]]; then
+    LOG_OPTS="${CI_COMMIT_BEFORE_SHA}..${CI_COMMIT_SHA:-HEAD}"
+  else
+    LOG_OPTS="--max-count=200"
+  fi
+
+  log "Starting range scan (enrichissement, best-effort, log-opts='$LOG_OPTS')..."
+  set +e
+  run_cmd gitleaks detect \
+    --source "$REPO_ROOT" \
+    --log-opts "$LOG_OPTS" \
+    --redact \
+    --config "$CONFIG_PATH" \
+    --report-format json \
+    --report-path "$RANGE_OUT" \
+    --max-target-megabytes "$MAX_SIZE_MB"
+  RC_RANGE=$?
+  set -e
+
+  if [[ "$RC_RANGE" -gt 1 ]]; then
+    log "WARN: range scan failed rc=$RC_RANGE — skipping enrichment"
+  else
+    if jq -e 'type=="array"' "$RANGE_OUT" >/dev/null 2>&1; then
+      log "Range report ready: $RANGE_OUT"
+    else
+      log "WARN: range report invalid JSON — skipping enrichment"
+      rm -f "$RANGE_OUT"
+    fi
+  fi
+fi
+
 exit 0

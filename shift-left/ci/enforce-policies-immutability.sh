@@ -10,7 +10,16 @@ set -euo pipefail
 log() { echo "[CloudSentinel][immutability] $*"; }
 err() { echo "[CloudSentinel][immutability][ERROR] $*" >&2; }
 
-readonly APPSEC_ALLOWED_USERS="appsec-bot,appsec-admin,drghassen"
+# CLOUDSENTINEL_APPSEC_USERS doit être définie comme variable CI protégée
+# et masquée dans GitLab (Settings → CI/CD → Variables).
+# Valeur de production minimale : "appsec-bot,appsec-admin"
+# Ne jamais inclure de comptes personnels dans cette liste.
+if [[ -z "${CLOUDSENTINEL_APPSEC_USERS:-}" ]]; then
+  err "CLOUDSENTINEL_APPSEC_USERS is not set. Define it as a protected masked CI variable."
+  err "Minimum value: appsec-bot,appsec-admin"
+  exit 2
+fi
+readonly APPSEC_ALLOWED_USERS="${CLOUDSENTINEL_APPSEC_USERS}"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"

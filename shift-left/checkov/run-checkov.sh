@@ -53,5 +53,10 @@ fi
 jq -e 'type == "object" and (.results | type == "object")' "$REPORT_RAW" >/dev/null \
   || { log_err "invalid checkov raw JSON structure"; exit 2; }
 
+PARSING_ERRORS="$(jq '[.results.parsing_errors // [] | length]' "$REPORT_RAW" 2>/dev/null || echo 0)"
+if [[ "$PARSING_ERRORS" -gt 0 ]]; then
+  log_info "WARN: checkov reported ${PARSING_ERRORS} parsing error(s) — check $REPORT_LOG"
+fi
+
 log_info "Raw report ready: $REPORT_RAW"
 exit 0
