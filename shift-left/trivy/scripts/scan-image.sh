@@ -44,7 +44,8 @@ CONFIG_FILE="$CONFIG_DIR/trivy.yaml"
 # ── Setup ────────────────────────────────────────────────────────────────────
 mkdir -p "$REPORT_DIR"
 mkdir -p "$SBOM_DIR"
-OUTPUT_FILE="$REPORT_DIR/trivy-image-raw.json"
+OUTPUT_FILE="${TRIVY_IMAGE_OUTPUT_PATH:-$REPORT_DIR/trivy-image-raw.json}"
+mkdir -p "$(dirname "$OUTPUT_FILE")"
 SBOM_FILE="$SBOM_DIR/trivy-image.cdx.json"
 
 log "Mode      : $SCAN_MODE"
@@ -55,8 +56,14 @@ log "SBOM      : $SBOM_FILE"
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── SBOM Generation ──────────────────────────────────────────────────────────
+AUTH_ARGS=()
+if [[ -n "${CI_REGISTRY:-}" && "$TARGET" == "${CI_REGISTRY}"* ]]; then
+  AUTH_ARGS+=(--username "${CI_REGISTRY_USER:-}" --password "${CI_REGISTRY_PASSWORD:-}")
+fi
+
 log "Generating SBOM (CycloneDX)..."
 trivy image \
+  "${AUTH_ARGS[@]}" \
   --format cyclonedx \
   --output "$SBOM_FILE" \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
@@ -66,8 +73,14 @@ trivy image \
 # RC handling:
 #   0/1 -> scan executed (findings may exist)
 #   >1  -> technical failure
+AUTH_ARGS=()
+if [[ -n "${CI_REGISTRY:-}" && "$TARGET" == "${CI_REGISTRY}"* ]]; then
+  AUTH_ARGS+=(--username "${CI_REGISTRY_USER:-}" --password "${CI_REGISTRY_PASSWORD:-}")
+fi
+
 set +e
 trivy image \
+  "${AUTH_ARGS[@]}" \
   --config "$CONFIG_FILE" \
   "${IGNORE_ARGS[@]}" \
   --scanners vuln,secret \

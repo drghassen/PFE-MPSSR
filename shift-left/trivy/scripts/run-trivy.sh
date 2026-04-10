@@ -33,7 +33,7 @@ RAW_RESULTS=""
 case "$SCAN_TYPE" in
   image)
     bash "$SCAN_IMAGE" "$TARGET"
-    RAW_RESULTS="$REPORTS_RAW_DIR/trivy-image-raw.json"
+    RAW_RESULTS="${TRIVY_IMAGE_OUTPUT_PATH:-$REPORTS_RAW_DIR/trivy-image-raw.json}"
     ;;
   fs)
     bash "$SCAN_FS" "$TARGET"

@@ -34,4 +34,11 @@ tofu -chdir=infra/azure/student-secure init -input=false \
   -backend-config="use_azuread_auth=true"
 tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
 tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
-tofu -chdir=infra/azure/student-secure output -json > .cloudsentinel/terraform_outputs_student_secure.json
+tofu -chdir=infra/azure/student-secure output -json \
+  | jq 'to_entries
+        | map(if .value.sensitive == true
+              then .value.value = "REDACTED"
+              else .
+              end)
+        | from_entries' \
+  > .cloudsentinel/terraform_outputs_student_secure.json

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wsl -d Ubuntu-22.04 -- bash -c \"cd /home/ghassen/pfe-cloud-sentinel && python3 -m pytest shift-left/normalizer/tests/test_normalize.py -v 2>&1\")",
+      "Bash(wsl -d Ubuntu-22.04 -- bash -c \"cd /home/ghassen/pfe-cloud-sentinel && bash shift-left/gitleaks/tests/smoke.sh 2>&1 | tail -5\")",
+      "Bash(wsl -d Ubuntu-22.04 -- bash -c 'cd /home/ghassen/pfe-cloud-sentinel && python3 -c \":*)"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+metadata:
+  id: "CKV2_CS_AZ_031"
+  name: "Ensure no Owner or Contributor role is assigned at subscription scope"
+  category: "IAM"
+  severity: "CRITICAL"
+  guideline: "https://docs.microsoft.com/en-us/azure/role-based-access-control/best-practices"
+
+definition:
+  and:
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_role_assignment"
+      attribute: "role_definition_name"
+      operator: "within"
+      value:
+        - "Owner"
+        - "Contributor"
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_role_assignment"
+      attribute: "scope"
+      operator: "contains"
+      value: "/subscriptions/"
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_role_assignment"
+      attribute: "scope"
+      operator: "not_contains"
+      value: "/resourceGroups/"

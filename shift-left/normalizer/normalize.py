@@ -182,6 +182,9 @@ class CloudSentinelNormalizer:
         return out
 
     def _parse_gitleaks(self, skip=False):
+        # ENRICHISSEMENT UNIQUEMENT — gitleaks_range_raw.json n'est jamais un signal OPA.
+        # La clé composite (RuleID, File, StartLine, EndLine) est la seule clé de matching.
+        # Fingerprint NON utilisé : incompatible entre modes --no-git et --log-opts.
         p = self.out_dir / "gitleaks_raw.json"
         if skip:
             return self._not_run("gitleaks", str(p), "skipped_local_fast")
@@ -206,6 +209,55 @@ class CloudSentinelNormalizer:
             secret = self._first(it.get("Secret"), it.get("Match"), it.get("match"), "") or ""
             raw_sev = self._first(it.get("Severity"), sev_map.get(str(rid), "HIGH"), "HIGH")
             findings.append({"id": rid, "description": self._first(it.get("Description"), "No description"), "file": fp, "start_line": st, "end_line": en, "severity": self.sev_lut.get(str(raw_sev).upper(), "HIGH"), "status": "FAILED", "finding_type": "secret", "resource": {"name": fp, "path": fp, "type": "file"}, "metadata": {"secret_hash": self._sha256(secret) if secret else "", "commit": self._first(it.get("Commit"), ""), "author": self._first(it.get("Email"), ""), "date": self._first(it.get("Date"), "")}})
+        # Enrichissement depuis le scan range (best-effort)
+        range_p = self.out_dir / "gitleaks_range_raw.json"
+        if range_p.is_file():
+            range_doc, range_err = self._read_json(range_p)
+            if not range_err and isinstance(range_doc, list):
+                # Index clé composite : (RuleID.upper(), norm_path(File), StartLine, EndLine)
+                range_index: Dict[tuple, Dict[str, Any]] = {}
+                for r_item in range_doc:
+                    if not isinstance(r_item, dict):
+                        continue
+                    r_rid   = str(r_item.get("RuleID") or "").upper().strip()
+                    r_file  = self._norm_path(r_item.get("File") or "")
+                    r_start = self._to_int(r_item.get("StartLine"), 0)
+                    r_end   = self._to_int(r_item.get("EndLine"), r_start)
+                    r_commit = str(r_item.get("Commit") or "").strip()
+                    r_email  = str(r_item.get("Email") or "").strip()
+                    r_date   = str(r_item.get("Date") or "").strip()
+
+                    if not r_rid or not r_file:
+                        continue
+                    # Valider : commit non vide + date parseable ISO8601
+                    if not r_commit:
+                        continue
+                    try:
+                        datetime.fromisoformat(r_date.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        continue
+
+                    key = (r_rid, r_file, r_start, r_end)
+                    if key not in range_index:
+                        range_index[key] = r_item
+
+                # Injecter les metadata dans les findings du principal
+                for f in findings:
+                    f_rid   = str(f.get("id") or "").upper().strip()
+                    f_file  = self._norm_path(f.get("file") or "")
+                    f_start = self._to_int(f.get("start_line"), 0)
+                    f_end   = self._to_int(f.get("end_line"), f_start)
+                    key = (f_rid, f_file, f_start, f_end)
+                    match = range_index.get(key)
+                    if match:
+                        r_email = str(match.get("Email") or "").strip()
+                        if "@" in r_email:  # email minimal valide
+                            meta = f.get("metadata")
+                            if isinstance(meta, dict):
+                                meta["commit"] = str(match.get("Commit") or "").strip()
+                                meta["author"] = r_email
+                                meta["date"]   = str(match.get("Date") or "").strip()
+
         rep = {"tool": "gitleaks", "version": os.environ.get("GITLEAKS_VERSION", "unknown"), "status": "OK", "findings": findings, "errors": []}
         tr = {"tool": "gitleaks", "path": str(p), "present": True, "valid_json": True, "status": self._trace_status("OK", findings), "reason": "", "sha256": sha}
         return rep, tr
@@ -285,7 +337,7 @@ class CloudSentinelNormalizer:
         return out
 
     def _parse_trivy(self, skip=False):
-        paths = {"fs": self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json", "config": self.root / "shift-left/trivy/reports/raw/trivy-config-raw.json", "image": self.root / "shift-left/trivy/reports/raw/trivy-image-raw.json"}
+        paths = {"fs": self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json", "config": self.root / "shift-left/trivy/reports/raw/trivy-config-raw.json"}
         tr_path = str(self.root / "shift-left/trivy/reports/raw")
         if skip:
             return self._not_run("trivy", tr_path, "skipped_local_fast")
@@ -316,6 +368,46 @@ class CloudSentinelNormalizer:
             if isinstance(meta, dict):
                 ver = self._first(meta.get("Version"), ver, "unknown") or "unknown"
             findings.extend(self._trivy_from_doc(doc, st))
+        # --- Trivy image : agrégation Option A (dossier raw/image/) ---
+        # TRIVY_IMAGE_MIN_REPORTS doit correspondre au nombre de jobs
+        # trivy-image-scan-* dans shift-left.yml. Mettre à jour si une image est ajoutée.
+        TRIVY_IMAGE_MIN_REPORTS = int(os.environ.get("TRIVY_IMAGE_MIN_REPORTS", "3"))
+        image_dir = self.root / "shift-left" / "trivy" / "reports" / "raw" / "image"
+        image_files = sorted(image_dir.glob("trivy-image-*-raw.json")) if image_dir.is_dir() else []
+
+        if self.exec_mode == "ci":
+            if len(image_files) < TRIVY_IMAGE_MIN_REPORTS:
+                reason = f"image_reports_below_minimum:{len(image_files)}<{TRIVY_IMAGE_MIN_REPORTS}"
+                errs.append(reason)
+                not_run = True
+            else:
+                for img_p in image_files:
+                    img_doc, img_err = self._read_json(img_p)
+                    if img_err:
+                        errs.append(f"invalid_json:{img_p}")
+                        not_run = True
+                        valid = False
+                        continue
+                    if not isinstance(img_doc, dict):
+                        errs.append(f"invalid_raw_structure:{img_p}")
+                        not_run = True
+                        valid = False
+                        continue
+                    meta = img_doc.get("Trivy", {})
+                    if isinstance(meta, dict):
+                        ver = self._first(meta.get("Version"), ver, "unknown") or "unknown"
+                    findings.extend(self._trivy_from_doc(img_doc, "image"))
+        else:
+            # Mode local : 0 fichiers image acceptés sans erreur
+            for img_p in image_files:
+                img_doc, img_err = self._read_json(img_p)
+                if img_err or not isinstance(img_doc, dict):
+                    continue
+                meta = img_doc.get("Trivy", {})
+                if isinstance(meta, dict):
+                    ver = self._first(meta.get("Version"), ver, "unknown") or "unknown"
+                findings.extend(self._trivy_from_doc(img_doc, "image"))
+
         status = "NOT_RUN" if not_run else "OK"
         rep = {"tool": "trivy", "version": ver, "status": status, "findings": findings, "errors": errs}
         tr = {"tool": "trivy", "path": tr_path, "present": present, "valid_json": valid, "status": self._trace_status(status, findings), "reason": ";".join(errs), "sha256": None}

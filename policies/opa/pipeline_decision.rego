@@ -21,6 +21,14 @@ high_max_raw := object.get(thresholds, "high_max", 2)
 critical_max := to_number(critical_max_raw)
 high_max := to_number(high_max_raw)
 
+# Policy-enforced ceilings — not injectable from input or CI variables.
+# Input thresholds are clamped to these maximums regardless of what CI passes.
+_policy_critical_max_ceiling := 0
+_policy_high_max_ceiling := 5
+
+enforced_critical_max := min([critical_max, _policy_critical_max_ceiling])
+enforced_high_max     := min([high_max,     _policy_high_max_ceiling])
+
 thresholds_valid if {
   to_number(critical_max_raw)
   to_number(high_max_raw)
@@ -427,13 +435,19 @@ deny[msg] if {
 }
 
 deny[msg] if {
-  effective_critical > critical_max
-  msg := sprintf("CRITICAL findings (%d) exceed threshold (%d)", [effective_critical, critical_max])
+  effective_critical > enforced_critical_max
+  msg := sprintf(
+    "CRITICAL findings (%d) exceed enforced threshold (%d)",
+    [effective_critical, enforced_critical_max],
+  )
 }
 
 deny[msg] if {
-  effective_high > high_max
-  msg := sprintf("HIGH findings (%d) exceed threshold (%d)", [effective_high, high_max])
+  effective_high > enforced_high_max
+  msg := sprintf(
+    "HIGH findings (%d) exceed enforced threshold (%d)",
+    [effective_high, enforced_high_max],
+  )
 }
 
 deny[msg] if {
@@ -503,8 +517,10 @@ decision := {
     }
   },
   "thresholds": {
-    "critical_max": critical_max_raw,
-    "high_max": high_max_raw
+    "critical_max":          critical_max_raw,
+    "high_max":              high_max_raw,
+    "enforced_critical_max": enforced_critical_max,
+    "enforced_high_max":     enforced_high_max,
   },
   "environment": environment,
   "execution_mode": execution_mode,

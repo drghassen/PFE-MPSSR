@@ -76,6 +76,7 @@ gitleaks-scan:
     expire_in: 7 days
     paths:
       - .cloudsentinel/gitleaks_raw.json
+      - .cloudsentinel/gitleaks_range_raw.json
 
 checkov-scan:
   <<: *default_tools
@@ -112,17 +113,47 @@ trivy-config-scan:
     paths:
       - shift-left/trivy/reports/raw/trivy-config-raw.json
 
-trivy-image-scan:
+trivy-image-scan-scan-tools:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
+  variables:
+    TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
+    TRIVY_IMAGE_REPORT_NAME: "scan-tools"
   script:
     - bash ci/scripts/trivy-image-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
     paths:
-      - shift-left/trivy/reports/raw/trivy-image-raw.json
-      - shift-left/trivy/reports/sbom/trivy-image.cdx.json
+      - shift-left/trivy/reports/raw/image/trivy-image-scan-tools-raw.json
+
+trivy-image-scan-deploy-tools:
+  <<: [*default_tools, *trivy_cache_pull]
+  stage: scan
+  variables:
+    TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
+    TRIVY_IMAGE_REPORT_NAME: "deploy-tools"
+  script:
+    - bash ci/scripts/trivy-image-scan.sh
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - shift-left/trivy/reports/raw/image/trivy-image-deploy-tools-raw.json
+
+trivy-image-scan-opa:
+  <<: [*default_tools, *trivy_cache_pull]
+  stage: scan
+  variables:
+    TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:740ebf73adc25cd85b2a08615666b4e728812c0cc487760c6953ffe675ca78cd"
+    TRIVY_IMAGE_REPORT_NAME: "opa"
+  script:
+    - bash ci/scripts/trivy-image-scan.sh
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - shift-left/trivy/reports/raw/image/trivy-image-opa-raw.json
 
 normalize-reports:
   <<: *default_tools
@@ -136,7 +167,11 @@ normalize-reports:
       artifacts: true
     - job: trivy-config-scan
       artifacts: true
-    - job: trivy-image-scan
+    - job: trivy-image-scan-scan-tools
+      artifacts: true
+    - job: trivy-image-scan-deploy-tools
+      artifacts: true
+    - job: trivy-image-scan-opa
       artifacts: true
   script:
     - bash ci/scripts/normalize-reports.sh
@@ -150,7 +185,7 @@ normalize-reports:
       - .cloudsentinel/checkov_scan.log
       - shift-left/trivy/reports/raw/trivy-fs-raw.json
       - shift-left/trivy/reports/raw/trivy-config-raw.json
-      - shift-left/trivy/reports/raw/trivy-image-raw.json
+      - shift-left/trivy/reports/raw/image/
       - .cloudsentinel/exceptions.json
       - .cloudsentinel/dropped_exceptions.json
       - .cloudsentinel/audit_events.jsonl
@@ -204,6 +239,7 @@ upload-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
   retry: 2
+  allow_failure: true
   variables:
     GIT_STRATEGY: fetch
   needs:
@@ -213,6 +249,12 @@ upload-to-defectdojo:
       artifacts: true
     - job: trivy-fs-scan
       artifacts: true
+    - job: trivy-image-scan-scan-tools
+      artifacts: true
+    - job: trivy-image-scan-deploy-tools
+      artifacts: true
+    - job: trivy-image-scan-opa
+      artifacts: true
   script:
     - bash ci/scripts/upload-to-defectdojo.sh
   artifacts:
@@ -221,7 +263,6 @@ upload-to-defectdojo:
     paths:
       - .cloudsentinel/dojo-responses/
   when: always
-  allow_failure: false
 
 deploy-infrastructure:
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"

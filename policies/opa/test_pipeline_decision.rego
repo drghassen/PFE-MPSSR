@@ -182,3 +182,38 @@ test_deny_when_exception_schema_is_malformed if {
   not result.allow
   contains(concat(" ", result.deny), "malformed")
 }
+
+# Test : une tentative d'override CI (critical_max=99) doit toujours deny
+# si un finding CRITICAL est présent — le plafond policy à 0 s'applique.
+test_threshold_ceiling_blocks_ci_override_on_critical if {
+  result := decision
+    with input as object.union(base_input, {
+      "quality_gate": {"thresholds": {"critical_max": 99, "high_max": 100}},
+      "findings": [
+        {
+          "status": "FAILED",
+          "source": {"tool": "trivy", "id": "CVE-CRITICAL-1"},
+          "resource": {"path": "/image/scan-tools"},
+          "severity": {"level": "CRITICAL"},
+        }
+      ],
+    })
+    with data.cloudsentinel.exceptions.exceptions as []
+
+  not result.allow
+  contains(result.deny[0], "CRITICAL findings")
+  result.thresholds.enforced_critical_max == 0
+}
+
+# Test : high_max passé à 100 en CI doit être capé au plafond policy (5).
+test_threshold_ceiling_caps_high_max_to_policy_floor if {
+  result := decision
+    with input as object.union(base_input, {
+      "quality_gate": {"thresholds": {"critical_max": 0, "high_max": 100}},
+      "findings": [],
+    })
+    with data.cloudsentinel.exceptions.exceptions as []
+
+  result.allow
+  result.thresholds.enforced_high_max == 5
+}
