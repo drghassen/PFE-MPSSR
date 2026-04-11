@@ -25,3 +25,11 @@ output "cmk_key_name" {
 output "private_endpoint_id" {
   value = azurerm_private_endpoint.key_vault.id
 }
+
+# CKV2_CS_AZ_010 — Disk Encryption Set ID for OS disk CMK encryption.
+# Null when no managed CMK is provisioned (existing key path or disabled CMK).
+output "disk_encryption_set_id" {
+  description = "Azure Disk Encryption Set resource ID. Null when CMK is not managed by this module."
+  value       = try(azurerm_disk_encryption_set.this[0].id, null)
+}
+

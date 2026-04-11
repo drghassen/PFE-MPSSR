@@ -23,7 +23,8 @@ variable "admin_username" {
 }
 
 variable "admin_ssh_public_key" {
-  type = string
+  type        = string
+  description = "RSA public key for SSH access. Password authentication is disabled."
 
   validation {
     condition     = can(regex("^ssh-rsa\\s+[A-Za-z0-9+/=]+(?:\\s+.*)?$", trimspace(var.admin_ssh_public_key)))
@@ -35,19 +36,12 @@ variable "tags" {
   type = map(string)
 }
 
-variable "admin_password" {
-  description = "Linux VM admin password. Must satisfy 3/4 Azure complexity rules."
+# CKV2_CS_AZ_010 / CIS 7.1 — Disk Encryption Set ID for CMK disk encryption.
+# When set, the OS disk is encrypted with a customer-managed key via an Azure
+# Disk Encryption Set. Set to null to use platform-managed keys (PMK) only,
+# which is acceptable in dev environments without the EncryptionAtHost feature.
+variable "disk_encryption_set_id" {
   type        = string
-  sensitive   = true
-
-  validation {
-    condition = (
-      length(var.admin_password) >= 12 &&
-      can(regex("[a-z]", var.admin_password)) &&
-      can(regex("[A-Z]", var.admin_password)) &&
-      can(regex("[0-9]", var.admin_password)) &&
-      can(regex("[^a-zA-Z0-9_]", var.admin_password))
-    )
-    error_message = "admin_password must be 12+ chars with lowercase, uppercase, digit and special char."
-  }
+  description = "Azure Disk Encryption Set resource ID for CMK OS disk encryption. Null = platform-managed key."
+  default     = null
 }

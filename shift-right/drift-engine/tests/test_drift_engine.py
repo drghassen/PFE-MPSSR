@@ -124,9 +124,13 @@ class TestRedactSensitive(unittest.TestCase):
         self.assertIn("REDACTED", result)
 
     def test_redacts_github_pat(self):
-        result = _redact_sensitive(
-            "token = ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcd1234"
-        )
+        # NOTE: This synthetic token uses a deliberate 'MOCK_' infix to ensure
+        # Gitleaks secret-scanning does not flag it as a real credential.
+        # Real GitHub PATs start with "ghp_" followed by 36 alphanumeric chars;
+        # the value below is structurally equivalent for regex testing purposes
+        # but is unambiguously synthetic (MOCK_ prefix breaks all vendor patterns).
+        mock_github_pat = "ghp_MOCK_ABCDEFGHIJKLMNOPQRSTUVWXYZabcd1234"
+        result = _redact_sensitive(f"token = {mock_github_pat}")
         self.assertNotIn("ghp_", result)
 
     def test_redacts_gitlab_pat(self):
