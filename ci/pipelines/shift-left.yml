@@ -130,6 +130,8 @@ trivy-config-scan:
 trivy-image-scan-scan-tools:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
+  needs:
+    - job: trivy-db-warm
   variables:
     TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:84409bf2c9c1ed8a2332a67a4a9ea680ac499a74ee596cf86c4f3845eb9c9ceb"
     TRIVY_IMAGE_REPORT_NAME: "scan-tools"
@@ -144,10 +146,11 @@ trivy-image-scan-scan-tools:
 trivy-image-scan-deploy-tools:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
+  needs:
+    - job: trivy-db-warm
   variables:
-    # TODO(security): Mettre à jour ce digest après chaque rebuild de deploy-tools.
-    # Commande : docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
-    # ou via GitLab Registry UI → Tags → Digest
+    # Digest pinned to current production build. Update after each rebuild via:
+    # docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
     TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:3a5a7b53028fa1c8bdfbaa7052d627414d5c1348b8aaa8b8fe4488a7ba5a8025"
     TRIVY_IMAGE_REPORT_NAME: "deploy-tools"
   script:
@@ -161,6 +164,8 @@ trivy-image-scan-deploy-tools:
 trivy-image-scan-opa:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
+  needs:
+    - job: trivy-db-warm
   variables:
     TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
     TRIVY_IMAGE_REPORT_NAME: "opa"
@@ -282,9 +287,8 @@ upload-to-defectdojo:
   when: always
 
 deploy-infrastructure:
-  # TODO(security): Mettre à jour ce digest après chaque rebuild de deploy-tools.
-  # Le digest hardcodé garantit l'immutabilité de l'image utilisée en production.
-  # Après rebuild → récupérer le nouveau sha256 dans GitLab Registry et l'appliquer ici.
+  # Digest pinned to current production build. Update after each rebuild via:
+  # docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:3a5a7b53028fa1c8bdfbaa7052d627414d5c1348b8aaa8b8fe4488a7ba5a8025"
   before_script: []
   stage: deploy

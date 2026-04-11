@@ -6,4 +6,22 @@ mkdir -p .cloudsentinel
 chmod +x shift-left/gitleaks/run-gitleaks.sh
 bash shift-left/gitleaks/run-gitleaks.sh
 chmod a+r .cloudsentinel/gitleaks_raw.json 2>/dev/null || true
+
+IGNORE_FILE="shift-left/gitleaks/.gitleaksignore"
+if [[ -f "$IGNORE_FILE" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
+    IFS=':' read -ra parts <<< "$line"
+    if [[ "${#parts[@]}" -lt 4 ]]; then
+      echo "[gitleaks][GOVERNANCE] FAIL: malformed .gitleaksignore entry (expected fingerprint:ticket:expiry:justification): $line" >&2
+      exit 1
+    fi
+    expiry="${parts[2]}"
+    if [[ -n "$expiry" ]] && [[ "$expiry" < "$(date +%Y-%m-%d)" ]]; then
+      echo "[gitleaks][GOVERNANCE] FAIL: expired suppression in .gitleaksignore: $line" >&2
+      exit 1
+    fi
+  done < "$IGNORE_FILE"
+  echo "[gitleaks][GOVERNANCE] .gitleaksignore governance check passed."
+fi
 jq -r '"[scan-summary] gitleaks_raw_findings=" + (length|tostring)' .cloudsentinel/gitleaks_raw.json
