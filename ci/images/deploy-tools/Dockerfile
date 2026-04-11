@@ -90,3 +90,4 @@ RUN groupadd --gid 65532 nonroot \
 USER 65532:65532
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
+
