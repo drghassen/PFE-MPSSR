@@ -131,6 +131,9 @@ trivy-image-scan-deploy-tools:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
   variables:
+    # TODO(security): Mettre à jour ce digest après chaque rebuild de deploy-tools.
+    # Commande : docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
+    # ou via GitLab Registry UI → Tags → Digest
     TRIVY_IMAGE_TARGET: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
     TRIVY_IMAGE_REPORT_NAME: "deploy-tools"
   script:
@@ -265,6 +268,9 @@ upload-to-defectdojo:
   when: always
 
 deploy-infrastructure:
+  # TODO(security): Mettre à jour ce digest après chaque rebuild de deploy-tools.
+  # Le digest hardcodé garantit l'immutabilité de l'image utilisée en production.
+  # Après rebuild → récupérer le nouveau sha256 dans GitLab Registry et l'appliquer ici.
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:f3339bbe02957bac271e7b415f8c8c172fb76b77d19ea1ccaa99d819eacd68be"
   before_script: []
   stage: deploy
