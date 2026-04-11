@@ -10,6 +10,4 @@ printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
   --destination "${CI_REGISTRY_IMAGE}/deploy-tools:${DEPLOY_TOOLS_BUILD_TAG:-${CI_COMMIT_SHA}}" \
   --build-arg "TOFU_VERSION=${TOFU_VERSION}" \
   --build-arg "TOFU_LINUX_AMD64_ZIP_SHA256=${TOFU_LINUX_AMD64_ZIP_SHA256}" \
-  --snapshot-mode=redo \
-  --cache=true \
-  --cache-repo "${CI_REGISTRY_IMAGE}/cache/deploy-tools"
+  --snapshot-mode=redo
