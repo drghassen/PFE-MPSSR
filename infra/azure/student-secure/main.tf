@@ -104,8 +104,8 @@ module "compute" {
   admin_username         = var.admin_username
   admin_ssh_public_key   = var.admin_ssh_public_key
   tags                   = local.tags
+  encryption_at_host_enabled = var.enable_vm_encryption_at_host
   # CKV2_CS_AZ_010 — CMK disk encryption via Disk Encryption Set.
   # The key_vault module provisions the DES when CMK is configured.
   disk_encryption_set_id = module.key_vault.disk_encryption_set_id
 }
-

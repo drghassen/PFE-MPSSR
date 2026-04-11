@@ -102,6 +102,12 @@ variable "vm_size" {
   default     = "Standard_B1s"
 }
 
+variable "enable_vm_encryption_at_host" {
+  description = "Enable VM EncryptionAtHost. Keep false for Azure Student unless the feature is enabled."
+  type        = bool
+  default     = false
+}
+
 variable "mysql_sku_name" {
   description = "MySQL Flexible Server SKU (cost-optimized)."
   type        = string

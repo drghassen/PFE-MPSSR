@@ -27,14 +27,14 @@ resource "azurerm_linux_virtual_machine" "this" {
 
   allow_extension_operations = false
 
-  # CKV2_CS_AZ_010 / CIS 7.1 — Encryption at host enabled.
+  # CKV2_CS_AZ_010 / CIS 7.1 — Encryption at host.
   # PRE-REQUISITE: The Azure subscription must have the EncryptionAtHost
   # feature registered before apply:
   #   az feature register \
   #     --namespace Microsoft.Compute --name EncryptionAtHost
   #   az provider register --namespace Microsoft.Compute
   # Azure Student subscriptions may need to request this via support.
-  encryption_at_host_enabled = true
+  encryption_at_host_enabled = var.encryption_at_host_enabled
 
   secure_boot_enabled = true
   vtpm_enabled        = true
