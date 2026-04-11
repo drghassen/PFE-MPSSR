@@ -32,6 +32,9 @@ tofu -chdir=infra/azure/student-secure init -input=false \
   -backend-config="container_name=${TFSTATE_CONTAINER}" \
   -backend-config="key=${TFSTATE_KEY:-student-secure-${CI_COMMIT_REF_SLUG}.tfstate}" \
   -backend-config="use_azuread_auth=true"
+export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
+[ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
+echo "[deploy] TF_VAR_subscription_id is set"
 tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
 tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
 tofu -chdir=infra/azure/student-secure output -json \
