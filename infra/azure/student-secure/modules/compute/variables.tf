@@ -45,3 +45,11 @@ variable "disk_encryption_set_id" {
   description = "Azure Disk Encryption Set resource ID for CMK OS disk encryption. Null = platform-managed key."
   default     = null
 }
+
+# Azure Student subscriptions often do not expose the
+# Microsoft.Compute/EncryptionAtHost feature.
+variable "encryption_at_host_enabled" {
+  type        = bool
+  description = "Enable EncryptionAtHost on the VM when the subscription supports it."
+  default     = false
+}

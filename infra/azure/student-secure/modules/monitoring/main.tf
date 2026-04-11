@@ -8,8 +8,8 @@ resource "azurerm_log_analytics_workspace" "this" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "activity_log" {
-  name               = "diag-activity-${replace(var.base_name, "-", "")}"
-  target_resource_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Insights/diagnosticSettings/activity"
+  name               = "diag-activity-${replace(var.base_name, "-", "")}-tf"
+  target_resource_id = "/subscriptions/${var.subscription_id}"
   storage_account_id = var.storage_account_id
 
   enabled_log {
@@ -24,7 +24,7 @@ resource "azurerm_monitor_diagnostic_setting" "activity_log" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "storage" {
-  name                       = "diag-storage-${replace(var.base_name, "-", "")}"
+  name                       = "diag-storage-${replace(var.base_name, "-", "")}-tf"
   target_resource_id         = "${var.storage_account_id}/blobServices/default"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 
@@ -40,7 +40,7 @@ resource "azurerm_monitor_diagnostic_setting" "storage" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "key_vault" {
-  name                       = "diag-kv-${replace(var.base_name, "-", "")}"
+  name                       = "diag-kv-${replace(var.base_name, "-", "")}-tf"
   target_resource_id         = var.key_vault_id
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 

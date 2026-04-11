@@ -88,6 +88,7 @@ Variables CI requises pour deploy:
 - `TFSTATE_STORAGE_ACCOUNT`
 - `TFSTATE_CONTAINER`
 - optionnel: `TFSTATE_KEY`
+- optionnel: `TF_VAR_enable_vm_encryption_at_host` (mettre `false` sur Azure Student sauf feature explicitement activée)
 
 Variables Terraform CMK:
 

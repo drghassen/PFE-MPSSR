@@ -35,6 +35,8 @@ tofu -chdir=infra/azure/student-secure init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
+export TF_VAR_enable_vm_encryption_at_host="${TF_VAR_enable_vm_encryption_at_host:-false}"
+echo "[deploy] TF_VAR_enable_vm_encryption_at_host=${TF_VAR_enable_vm_encryption_at_host}"
 tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
 tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
 tofu -chdir=infra/azure/student-secure output -json \
