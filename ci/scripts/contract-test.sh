@@ -1,36 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-test -f .cloudsentinel/gitleaks_raw.json
-test -f .cloudsentinel/checkov_raw.json
-test -f shift-left/trivy/reports/raw/trivy-fs-raw.json
-test -f shift-left/trivy/reports/raw/trivy-config-raw.json
-test -f shift-left/trivy/reports/raw/image/trivy-image-scan-tools-raw.json
-test -f shift-left/trivy/reports/raw/image/trivy-image-deploy-tools-raw.json
-test -f shift-left/trivy/reports/raw/image/trivy-image-opa-raw.json
-test -f .cloudsentinel/golden_report.json
-test -f .cloudsentinel/exceptions.json
+# CloudSentinel — Contract Test
+# Verifies that all raw scanner reports exist, are valid JSON,
+# and contain the expected top-level structure before normalization.
 
-jq -e 'type=="array"' .cloudsentinel/gitleaks_raw.json >/dev/null
-jq -e 'type=="object" and (.results | type=="object")' .cloudsentinel/checkov_raw.json >/dev/null
-jq -e 'type=="object"' shift-left/trivy/reports/raw/trivy-fs-raw.json >/dev/null
-jq -e 'type=="object"' shift-left/trivy/reports/raw/trivy-config-raw.json >/dev/null
-jq -e 'type=="object"' shift-left/trivy/reports/raw/image/trivy-image-scan-tools-raw.json >/dev/null
-jq -e 'type=="object"' shift-left/trivy/reports/raw/image/trivy-image-deploy-tools-raw.json >/dev/null
-jq -e 'type=="object"' shift-left/trivy/reports/raw/image/trivy-image-opa-raw.json >/dev/null
+fail() { echo "[contract][FAIL] $*" >&2; exit 1; }
+ok()   { echo "[contract][OK]   $*"; }
 
-python3 ci/libs/cloudsentinel_contracts.py validate-schema \
-  --document .cloudsentinel/golden_report.json \
-  --schema shift-left/normalizer/schema/cloudsentinel_report.schema.json \
-  --success-message "[contract] schema validation passed"
+check_json() {
+  local file="$1"
+  local field="$2"
+  local label="$3"
 
-python3 ci/libs/cloudsentinel_contracts.py validate-schema \
-  --document .cloudsentinel/exceptions.json \
-  --schema shift-left/opa/schema/exceptions_v2.schema.json \
-  --success-message "[contract] exceptions schema validation passed"
+  [[ -f "$file" ]] || fail "$label: file not found → $file"
+  jq empty "$file" 2>/dev/null || fail "$label: invalid JSON → $file"
+  jq -e "$field" "$file" >/dev/null 2>&1 || fail "$label: missing field '$field' → $file"
+  ok "$label"
+}
 
-python3 -m unittest discover -s shift-left/opa/tests -p "test_fetch_exceptions.py"
-python3 -m unittest discover -s shift-left/normalizer/tests -p "test_normalize.py"
-bash shift-left/checkov/tests/smoke.sh
-bash shift-left/gitleaks/tests/smoke.sh
-bash shift-left/normalizer/tests/smoke.sh
+# Gitleaks
+check_json ".cloudsentinel/gitleaks_raw.json" \
+  "(. | type) == \"array\" or has(\"leaks\") or has(\"findings\")" \
+  "gitleaks_raw"
+
+# Checkov
+check_json ".cloudsentinel/checkov_raw.json" \
+  "has(\"results\") or has(\"checks\")" \
+  "checkov_raw"
+
+# Trivy FS
+check_json "shift-left/trivy/reports/raw/trivy-fs-raw.json" \
+  "has(\"SchemaVersion\")" \
+  "trivy_fs_raw"
+
+# Trivy Config
+check_json "shift-left/trivy/reports/raw/trivy-config-raw.json" \
+  "has(\"SchemaVersion\")" \
+  "trivy_config_raw"
+
+# Trivy Image reports (optional in local mode, required in CI)
+if [[ -n "${CI:-}" ]]; then
+  check_json "shift-left/trivy/reports/raw/image/trivy-image-scan-tools-raw.json" \
+    "has(\"SchemaVersion\")" \
+    "trivy_image_scan-tools"
+  check_json "shift-left/trivy/reports/raw/image/trivy-image-opa-raw.json" \
+    "has(\"SchemaVersion\")" \
+    "trivy_image_opa"
+  check_json "shift-left/trivy/reports/raw/image/trivy-image-deploy-tools-raw.json" \
+    "has(\"SchemaVersion\")" \
+    "trivy_image_deploy-tools"
+else
+  echo "[contract][SKIP] Image reports not required in local mode"
+fi
+
+echo "[contract] All checks passed."

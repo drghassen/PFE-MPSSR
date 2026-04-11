@@ -1,5 +1,14 @@
-# Format:
-# <fingerprint>:<justification>
-
-# Example:
-# 1234567890abcdef1234567890abcdef:Test credential for documentation
+# CloudSentinel — Gitleaks Allowlist
+# Format: <fingerprint>:<ticket>:<expiry:ISO8601>:<justification>
+#
+# GOVERNANCE RULES:
+#   1. Each entry MUST have all four fields separated by ':'
+#   2. Expiry date is mandatory — no open-ended suppressions
+#   3. Ticket must reference a DefectDojo finding ID or an internal issue
+#   4. Entries without this format will be rejected by the CI governance check
+#
+# Example (DO NOT uncomment — for documentation only):
+# abc123def456abc123def456abc123def456abc123def456abc123def456abc123:DOJO-846:2026-12-31:Test credential in fixture, not exploitable
+#
+# ── Active suppressions ──────────────────────────────────────────────────────
+# (none — all secrets must be addressed at source or accepted via DefectDojo)
