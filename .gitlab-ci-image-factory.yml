@@ -46,20 +46,21 @@ build-deploy-tools-image:
   script:
     - /busybox/sh ci/scripts/build-deploy-tools-image.sh
   rules:
-    # Manual trigger via UI ou schedule (rebuild hebdomadaire de sécurité)
+    # Trigger manuel via UI ou schedule (rebuild périodique de sécurité)
     - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
       when: manual
       allow_failure: false
-    # Auto-trigger si le Dockerfile de deploy-tools est modifié sur main
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
-      changes:
-        - ci/images/deploy-tools/Dockerfile
+    # Child pipeline : déclenché automatiquement depuis shift-left.yml
+    # quand ci/images/deploy-tools/Dockerfile est modifié sur main.
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
       when: on_success
       allow_failure: false
     - when: never
 
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    # Autorise l'exécution quand déclenché comme child pipeline
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
     - when: never
-
