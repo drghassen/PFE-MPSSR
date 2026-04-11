@@ -52,7 +52,7 @@ docker push registry.gitlab.com/votre-user/cloudsentinel/opa:1.13.1
 docker build \
   --build-arg GITLEAKS_VERSION=8.21.2 \
   --build-arg CHECKOV_VERSION=3.2.502 \
-  --build-arg TRIVY_VERSION=0.69.1 \
+  --build-arg TRIVY_VERSION=0.69.3 \
   -t registry.gitlab.com/votre-user/cloudsentinel/scan-tools:1.0 \
   ci/images/scan-tools
 ```
