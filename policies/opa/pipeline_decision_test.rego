@@ -1,5 +1,12 @@
 package cloudsentinel.gate_test
 
+# ─────────────────────────────────────────────────────────────────────
+# Test suite A — Functional scenarios (allow/deny, scanners, thresholds)
+# Companion: test_pipeline_decision.rego (exception lifecycle + edge cases)
+# Total coverage: 22 tests across both files. Zero overlap.
+# Run: opa test policies/opa -v
+# ─────────────────────────────────────────────────────────────────────
+
 import rego.v1
 
 # ─── Shared fixtures ─────────────────────────────────────────────────────────

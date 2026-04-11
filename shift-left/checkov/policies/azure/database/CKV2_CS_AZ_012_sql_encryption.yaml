@@ -4,6 +4,9 @@ metadata:
   category: "ENCRYPTION"
   severity: "MEDIUM"
   guideline: "https://docs.microsoft.com/en-us/azure/azure-sql/database/transparent-data-encryption-byok-overview"
+  # SCOPE NOTE: Targets MS SQL Server (azurerm_mssql_server_transparent_data_encryption).
+  # student-secure IaC uses MySQL Flexible Server — no Terraform equivalent
+  # for this control. Policy retained for future MS SQL deployments.
 
 definition:
   cond_type: "attribute"
