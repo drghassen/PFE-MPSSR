@@ -5,7 +5,10 @@
       "Bash(wsl -d Ubuntu-22.04 -- bash -c \"cd /home/ghassen/pfe-cloud-sentinel && bash shift-left/gitleaks/tests/smoke.sh 2>&1 | tail -5\")",
       "Bash(wsl -d Ubuntu-22.04 -- bash -c 'cd /home/ghassen/pfe-cloud-sentinel && python3 -c \":*)",
       "Bash(wsl -d Ubuntu-22.04 -- bash -c \"cd /home/ghassen/pfe-cloud-sentinel && echo '=== 2.3 normalize-reports needs ===' && awk '/^normalize-reports:/,/^  script:/' ci/pipelines/shift-left.yml | grep 'job:' && echo '=== 2.4 upload-to-defectdojo needs ===' && awk '/^upload-to-defectdojo:/,/^  script:/' ci/pipelines/shift-left.yml | grep 'job:' && echo '=== 2.6 cache policies ===' && grep -n 'policy:' ci/pipelines/shift-left.yml\")",
-      "Bash(wsl -d Ubuntu-22.04 -- bash -c \"ls /home/ghassen/pfe-cloud-sentinel/infra/azure/student-secure/ && ls /home/ghassen/pfe-cloud-sentinel/infra/azure/student-secure/modules/\")"
+      "Bash(wsl -d Ubuntu-22.04 -- bash -c \"ls /home/ghassen/pfe-cloud-sentinel/infra/azure/student-secure/ && ls /home/ghassen/pfe-cloud-sentinel/infra/azure/student-secure/modules/\")",
+      "Read(//wsl.localhost/Ubuntu-22.04/home/ghassen/**)",
+      "Read(//mnt/wsl/Ubuntu-22.04/home/ghassen/**)",
+      "Bash(python3 -c \" import json, sys path = r'\\\\\\\\\\\\\\\\wsl.localhost\\\\\\\\Ubuntu-22.04\\\\\\\\home\\\\\\\\ghassen\\\\\\\\pfe-cloud-sentinel\\\\\\\\.cloudsentinel\\\\\\\\checkov_raw.json' try: with open\\(path\\) as f: d = json.load\\(f\\) results = d.get\\('results', d\\) if isinstance\\(d, dict\\) else d failed = [] if isinstance\\(results, dict\\): failed = results.get\\('failed_checks', []\\) elif isinstance\\(results, list\\): for r in results: if isinstance\\(r, dict\\): failed.extend\\(r.get\\('results', {}\\).get\\('failed_checks', []\\)\\) for c in failed: sev = c.get\\('severity','?'\\) print\\(sev, c.get\\('check_id'\\), c.get\\('resource'\\), str\\(c.get\\('file_path',''\\)\\), c.get\\('file_line_range',''\\)\\) except Exception as e: print\\('Error:', e\\) \")"
     ]
   }
 }
