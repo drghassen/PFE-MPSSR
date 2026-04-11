@@ -33,3 +33,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Active allowlist (uncomment + document before use)
 # ─────────────────────────────────────────────────────────────────────────────
+# CVE-2023-45853: False positive on Debian zlib1g.
+# MiniZip component is not compiled into the Debian binary package.
+# Debian maintainers marked as "will not fix" / ignored.
+CVE-2023-45853

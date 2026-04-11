@@ -3,12 +3,14 @@ FROM ${PYTHON_IMAGE}
 
 ARG GITLEAKS_VERSION=8.21.2
 ARG CHECKOV_VERSION=3.2.502
-ARG TRIVY_VERSION=0.69.1
+ARG TRIVY_VERSION=0.69.3
 ARG JSONSCHEMA_VERSION=4.25.1
 
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends bash ca-certificates curl git jq tar gzip \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN set -eux; \
   gitleaks_tgz="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"; \
