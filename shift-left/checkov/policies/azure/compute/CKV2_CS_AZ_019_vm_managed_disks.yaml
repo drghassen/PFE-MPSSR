@@ -4,10 +4,15 @@ metadata:
   category: "GENERAL_SECURITY"
   severity: "MEDIUM"
   guideline: "https://docs.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview"
+  # ATTRIBUTE NOTE: azurerm_linux/windows_virtual_machine always uses managed
+  # disks. The old azurerm_virtual_machine attribute storage_os_disk.managed_disk_type
+  # does not exist on the new resource types. The equivalent is os_disk.storage_account_type
+  # which must be explicitly set to confirm the disk tier is intentional.
 
 definition:
   cond_type: "attribute"
   resource_types:
-    - "azurerm_virtual_machine"
-  attribute: "storage_os_disk.managed_disk_type"
+    - "azurerm_linux_virtual_machine"
+    - "azurerm_windows_virtual_machine"
+  attribute: "os_disk.storage_account_type"
   operator: "exists"

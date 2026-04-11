@@ -4,6 +4,9 @@ metadata:
   category: "GENERAL_SECURITY"
   severity: "HIGH"
   guideline: "https://docs.microsoft.com/en-us/azure/defender-for-cloud/defender-for-sql-introduction"
+  # SCOPE NOTE: Targets MS SQL Server (azurerm_mssql_server_security_alert_policy).
+  # student-secure IaC uses MySQL Flexible Server — no Terraform equivalent
+  # for this control. Policy retained for future MS SQL deployments.
 
 definition:
   cond_type: "attribute"
