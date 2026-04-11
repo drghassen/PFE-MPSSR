@@ -96,13 +96,16 @@ module "database" {
 module "compute" {
   source = "./modules/compute"
 
-  base_name            = local.base_name
-  location             = module.resource_group.location
-  resource_group_name  = module.resource_group.name
-  subnet_id            = module.network.public_subnet_id
-  vm_size              = var.vm_size
-  admin_username       = var.admin_username
-  admin_ssh_public_key = var.admin_ssh_public_key
-  tags                 = local.tags
-  admin_password = var.admin_password
+  base_name              = local.base_name
+  location               = module.resource_group.location
+  resource_group_name    = module.resource_group.name
+  subnet_id              = module.network.public_subnet_id
+  vm_size                = var.vm_size
+  admin_username         = var.admin_username
+  admin_ssh_public_key   = var.admin_ssh_public_key
+  tags                   = local.tags
+  # CKV2_CS_AZ_010 — CMK disk encryption via Disk Encryption Set.
+  # The key_vault module provisions the DES when CMK is configured.
+  disk_encryption_set_id = module.key_vault.disk_encryption_set_id
 }
+

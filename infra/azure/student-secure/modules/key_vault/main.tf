@@ -74,3 +74,33 @@ resource "azurerm_key_vault_key" "cmk" {
   expiration_date = var.key_expiration_date
   tags            = var.tags
 }
+
+# CKV2_CS_AZ_010 / CIS 7.1 — Azure Disk Encryption Set.
+# Binds the CMK to OS disk encryption for VMs using this Key Vault.
+# Created only when a CMK is managed by this module (use_existing_cmk = false).
+resource "azurerm_disk_encryption_set" "this" {
+  count = local.use_existing_cmk ? 0 : 1
+
+  name                = "des-${var.base_name}"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  key_vault_key_id    = azurerm_key_vault_key.cmk[0].id
+  encryption_type     = "EncryptionAtRestWithCustomerKey"
+  tags                = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
+}
+
+# Grant the DES identity access to unwrap/wrap the CMK in Key Vault.
+resource "azurerm_role_assignment" "des_crypto_user" {
+  count = local.use_existing_cmk ? 0 : 1
+
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+  principal_id         = azurerm_disk_encryption_set.this[0].identity[0].principal_id
+
+  depends_on = [azurerm_disk_encryption_set.this]
+}
+

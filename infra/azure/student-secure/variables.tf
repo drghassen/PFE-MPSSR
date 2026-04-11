@@ -42,11 +42,9 @@ variable "admin_username" {
   }
 }
 
-variable "admin_password" {
-  description = "Linux VM admin password (sensitive)."
-  type        = string
-  sensitive   = true
-}
+# admin_password REMOVED — Password authentication is disabled.
+# The VM enforces SSH key-only access (disable_password_authentication = true).
+# Ref: CKV_AZURE_1, CKV_AZURE_149, CIS Azure 1.6
 
 variable "admin_ssh_public_key" {
   description = "SSH public key for VM admin access."
@@ -58,10 +56,20 @@ variable "admin_ssh_public_key" {
   }
 }
 
+# CKV2_CS_AZ_021 / CIS 6.4 — SSH source CIDR, Internet wildcards forbidden.
 variable "admin_allowed_cidr" {
-  description = "CIDR allowed to SSH to VM."
+  description = "CIDR allowed to SSH to VM. Must NOT be 0.0.0.0/0. Use a specific /32 or narrow corporate CIDR."
   type        = string
   default     = "203.0.113.10/32"
+
+  validation {
+    condition = (
+      can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$", var.admin_allowed_cidr)) &&
+      var.admin_allowed_cidr != "0.0.0.0/0" &&
+      var.admin_allowed_cidr != "*"
+    )
+    error_message = "admin_allowed_cidr must NOT be 0.0.0.0/0 or '*'. Use a specific /32 host or narrow corporate CIDR."
+  }
 }
 
 variable "vnet_cidr" {
