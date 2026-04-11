@@ -33,6 +33,7 @@ stages:
   - report
   - deploy
   - maintenance
+  - maintenance
 
 .default_tools: &default_tools
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:f2f6762e13c9517cc6c06cb1f632bed665761df7756c9b1ff6cc4204bee68cce"
@@ -289,6 +290,15 @@ deploy-infrastructure:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 
+trigger-deploy-tools-rebuild:
+  stage: maintenance
+  trigger:
+    include: .gitlab-ci-image-factory.yml
+    strategy: depend
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - ci/images/deploy-tools/Dockerfile
 trigger-deploy-tools-rebuild:
   stage: maintenance
   trigger:
