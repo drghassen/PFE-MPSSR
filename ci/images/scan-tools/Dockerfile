@@ -9,6 +9,7 @@ ARG JSONSCHEMA_VERSION=4.25.1
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends bash ca-certificates curl git jq tar gzip \
+ && pip install --upgrade --no-cache-dir "wheel>=0.46.2" "jaraco.context>=6.1.0" \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
