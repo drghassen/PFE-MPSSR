@@ -39,19 +39,6 @@ check_json "shift-left/trivy/reports/raw/trivy-config-raw.json" \
   "has(\"SchemaVersion\")" \
   "trivy_config_raw"
 
-# Trivy Image reports (optional in local mode, required in CI)
-if [[ -n "${CI:-}" ]]; then
-  check_json "shift-left/trivy/reports/raw/image/trivy-image-scan-tools-raw.json" \
-    "has(\"SchemaVersion\")" \
-    "trivy_image_scan-tools"
-  check_json "shift-left/trivy/reports/raw/image/trivy-image-opa-raw.json" \
-    "has(\"SchemaVersion\")" \
-    "trivy_image_opa"
-  check_json "shift-left/trivy/reports/raw/image/trivy-image-deploy-tools-raw.json" \
-    "has(\"SchemaVersion\")" \
-    "trivy_image_deploy-tools"
-else
-  echo "[contract][SKIP] Image reports not required in local mode"
-fi
+echo "[contract][SKIP] Image scan jobs removed from pipeline - monitoring via DefectDojo only"
 
 echo "[contract] All checks passed."

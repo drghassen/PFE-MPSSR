@@ -224,3 +224,26 @@ test_local_mode_advisory if {
 	count(result.deny) == 0
 	result.execution_mode == "local"
 }
+
+# ─── TEST 11: trivy-image-scan-* removed, fs+config only → allow ──────────────
+# Simulates pipeline after trivy-image-scan-* jobs were removed.
+# trivy scanner status is PASSED (fs+config ran), no image reports produced.
+# OPA must ALLOW when all three scanners ran and findings are within thresholds.
+
+test_allow_when_trivy_image_scans_removed if {
+	result := data.cloudsentinel.gate.decision
+		with input as object.union(_base, {
+			"scanners": {
+				"gitleaks": {"status": "PASSED"},
+				"checkov":  {"status": "PASSED"},
+				"trivy":    {"status": "PASSED"},
+			},
+			"findings": [],
+		})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	count(result.deny) == 0
+	result.metrics.critical == 0
+	result.metrics.high == 0
+}

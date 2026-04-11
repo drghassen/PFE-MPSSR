@@ -14,7 +14,9 @@ drift-detect:
   stage: drift
   # Run the Drift Engine directly (no Docker-in-Docker, no image build).
   image:
-    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/drift-engine:latest
+    # Digest pinned to current build. Update after each rebuild via:
+    # docker inspect registry.../drift-engine:latest --format '{{index .RepoDigests 0}}'
+    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/drift-engine@sha256:ce0558fad56843b9e47c9a829ce5074ea12a93c3540eda95532ec594dfdfe1e4
     entrypoint: [""]
   before_script: []
   variables:
