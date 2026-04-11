@@ -46,8 +46,15 @@ build-deploy-tools-image:
   script:
     - /busybox/sh ci/scripts/build-deploy-tools-image.sh
   rules:
+    # Manual trigger via UI ou schedule (rebuild hebdomadaire de sécurité)
     - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
       when: manual
+      allow_failure: false
+    # Auto-trigger si le Dockerfile de deploy-tools est modifié sur main
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - ci/images/deploy-tools/Dockerfile
+      when: on_success
       allow_failure: false
     - when: never
 
