@@ -9,7 +9,8 @@
       "Read(//wsl.localhost/Ubuntu-22.04/home/ghassen/**)",
       "Read(//mnt/wsl/Ubuntu-22.04/home/ghassen/**)",
       "Bash(python3 -c \" import json, sys path = r'\\\\\\\\\\\\\\\\wsl.localhost\\\\\\\\Ubuntu-22.04\\\\\\\\home\\\\\\\\ghassen\\\\\\\\pfe-cloud-sentinel\\\\\\\\.cloudsentinel\\\\\\\\checkov_raw.json' try: with open\\(path\\) as f: d = json.load\\(f\\) results = d.get\\('results', d\\) if isinstance\\(d, dict\\) else d failed = [] if isinstance\\(results, dict\\): failed = results.get\\('failed_checks', []\\) elif isinstance\\(results, list\\): for r in results: if isinstance\\(r, dict\\): failed.extend\\(r.get\\('results', {}\\).get\\('failed_checks', []\\)\\) for c in failed: sev = c.get\\('severity','?'\\) print\\(sev, c.get\\('check_id'\\), c.get\\('resource'\\), str\\(c.get\\('file_path',''\\)\\), c.get\\('file_line_range',''\\)\\) except Exception as e: print\\('Error:', e\\) \")",
-      "Bash(wsl -d Ubuntu-22.04 bash -c ':*)"
+      "Bash(wsl -d Ubuntu-22.04 bash -c ':*)",
+      "Bash(wsl -d Ubuntu-22.04 -e bash -c \"cd /home/ghassen/pfe-cloud-sentinel && docker run --rm -v /home/ghassen/pfe-cloud-sentinel/policies/opa:/policies openpolicyagent/opa:1.13.1-static test /policies/ -v 2>&1\")"
     ]
   }
 }

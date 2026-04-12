@@ -45,3 +45,5 @@ shift-right/drift-engine/drift-report.latest.json
 shift-right/drift-engine/drift-report*.json
 .env.drift
 .env.drift
+.claudecode
+.claude
