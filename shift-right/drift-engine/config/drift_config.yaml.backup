@@ -38,11 +38,3 @@ defectdojo:
   close_old_findings: true
   deduplication_on_engagement: true
   minimum_severity: Info
-
-  # OPA Policy Decision Point (Shift-Right)
-opa:
-  enabled: ${OPA_ENABLED:-true}
-  server_url: ${OPA_SERVER_URL:-http://localhost:8181}
-  policy_path: cloudsentinel.shiftright.drift
-  timeout: 30
-  fallback_on_error: true

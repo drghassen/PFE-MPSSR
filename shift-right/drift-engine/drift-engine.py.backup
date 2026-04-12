@@ -27,9 +27,6 @@ from pydantic import BaseModel, Field
 from utils.azure_client import AzureResourceClient, load_azure_env
 from utils.defectdojo_client import DefectDojoClient, DefectDojoConfig
 from utils.json_normalizer import classify_drift_severity, drift_items_to_defectdojo_generic_findings, normalize_terraform_plan
-from utils.opa_client import OPAClient, OPAConfig
-from utils.opa_normalizer import normalize_drift_for_opa
-from utils.enrichment import enrich_drift_items_with_opa
 from utils.terraform_runner import TerraformRunner
 
 
@@ -86,21 +83,12 @@ class DefectDojoSection(BaseModel):
     minimum_severity: str = "Info"
 
 
-
-class OPASection(BaseModel):
-    """OPA Policy Decision Point configuration for Shift-Right drift evaluation."""
-    enabled: bool = Field(default=True, description="Enable OPA evaluation")
-    server_url: str = Field(default="http://localhost:8181", description="OPA server URL")
-    policy_path: str = Field(default="cloudsentinel.shiftright.drift", description="OPA policy path")
-    timeout: int = Field(default=30, description="HTTP timeout in seconds")
-    fallback_on_error: bool = Field(default=True, description="Use fallback if OPA fails")
 class AppConfig(BaseModel):
     engine: EngineConfig = Field(default_factory=EngineConfig)
     azure: AzureConfig = Field(default_factory=AzureConfig)
     terraform: TerraformConfig = Field(default_factory=TerraformConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
     defectdojo: DefectDojoSection = Field(default_factory=DefectDojoSection)
-    opa: OPASection
 
 
 def _utc_now() -> datetime:
@@ -651,56 +639,6 @@ def main(argv: list[str]) -> int:
     if plan_json:
         summary, items = normalize_terraform_plan(plan_json)
         drift_items = items
-
-        # ============================================================
-        # OPA EVALUATION (Shift-Right Decision Point)
-        # ============================================================
-        if config.opa.enabled and drift_items:
-            logger.info("opa_evaluation_start", run_id=run_id, drift_count=len(drift_items))
-            
-            try:
-                # 1. Normaliser pour OPA
-                opa_input = normalize_drift_for_opa(drift_items)
-                
-                # 2. Appeler OPA Server
-                opa_client = OPAClient(OPAConfig(
-                    server_url=config.opa.server_url,
-                    policy_path=config.opa.policy_path,
-                    timeout=config.opa.timeout,
-                    fallback_on_error=config.opa.fallback_on_error
-                ))
-                
-                opa_decisions = opa_client.evaluate_drift(opa_input)
-                
-                # 3. Enrichir les drift items avec décisions OPA
-                drift_items = enrich_drift_items_with_opa(drift_items, opa_decisions)
-                
-                logger.info(
-                    "opa_evaluation_complete",
-                    run_id=run_id,
-                    violations=len(opa_decisions.get("violations", [])),
-                    compliant=len(opa_decisions.get("compliant", [])),
-                    fallback_mode=opa_decisions.get("metadata", {}).get("fallback_mode", False)
-                )
-                
-            except Exception as exc:
-                logger.error("opa_evaluation_failed", run_id=run_id, error=str(exc))
-                
-                if not config.opa.fallback_on_error:
-                    errors.append({
-                        "type": "OPAEvaluationError",
-                        "message": f"OPA evaluation failed: {exc}",
-                        "remediation": "Check OPA server connectivity and policy validity."
-                    })
-                    # Continue sans OPA (drift_items non enrichis)
-                else:
-                    logger.warning("opa_fallback_drift_items_not_enriched", run_id=run_id)
-        else:
-            if not config.opa.enabled:
-                logger.warning("opa_disabled_skipping_evaluation", run_id=run_id)
-            elif not drift_items:
-                logger.info("no_drift_items_skipping_opa", run_id=run_id)
-
         drift_summary_obj = {
             "resources_changed": summary.resources_changed,
             "resources_by_action": summary.resources_by_action,
