@@ -65,6 +65,7 @@ output "mysql_server_id" {
 }
 
 output "mysql_private_endpoint" {
+  sensitive   = true
   description = "MySQL private endpoint details"
   value = {
     fqdn             = module.database.server_fqdn
