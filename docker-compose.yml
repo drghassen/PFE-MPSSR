@@ -37,11 +37,12 @@ services:
     entrypoint: ["/opa"]
     # Bind to localhost by default; adjust only if a reverse-proxy/TLS front is in place.
     ports:
-      - "127.0.0.1:8181:8181"
+      - "0.0.0.0:8181:8181"
     volumes:
-      # Policy (Rego): loaded as the decision engine
-      # Read-only: policies must be changed via Git, not at runtime.
+      # Shift-Left Policy (existant)
       - ./policies/opa/pipeline_decision.rego:/app/policies/pipeline_decision.rego:ro
+      # Shift-Right Policy (NOUVEAU)
+      - ./policies/opa/drift_decision.rego:/app/policies/drift_decision.rego:ro
       # Exceptions data generated from DefectDojo fetch-exceptions flow.
       # Only exceptions.json is loaded by OPA; scanner/raw artifacts in this
       # directory must not be loaded as OPA data documents.
@@ -51,12 +52,13 @@ services:
       - --server
       # Defense-in-depth: bind to loopback inside container.
       # The port mapping above further restricts to host loopback only.
-      - --addr=127.0.0.1:8181
+      - --addr=0.0.0.0:8181
       - --log-level=info
       - --log-format=json
       - --set=decision_logs.console=true
       - --watch
       - /app/policies/pipeline_decision.rego
+      - /app/policies/drift_decision.rego
       - /app/data/exceptions.json
     healthcheck:
       # OPA exposes /health and /health?plugins for readiness checks

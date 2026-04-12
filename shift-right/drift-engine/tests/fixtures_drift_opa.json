@@ -1,0 +1,26 @@
+{
+  "input": {
+    "findings": [
+      {
+        "address": "azurerm_storage_account.test_data",
+        "type": "azurerm_storage_account",
+        "mode": "managed",
+        "name": "test_data",
+        "provider_name": "registry.terraform.io/hashicorp/azurerm",
+        "actions": ["update"],
+        "resource_id": "/subscriptions/xxx/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/testdata",
+        "changed_paths": ["min_tls_version"]
+      },
+      {
+        "address": "azurerm_network_security_group.test_nsg",
+        "type": "azurerm_network_security_group",
+        "mode": "managed",
+        "name": "test_nsg",
+        "provider_name": "registry.terraform.io/hashicorp/azurerm",
+        "actions": ["update"],
+        "resource_id": "/subscriptions/xxx/resourceGroups/test/providers/Microsoft.Network/networkSecurityGroups/testnsg",
+        "changed_paths": ["security_rule"]
+      }
+    ]
+  }
+}
