@@ -29,6 +29,7 @@ output "storage_account_id" {
 
 output "storage_private_endpoints" {
   description = "Storage private endpoints (DNS endpoint + subnet scope)"
+  sensitive   = true
   value = {
     blob_endpoint = module.storage.primary_blob_endpoint
     endpoint_id   = module.storage.private_endpoint_id
@@ -39,6 +40,7 @@ output "storage_private_endpoints" {
 
 output "storage_customer_managed_key_id" {
   description = "Storage customer-managed key association resource ID"
+  sensitive   = true
   value       = module.storage.customer_managed_key_id
 }
 
@@ -74,6 +76,7 @@ output "mysql_private_endpoint" {
 
 output "mysql_secret_ids" {
   description = "Key Vault secret IDs for MySQL credentials"
+  sensitive   = true
   value = {
     username_secret_id = module.database.mysql_admin_username_secret_id
     password_secret_id = module.database.mysql_admin_password_secret_id
@@ -82,15 +85,18 @@ output "mysql_secret_ids" {
 
 output "key_vault_id" {
   description = "Key Vault ID"
+  sensitive   = true
   value       = module.key_vault.id
 }
 
 output "key_vault_private_endpoint_id" {
   description = "Key Vault private endpoint ID"
+  sensitive   = true
   value       = module.key_vault.private_endpoint_id
 }
 
 output "key_vault_cmk_key_id" {
   description = "Key Vault CMK key ID used by Storage encryption"
+  sensitive   = true
   value       = module.key_vault.cmk_key_id
 }

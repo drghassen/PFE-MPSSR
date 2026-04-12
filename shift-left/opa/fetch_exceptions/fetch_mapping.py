@@ -11,6 +11,7 @@ from .fetch_normalization import accepted_findings, normalize_finding_candidate,
 from .fetch_utils import ensure_dir, normalize_path, now_utc, sanitize_text, save_json, to_rfc3339
 from .fetch_validation import (
     FetchContext,
+    is_active_accepted,
     parse_approved_at,
     parse_approved_by,
     parse_decision,
@@ -154,6 +155,16 @@ def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tu
 
     for ra in raw_ras:
         ra_identifier = risk_acceptance_id(ra)
+
+        # Filter: only process Risk Acceptances that are actively accepted
+        # in DefectDojo (active=true AND not rejected/expired).
+        if not is_active_accepted(ra):
+            reason = "inactive_risk_acceptance"
+            detail = "DefectDojo RA is not active+accepted (active=False or status!=accepted)"
+            drop(ctx, ra_identifier, reason, detail, ra)
+            emit_audit_event(ctx, ra, None, "rejected", reason)
+            continue
+
         findings = accepted_findings(ra)
 
         if not findings:

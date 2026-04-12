@@ -105,6 +105,16 @@ if [[ -n "${CI:-}" ]]; then
   else
     if jq -e 'type=="array"' "$RANGE_OUT" >/dev/null 2>&1; then
       log "Range report ready: $RANGE_OUT"
+      # Merge range findings into the main report for OPA gate evaluation.
+      # Deduplication is handled by normalize.py fingerprint.
+      if [[ -s "$RANGE_OUT" ]] && jq -e 'length > 0' "$RANGE_OUT" >/dev/null 2>&1; then
+        MERGED_COUNT=$(jq -s '.[0] + .[1] | unique_by(.Fingerprint // .fingerprint // .)' \
+          "$REPORT_RAW_OUT" "$RANGE_OUT" | jq 'length')
+        jq -s '.[0] + .[1] | unique_by(.Fingerprint // .fingerprint // .)' \
+          "$REPORT_RAW_OUT" "$RANGE_OUT" > "${REPORT_RAW_OUT}.merged"
+        mv "${REPORT_RAW_OUT}.merged" "$REPORT_RAW_OUT"
+        log "Merged range findings into main report. Total unique findings: $MERGED_COUNT"
+      fi
     else
       log "WARN: range report invalid JSON — skipping enrichment"
       rm -f "$RANGE_OUT"
