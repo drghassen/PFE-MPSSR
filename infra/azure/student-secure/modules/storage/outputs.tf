@@ -7,7 +7,8 @@ output "name" {
 }
 
 output "primary_blob_endpoint" {
-  value = azurerm_storage_account.this.primary_blob_endpoint
+  sensitive = true
+  value     = azurerm_storage_account.this.primary_blob_endpoint
 }
 
 output "allowed_subnet_ids" {
@@ -19,9 +20,11 @@ output "private_endpoint_id" {
 }
 
 output "customer_managed_key_id" {
-  value = try(azurerm_storage_account_customer_managed_key.this[0].id, null)
+  sensitive = true
+  value     = try(azurerm_storage_account_customer_managed_key.this[0].id, null)
 }
 
 output "cmk_key_id" {
-  value = var.key_vault_key_id
+  sensitive = true
+  value     = var.key_vault_key_id
 }

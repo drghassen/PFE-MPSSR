@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-opa test policies/opa -v
 opa run --server --addr=127.0.0.1:8181 \
   --log-level=info \
   --log-format=json \

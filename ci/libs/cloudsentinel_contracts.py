@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional
 
 
 SEV_KEYS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "EXEMPTED", "FAILED", "PASSED"]
@@ -45,14 +45,25 @@ def _load_trivy_report(path: Path) -> Dict[str, Any]:
         return {"status": "NOT_RUN", "errors": [f"invalid_json:{path}"], "findings": [], "stats": {"TOTAL": 0}}
 
 
-def merge_trivy_reports(fs_path: Path, config_path: Path, image_path: Path, out_path: Path) -> Dict[str, Any]:
-    loaded = {
-        "fs": _load_trivy_report(fs_path),
+def merge_trivy_reports(
+    fs_path: Path,
+    config_path: Path,
+    out_path: Path,
+    image_path: Optional[Path] = None,  # optional: image scan removed from pipeline
+) -> Dict[str, Any]:
+    loaded: Dict[str, Any] = {
+        "fs":     _load_trivy_report(fs_path),
         "config": _load_trivy_report(config_path),
-        "image": _load_trivy_report(image_path),
     }
+    if image_path is not None:
+        loaded["image"] = _load_trivy_report(image_path)
+    else:
+        # Image scan jobs removed from pipeline (monitoring via DefectDojo only).
+        # Do not mark as NOT_RUN — only fs and config are required.
+        pass
 
-    any_not_run = any(str(report.get("status", "")).upper() == "NOT_RUN" for report in loaded.values())
+    required_scans = {k: v for k, v in loaded.items() if k in ("fs", "config")}
+    any_not_run = any(str(r.get("status", "")).upper() == "NOT_RUN" for r in required_scans.values())
     if any_not_run:
         errors: List[str] = []
         for name, report in loaded.items():
@@ -132,7 +143,7 @@ def validate_scanner_contract(reports: Iterable[Path]) -> None:
 def _parse_merge_args(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--fs", required=True, type=Path, help="Path to trivy fs OPA wrapper report")
     sub.add_argument("--config", required=True, type=Path, help="Path to trivy config OPA wrapper report")
-    sub.add_argument("--image", required=True, type=Path, help="Path to trivy image OPA wrapper report")
+    sub.add_argument("--image", required=False, default=None, type=Path, help="Path to trivy image OPA wrapper report (optional: image scan removed from pipeline)")
     sub.add_argument("--output", required=True, type=Path, help="Merged trivy OPA output path")
 
 
@@ -173,7 +184,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "merge-trivy":
-        merged = merge_trivy_reports(args.fs, args.config, args.image, args.output)
+        merged = merge_trivy_reports(args.fs, args.config, args.output, image_path=args.image)
         status = merged.get("status", "unknown")
         total = int((merged.get("stats", {}) or {}).get("TOTAL", 0) or 0)
         print(f"[normalize] merged trivy subscans -> {args.output} (status={status}, total={total})")

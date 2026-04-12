@@ -7,6 +7,7 @@ output "name" {
 }
 
 output "cmk_key_id" {
+  sensitive = true
   value = (
     trimspace(var.existing_cmk_key_id) != ""
     ? trimspace(var.existing_cmk_key_id)
@@ -15,6 +16,7 @@ output "cmk_key_id" {
 }
 
 output "cmk_key_name" {
+  sensitive = true
   value = (
     trimspace(var.existing_cmk_key_id) != ""
     ? regex("^https://[^/]+/keys/([^/]+)(?:/[^/]+)?$", trimspace(var.existing_cmk_key_id))[0]
@@ -30,6 +32,7 @@ output "private_endpoint_id" {
 # Null when no managed CMK is provisioned (existing key path or disabled CMK).
 output "disk_encryption_set_id" {
   description = "Azure Disk Encryption Set resource ID. Null when CMK is not managed by this module."
+  sensitive   = true
   value       = try(azurerm_disk_encryption_set.this[0].id, null)
 }
 

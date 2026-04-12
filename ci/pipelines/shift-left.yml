@@ -187,6 +187,20 @@ opa-image-smoke:
     paths:
       - .cloudsentinel/opa-image-smoke.log
 
+opa-unit-tests:
+  image:
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    entrypoint: [""]
+  stage: contract
+  needs:
+    - job: normalize-reports
+      artifacts: true
+  script:
+    - echo "[opa-unit-tests] Running OPA policy unit tests (isolated from production data)"
+    - opa test policies/opa -v
+    - echo "[opa-unit-tests] All tests passed"
+  allow_failure: false
+
 opa-decision:
   image:
     name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
@@ -197,6 +211,7 @@ opa-decision:
       artifacts: true
     - job: contract-test
     - job: opa-image-smoke
+    - job: opa-unit-tests
   script:
     - bash ci/scripts/opa-decision.sh
   artifacts:

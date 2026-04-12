@@ -49,7 +49,9 @@ services:
     command:
       - run
       - --server
-      - --addr=0.0.0.0:8181
+      # Defense-in-depth: bind to loopback inside container.
+      # The port mapping above further restricts to host loopback only.
+      - --addr=127.0.0.1:8181
       - --log-level=info
       - --log-format=json
       - --set=decision_logs.console=true
