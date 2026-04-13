@@ -22,5 +22,6 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `contract-test.sh` | validate wrapper contracts, schema, and smoke tests | python3, bash | `cloudsentinel_contracts.py validate-scanner-contract`, `validate-schema` |
 | `opa-image-smoke.sh` | smoke test OPA runtime image | opa, curl, jq, git | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
+| `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |
 | `upload-to-defectdojo.sh` | upload scanner raw reports to DefectDojo | curl, scanner artifacts | n/a |
 | `deploy-infrastructure.sh` | run fail-closed OpenTofu deploy | tofu, cosign | n/a |

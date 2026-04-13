@@ -374,6 +374,11 @@ effective_violations := [v |
 	not _is_excepted_violation(v)
 ]
 
+excepted_violations := [v |
+	some v in violations
+	_is_excepted_violation(v)
+]
+
 # ── Métriques d'exceptions pour audit et traçabilité ──
 drift_exception_summary := {
 	"total_exceptions_loaded": count(object.get(_drift_exceptions_store, "exceptions", [])),
@@ -381,5 +386,7 @@ drift_exception_summary := {
 		some ex in object.get(_drift_exceptions_store, "exceptions", [])
 		valid_drift_exception(ex)
 	]),
-	"excepted_violations": count(violations) - count(effective_violations),
+	"excepted_violations": count(excepted_violations),
 }
+
+

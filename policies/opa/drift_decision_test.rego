@@ -436,3 +436,71 @@ test_exception_no_wildcard_is_accepted if {
 	}
 	valid_drift_exception(ex) with input as {"environment": "production"}
 }
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Groupe 9 â€” Effective vs excepted violations (OPA decision contract)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+test_effective_violations_excludes_approved_exception if {
+	input_doc := {
+		"environment": "production",
+		"findings": [{
+			"address": "azurerm_storage_account.example",
+			"type": "azurerm_storage_account",
+			"provider_name": "registry.terraform.io/hashicorp/azurerm",
+			"changed_paths": ["min_tls_version"],
+			"actions": ["update"],
+		}],
+	}
+
+	exceptions_doc := {
+		"exceptions": [{
+			"source": "defectdojo",
+			"status": "approved",
+			"resource_type": "azurerm_storage_account",
+			"resource_id": "azurerm_storage_account.example",
+			"requested_by": "alice",
+			"approved_by": "bob",
+			"approved_at": "2020-01-01T00:00:00Z",
+			"expires_at": "2099-12-31T23:59:59Z",
+			"environments": ["production"],
+		}],
+	}
+
+	raw := violations with input as input_doc with data.cloudsentinel.drift_exceptions as exceptions_doc
+	effective := effective_violations with input as input_doc with data.cloudsentinel.drift_exceptions as exceptions_doc
+	count(raw) == 1
+	count(effective) == 0
+}
+
+test_excepted_violations_contains_suppressed_item if {
+	input_doc := {
+		"environment": "production",
+		"findings": [{
+			"address": "azurerm_storage_account.example",
+			"type": "azurerm_storage_account",
+			"provider_name": "registry.terraform.io/hashicorp/azurerm",
+			"changed_paths": ["allow_blob_public_access"],
+			"actions": ["update"],
+		}],
+	}
+
+	exceptions_doc := {
+		"exceptions": [{
+			"source": "defectdojo",
+			"status": "approved",
+			"resource_type": "azurerm_storage_account",
+			"resource_id": "azurerm_storage_account.example",
+			"requested_by": "carol",
+			"approved_by": "dave",
+			"approved_at": "2020-01-01T00:00:00Z",
+			"expires_at": "2099-12-31T23:59:59Z",
+			"environments": ["production"],
+		}],
+	}
+
+	excepted := excepted_violations with input as input_doc with data.cloudsentinel.drift_exceptions as exceptions_doc
+	effective := effective_violations with input as input_doc with data.cloudsentinel.drift_exceptions as exceptions_doc
+	count(excepted) == 1
+	count(effective) == 0
+}

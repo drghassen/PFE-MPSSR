@@ -8,6 +8,7 @@ default:
 
 stages:
   - drift
+  - decide
   - remediate
 
 drift-detect:
@@ -38,6 +39,13 @@ drift-detect:
     - set -e
     - echo "DRIFT_ENGINE_EXIT_CODE=${rc}" > .cloudsentinel/drift_engine.env
     - if [ "${rc}" -eq 2 ]; then echo "DRIFT_DETECTED=true" >> .cloudsentinel/drift_engine.env; else echo "DRIFT_DETECTED=false" >> .cloudsentinel/drift_engine.env; fi
+    - |
+      if ! python shift-right/scripts/fetch_drift_exceptions.py \
+        --output .cloudsentinel/drift_exceptions.json \
+        --environment "${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}"; then
+        echo "[drift-detect][WARN] Drift exceptions fetch failed; using empty exception set (fail-safe)."
+        printf '%s\n' '{"cloudsentinel":{"drift_exceptions":{"schema_version":"1.0.0","generated_at":"2099-01-01T00:00:00Z","environment":"production","source":"ci-fallback","exceptions":[]}}}' > .cloudsentinel/drift_exceptions.json
+      fi
     - test -f shift-right/drift-engine/output/drift-report.json
     - if [ "${rc}" -eq 1 ]; then exit 1; fi
     - exit 0
@@ -51,14 +59,15 @@ drift-detect:
     paths:
       - shift-right/drift-engine/output/drift-report.json
       - .cloudsentinel/drift_engine.env
+      - .cloudsentinel/drift_exceptions.json
     reports:
       dotenv: .cloudsentinel/drift_engine.env
 
-# Placeholder: Cloud Custodian is the only remediation engine.
-# Implement your `c7n` policies here; keep it a no-op when DRIFT_ENGINE_EXIT_CODE != 2.
-custodian-remediate:
-  stage: remediate
-  image: alpine:3.20
+opa-drift-decision:
+  stage: decide
+  image:
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    entrypoint: [""]
   before_script: []
   needs:
     - job: drift-detect
@@ -69,6 +78,40 @@ custodian-remediate:
     - when: never
   script:
     - set -euo pipefail
+    - bash ci/scripts/opa-drift-decision.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/opa_drift_decision.json
+      - .cloudsentinel/opa_drift.env
+      - .cloudsentinel/drift_opa_input.json
+      - .cloudsentinel/opa_drift_server.log
+    reports:
+      dotenv: .cloudsentinel/opa_drift.env
+
+# Placeholder: Cloud Custodian is the only remediation engine.
+# Trigger only when OPA effective violations require remediation.
+custodian-remediate:
+  stage: remediate
+  image: alpine:3.20
+  before_script: []
+  needs:
+    - job: opa-drift-decision
+      artifacts: true
+    - job: drift-detect
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
     - echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE:-}"
-    - if [ "${DRIFT_ENGINE_EXIT_CODE:-0}" -ne 2 ]; then echo "No drift -> skip remediation"; exit 0; fi
-    - echo "Drift detected -> trigger Cloud Custodian remediation here"
+    - echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK:-false}"
+    - echo "OPA_EFFECTIVE_VIOLATIONS=${OPA_EFFECTIVE_VIOLATIONS:-0}"
+    - echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS:-0}"
+    - if [ "${OPA_DRIFT_BLOCK:-false}" != "true" ]; then echo "OPA decision: no actionable drift -> skip remediation"; exit 0; fi
+    - echo "OPA decision: remediation required"
+    - echo "Custodian policies to apply: ${OPA_CUSTODIAN_POLICIES:-<none>}"
+    - echo "Trigger Cloud Custodian remediation here"

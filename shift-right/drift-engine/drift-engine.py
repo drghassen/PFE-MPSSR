@@ -688,7 +688,10 @@ def main(argv: list[str]) -> int:
                     "opa_evaluation_complete",
                     run_id=run_id,
                     violations=len(opa_decisions.get("violations", [])),
+                    effective_violations=len(opa_decisions.get("effective_violations", [])),
+                    excepted_violations=len(opa_decisions.get("excepted_violations", [])),
                     compliant=len(opa_decisions.get("compliant", [])),
+                    drift_exception_summary=opa_decisions.get("drift_exception_summary", {}),
                     fallback_mode=opa_decisions.get("metadata", {}).get("fallback_mode", False)
                 )
                 

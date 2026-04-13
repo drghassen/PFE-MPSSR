@@ -72,7 +72,10 @@ class OPAClient:
         Returns:
             {
               "violations": [...],
+              "effective_violations": [...],
+              "excepted_violations": [...],
               "compliant": [...],
+              "drift_exception_summary": {...},
               "metadata": {...}
             }
         """
@@ -101,18 +104,34 @@ class OPAClient:
             response.raise_for_status()
             result = response.json()
             
-            # OPA retourne {"result": {violations: [...], compliant: [...]}}
+            # OPA retourne {"result": {violations: [...], effective_violations: [...], compliant: [...], ...}}
             opa_decision = result.get("result", {})
+            raw_violations = opa_decision.get("violations", [])
+            effective_violations = opa_decision.get("effective_violations")
+            if not isinstance(effective_violations, list):
+                # Backward compatibility: older policy versions may not expose
+                # effective_violations; fall back to raw violations.
+                effective_violations = raw_violations
+            excepted_violations = opa_decision.get("excepted_violations")
+            if not isinstance(excepted_violations, list):
+                excepted_violations = []
+            compliant = opa_decision.get("compliant", [])
+            drift_exception_summary = opa_decision.get("drift_exception_summary", {})
             
             logger.info(
                 "opa_evaluate_success",
-                violations=len(opa_decision.get("violations", [])),
-                compliant=len(opa_decision.get("compliant", []))
+                violations=len(raw_violations),
+                effective_violations=len(effective_violations),
+                excepted_violations=len(excepted_violations),
+                compliant=len(compliant),
             )
             
             return {
-                "violations": opa_decision.get("violations", []),
-                "compliant": opa_decision.get("compliant", []),
+                "violations": raw_violations,
+                "effective_violations": effective_violations,
+                "excepted_violations": excepted_violations,
+                "compliant": compliant,
+                "drift_exception_summary": drift_exception_summary,
                 "metadata": {
                     "opa_server": self.config.server_url,
                     "policy_path": self.config.policy_path,
@@ -152,7 +171,14 @@ class OPAClient:
         
         return {
             "violations": violations,
+            "effective_violations": violations,
+            "excepted_violations": [],
             "compliant": [],
+            "drift_exception_summary": {
+                "total_exceptions_loaded": 0,
+                "valid_exceptions": 0,
+                "excepted_violations": 0,
+            },
             "metadata": {
                 "fallback_mode": True,
                 "reason": "OPA server unreachable",
