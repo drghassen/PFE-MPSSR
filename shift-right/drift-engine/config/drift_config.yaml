@@ -29,8 +29,9 @@ report:
   template_path: templates/drift-report-template.j2
 
 defectdojo:
-  # Mandatory for traceability in CloudSentinel shift-right.
-  enabled: true
+  # Enable/disable inline DefectDojo upload from drift-engine itself.
+  # In CI shift-right pipeline, upload is handled by a dedicated report job.
+  enabled: ${DRIFT_PUSH_TO_DEFECTDOJO:-true}
   base_url: ${DEFECTDOJO_URL:-}
   api_key: ${DEFECTDOJO_API_KEY:-}
   engagement_id: ${DEFECTDOJO_ENGAGEMENT_ID:-}

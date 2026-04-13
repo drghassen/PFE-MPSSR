@@ -23,5 +23,6 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `opa-image-smoke.sh` | smoke test OPA runtime image | opa, curl, jq, git | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
 | `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |
+| `upload-drift-to-defectdojo.sh` | upload shift-right drift report to DefectDojo (`Generic Findings Import`) | curl, jq | n/a |
 | `upload-to-defectdojo.sh` | upload scanner raw reports to DefectDojo | curl, scanner artifacts | n/a |
 | `deploy-infrastructure.sh` | run fail-closed OpenTofu deploy | tofu, cosign | n/a |

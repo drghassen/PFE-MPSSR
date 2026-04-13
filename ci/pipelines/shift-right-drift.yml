@@ -9,6 +9,7 @@ default:
 stages:
   - drift
   - decide
+  - report
   - remediate
 
 drift-detect:
@@ -25,6 +26,8 @@ drift-detect:
     TF_WORKING_DIR: "${CI_PROJECT_DIR}/infra/azure/student-secure"
     DRIFT_OUTPUT_PATH: "${CI_PROJECT_DIR}/shift-right/drift-engine/output/drift-report.json"
     TF_PLUGIN_CACHE_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/tf-plugin-cache"
+    # Upload to DefectDojo is handled by dedicated job `upload-drift-to-defectdojo`.
+    DRIFT_PUSH_TO_DEFECTDOJO: "false"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -90,6 +93,28 @@ opa-drift-decision:
     reports:
       dotenv: .cloudsentinel/opa_drift.env
 
+upload-drift-to-defectdojo:
+  stage: report
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:650fd078db93f2cf235231cf2c27be91f57ac02aa8b0193d5b6d9f5c9ce85c8f"
+  before_script: []
+  needs:
+    - job: drift-detect
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/upload-drift-to-defectdojo.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/drift_generic_findings.json
+      - .cloudsentinel/dojo-responses/
+  allow_failure: true
+
 # Placeholder: Cloud Custodian is the only remediation engine.
 # Trigger only when OPA effective violations require remediation.
 custodian-remediate:
@@ -100,6 +125,8 @@ custodian-remediate:
     - job: opa-drift-decision
       artifacts: true
     - job: drift-detect
+      artifacts: true
+    - job: upload-drift-to-defectdojo
       artifacts: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

@@ -160,10 +160,6 @@ def load_config(path: Path) -> AppConfig:
         defect["enabled"] = _bool_from_env(defect["enabled"])
         expanded["defectdojo"] = defect
 
-    # DefectDojo export is mandatory for shift-right traceability.
-    if isinstance(defect, dict):
-        defect["enabled"] = True
-        expanded["defectdojo"] = defect
     return AppConfig.model_validate(expanded)
 
 
@@ -469,14 +465,14 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
-    # DefectDojo push is mandatory for shift-right traceability.
-    if not (config.defectdojo.base_url and config.defectdojo.api_key and config.defectdojo.engagement_id):
-        logger.error("defectdojo_config_missing")
-        write_minimal_error_report(
-            message="DefectDojo config incomplete (base_url/api_key/engagement_id).",
-            remediation="Set DEFECTDOJO_URL, DEFECTDOJO_API_KEY, DEFECTDOJO_ENGAGEMENT_ID in the environment (.env or CI secrets).",
-        )
-        return 1
+    if config.defectdojo.enabled:
+        if not (config.defectdojo.base_url and config.defectdojo.api_key and config.defectdojo.engagement_id):
+            logger.error("defectdojo_config_missing")
+            write_minimal_error_report(
+                message="DefectDojo config incomplete (base_url/api_key/engagement_id).",
+                remediation="Set DEFECTDOJO_URL, DEFECTDOJO_API_KEY, DEFECTDOJO_ENGAGEMENT_ID in the environment (.env or CI secrets).",
+            )
+            return 1
 
     logger.info(
         "run_started",
