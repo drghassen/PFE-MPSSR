@@ -106,12 +106,16 @@ custodian-remediate:
       when: always
     - when: never
   script:
-    - set -euo pipefail
-    - echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE:-}"
-    - echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK:-false}"
-    - echo "OPA_EFFECTIVE_VIOLATIONS=${OPA_EFFECTIVE_VIOLATIONS:-0}"
-    - echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS:-0}"
-    - if [ "${OPA_DRIFT_BLOCK:-false}" != "true" ]; then echo "OPA decision: no actionable drift -> skip remediation"; exit 0; fi
-    - echo "OPA decision: remediation required"
-    - echo "Custodian policies to apply: ${OPA_CUSTODIAN_POLICIES:-<none>}"
-    - echo "Trigger Cloud Custodian remediation here"
+    - |
+      set -euo pipefail
+      echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE:-}"
+      echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK:-false}"
+      echo "OPA_EFFECTIVE_VIOLATIONS=${OPA_EFFECTIVE_VIOLATIONS:-0}"
+      echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS:-0}"
+      if [ "${OPA_DRIFT_BLOCK:-false}" != "true" ]; then
+        echo "OPA decision: no actionable drift -> skip remediation"
+        exit 0
+      fi
+      echo "OPA decision: remediation required"
+      echo "Custodian policies to apply: ${OPA_CUSTODIAN_POLICIES:-<none>}"
+      echo "Trigger Cloud Custodian remediation here"
