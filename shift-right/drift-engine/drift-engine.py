@@ -100,7 +100,7 @@ class AppConfig(BaseModel):
     terraform: TerraformConfig = Field(default_factory=TerraformConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
     defectdojo: DefectDojoSection = Field(default_factory=DefectDojoSection)
-    opa: OPASection
+    opa: OPASection = Field(default_factory=OPASection)
 
 
 def _utc_now() -> datetime:
@@ -276,7 +276,7 @@ def _redact_sensitive(text: str) -> str:
     )
 
     # 3) Redact some well-known token formats.
-    redacted = re.sub(r"\bghp_[A-Za-z0-9]{20,}\b", "***REDACTED***", redacted)
+    redacted = re.sub(r"\bghp_[A-Za-z0-9_]{20,}\b", "***REDACTED***", redacted)
     redacted = re.sub(r"\bglpat-[A-Za-z0-9\-_]{20,}\b", "***REDACTED***", redacted)
 
     return redacted
@@ -297,19 +297,26 @@ def build_report_context(
     errors: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Builds the Jinja2 context used to render `drift-report.json`."""
-    _OCSF_ORDER = ["Informational", "Low", "Medium", "High", "Critical"]
-    _OCSF_ID    = {"Informational": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}
+    # OCSF severity order aligned with DefectDojo Title-case values.
+    # "Info" matches the severity value used throughout the drift engine
+    # (OPA normalizer, enrichment, DefectDojo minimum_severity).
+    _OCSF_ORDER = ["Info", "Low", "Medium", "High", "Critical"]
+    _OCSF_ID    = {"Info": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}
 
     if not detected:
-        severity = "Informational"
+        severity = "Info"
     else:
         _item_severities = [
-            classify_drift_severity(
+            # Use OPA-enriched severity if available, else classify statically
+            item.get("severity") if item.get("opa_evaluated")
+            else classify_drift_severity(
                 str(item.get("type") or ""),
                 item.get("changed_paths") or [],
             )
             for item in drift_items
         ]
+        # Filter out None values before max()
+        _item_severities = [s for s in _item_severities if s in _OCSF_ORDER]
         severity = (
             max(_item_severities, key=lambda s: _OCSF_ORDER.index(s))
             if _item_severities

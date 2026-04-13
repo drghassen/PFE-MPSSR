@@ -155,6 +155,13 @@ drift-detect: ## Détecter les drifts de configuration
 	@echo "$(GREEN)🔄 Détection de drift...$(RESET)"
 	@cd shift-right/drift-engine && python detect-drift.py
 
+fetch-drift-exceptions: ## Récupérer les exceptions drift depuis DefectDojo (shift-right OPA)
+	@echo "$(GREEN)📥 Fetch drift exceptions from DefectDojo...$(RESET)"
+	@python shift-right/scripts/fetch_drift_exceptions.py \
+		--output .cloudsentinel/drift_exceptions.json \
+		--environment $${DRIFT_ENVIRONMENT:-production}
+	@echo "$(GREEN)✅ drift_exceptions.json mis à jour$(RESET)"
+
 ##@ Infrastructure
 
 terraform-init: ## Initialiser Terraform

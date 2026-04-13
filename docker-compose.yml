@@ -31,6 +31,11 @@
 
 services:
 
+  # ==============================================================================
+  # opa-server — Shift-Left PDP (pipeline gate decisions)
+  # Handles: pipeline_decision.rego + shift-left exceptions.json
+  # Port: 8181
+  # ==============================================================================
   opa-server:
     image: ${OPA_SERVER_IMAGE:-openpolicyagent/opa:1.13.1-static}
     container_name: cloudsentinel-opa-server
@@ -39,10 +44,8 @@ services:
     ports:
       - "0.0.0.0:8181:8181"
     volumes:
-      # Shift-Left Policy (existant)
+      # Shift-Left Policy only — the Shift-Right policy is handled by opa-server-shiftright (port 8182)
       - ./policies/opa/pipeline_decision.rego:/app/policies/pipeline_decision.rego:ro
-      # Shift-Right Policy (NOUVEAU)
-      - ./policies/opa/drift_decision.rego:/app/policies/drift_decision.rego:ro
       # Exceptions data generated from DefectDojo fetch-exceptions flow.
       # Only exceptions.json is loaded by OPA; scanner/raw artifacts in this
       # directory must not be loaded as OPA data documents.
@@ -58,7 +61,6 @@ services:
       - --set=decision_logs.console=true
       - --watch
       - /app/policies/pipeline_decision.rego
-      - /app/policies/drift_decision.rego
       - /app/data/exceptions.json
     healthcheck:
       # OPA exposes /health and /health?plugins for readiness checks
@@ -77,5 +79,49 @@ services:
     restart: unless-stopped
     labels:
       cloudsentinel.component: "pdp"
-      cloudsentinel.role: "policy-decision-point"
-      cloudsentinel.opa.bundle: "cloudsentinel"
+      cloudsentinel.role: "policy-decision-point-shiftleft"
+      cloudsentinel.opa.bundle: "cloudsentinel-shiftleft"
+
+  # ==============================================================================
+  # opa-server-shiftright — Shift-Right PDP (drift engine decisions)
+  # Handles: drift_decision.rego + drift_exceptions.json
+  # Port: 8182 — separate from shift-left to enforce architectural boundary.
+  # The drift engine (drift-engine.py) uses OPA_SERVER_URL=http://localhost:8182.
+  # ==============================================================================
+  opa-server-shiftright:
+    image: ${OPA_SERVER_IMAGE:-openpolicyagent/opa:1.13.1-static}
+    container_name: cloudsentinel-opa-server-shiftright
+    entrypoint: ["/opa"]
+    ports:
+      - "0.0.0.0:8182:8182"
+    volumes:
+      # Shift-Right Policy only
+      - ./policies/opa/drift_decision.rego:/app/policies/drift_decision.rego:ro
+      # Drift exceptions fetched from DefectDojo by fetch_drift_exceptions.py
+      - ./.cloudsentinel/drift_exceptions.json:/app/data/drift_exceptions.json:ro
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8182
+      - --log-level=info
+      - --log-format=json
+      - --set=decision_logs.console=true
+      - --watch
+      - /app/policies/drift_decision.rego
+      - /app/data/drift_exceptions.json
+    healthcheck:
+      test: ["CMD", "/opa", "eval", "1==1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    labels:
+      cloudsentinel.component: "pdp"
+      cloudsentinel.role: "policy-decision-point-shiftright"
+      cloudsentinel.opa.bundle: "cloudsentinel-shiftright"

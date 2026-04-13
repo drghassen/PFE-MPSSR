@@ -8,6 +8,18 @@ from typing import Any
 
 logger = structlog.get_logger(__name__)
 
+# OPA retourne des sévérités en ALL CAPS (CRITICAL, HIGH, MEDIUM, LOW, INFO).
+# DefectDojo et le reste de CloudSentinel utilisent le Title case.
+# Ce mapping normalise la casse avant d'écrire dans les drift items.
+_OPA_SEVERITY_NORMALIZE: dict[str, str] = {
+    "CRITICAL": "Critical",
+    "HIGH": "High",
+    "MEDIUM": "Medium",
+    "LOW": "Low",
+    "INFO": "Info",
+    "INFORMATIONAL": "Info",
+}
+
 
 def enrich_drift_items_with_opa(
     drift_items: list[dict[str, Any]],
@@ -28,10 +40,23 @@ def enrich_drift_items_with_opa(
         - custodian_policy
     """
     
+    # B8: Defensive assertion — verify that OPA violations use "address" as resource_id.
+    # opa_normalizer.normalize_drift_for_opa() sets resource_id = item["address"],
+    # so violations_by_address keys should match drift_item["address"] directly.
+    # If a violation lacks resource_id, log a warning rather than silently dropping it.
+    for v in opa_decisions.get("violations", []):
+        if not v.get("resource_id"):
+            logger.warning(
+                "opa_violation_missing_resource_id",
+                violation=v,
+                hint="Check that normalize_drift_for_opa() sets resource_id=item['address']",
+            )
+
     # Créer un index des violations OPA par resource address
     violations_by_address = {
         v["resource_id"]: v
         for v in opa_decisions.get("violations", [])
+        if v.get("resource_id")
     }
     
     # Créer un set des ressources conformes
@@ -50,7 +75,9 @@ def enrich_drift_items_with_opa(
             opa_decision = violations_by_address[address]
             
             # Enrichir avec données OPA (remplace l'ancien severity hardcodé)
-            item["severity"] = opa_decision["severity"]
+            # Normaliser ALL CAPS OPA → Title case (CRITICAL → Critical)
+            raw_severity = opa_decision["severity"]
+            item["severity"] = _OPA_SEVERITY_NORMALIZE.get(raw_severity, raw_severity.capitalize())
             item["opa_reason"] = opa_decision["reason"]
             item["action_required"] = opa_decision["action_required"]
             item["custodian_policy"] = opa_decision.get("custodian_policy")

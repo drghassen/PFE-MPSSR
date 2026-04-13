@@ -4,6 +4,7 @@ Transforme les drift items normalisés en format OPA-compatible
 """
 from __future__ import annotations
 
+import os
 import structlog
 from typing import Any
 from datetime import datetime, timezone
@@ -38,6 +39,9 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
         "source": "drift-engine",
         "scan_type": "shift-right-drift",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        # environment is used by drift_decision.rego for scope-aware exception matching.
+        # Falls back to "production" as the conservative default (strictest enforcement).
+        "environment": os.getenv("DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")),
         "findings": []
     }
     
@@ -51,7 +55,13 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
             "name": item.get("name"),
             "provider_name": item.get("provider_name"),
             "actions": item.get("actions", []),
-            "resource_id": item.get("resource_id"),
+            # B8: Use "address" (Terraform resource address, always present and stable)
+            # as the OPA resource_id. The raw "resource_id" field from json_normalizer
+            # holds the Azure ARM resource ID (e.g. /subscriptions/.../resourceGroups/...)
+            # which may be None for resources not yet deployed or for output blocks.
+            # drift_decision.rego uses resource_id for exception matching — using the
+            # stable Terraform address avoids ambiguity with ARM IDs.
+            "resource_id": item.get("address"),
             "changed_paths": item.get("changed_paths", []),
         }
         

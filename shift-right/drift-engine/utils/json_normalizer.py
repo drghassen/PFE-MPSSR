@@ -231,10 +231,16 @@ def drift_items_to_defectdojo_generic_findings(
         changed_paths = item.get("changed_paths") or []
         provider_name = item.get("provider_name") or "unknown"
 
-        severity = classify_drift_severity(
-            str(item.get("type") or ""),
-            item.get("changed_paths") or [],
-        )
+        # If OPA already evaluated this item (via enrich_drift_items_with_opa),
+        # use its severity directly to avoid overwriting OPA decision with the
+        # static classify_drift_severity() fallback.
+        if item.get("opa_evaluated"):
+            severity = item.get("severity") or default_severity
+        else:
+            severity = classify_drift_severity(
+                str(item.get("type") or ""),
+                item.get("changed_paths") or [],
+            )
 
         findings.append(
             {

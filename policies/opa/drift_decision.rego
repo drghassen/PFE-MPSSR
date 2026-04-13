@@ -4,8 +4,7 @@
 
 package cloudsentinel.shiftright.drift
 
-import future.keywords.if
-import future.keywords.in
+import rego.v1
 
 # ==============================================================================
 # FIX: P0.1 — Defaults fail-safe pour éviter FAIL-OPEN sur input manquant
@@ -54,6 +53,11 @@ evaluate_drift(finding) := decision if {
 	custodian := get_custodian_policy(finding)
 
 	decision := {
+		# B8: resource_id uses finding.address (Terraform resource address, e.g.
+		# "azurerm_storage_account.example") — always present, stable, and matches
+		# what opa_normalizer.normalize_drift_for_opa() sets as resource_id.
+		# The ARM resource ID (/subscriptions/...) lives in json_normalizer output
+		# but is NOT used here to avoid ambiguity with undeployed resources.
 		"resource_id":      finding.address,
 		"resource_type":    finding.type,
 		"provider":         finding.provider_name,
@@ -281,13 +285,49 @@ build_reason(severity, finding) := sprintf("%s drift on %s: %s", [
 #  partial_mismatch_reasons, scope repo/branch/env, etc.)
 # ==============================================================================
 
-# Chargement des exceptions depuis data.cloudsentinel.drift_exceptions (optionnel).
-# IMPORTANT : on référence un chemin SPÉCIFIQUE (pas data.cloudsentinel entier)
-# pour éviter la récursion OPA sur le namespace du package courant.
-# Si le document n'est pas chargé dans OPA, le default {} est utilisé.
+# Chargement des exceptions depuis data.drift_exceptions (document statique OPA).
+# ARCHITECTURE : drift_exceptions.json est monté via --data au démarrage du serveur
+# OPA (opa-server-shiftright, port 8182). data.* et le package cloudsentinel.shiftright.drift
+# sont des namespaces totalement distincts — aucune interaction circulaire possible.
+# SÉPARATION EXPLICITE depuis les exceptions shift-left (data.cloudsentinel.exceptions)
+# qui ont un format et un cycle de vie différents.
+# Si le bundle n'est pas monté, default {} est utilisé → zéro exception active (fail-safe).
 default _drift_exceptions_store := {}
 
 _drift_exceptions_store := data.cloudsentinel.drift_exceptions
+
+# ── Wildcard guard helpers ──
+# Wildcards (* or ?) in resource_type or resource_id are not allowed in drift
+# exceptions. They create overly broad exceptions that could mask real violations.
+# These helpers detect wildcards so valid_drift_exception() can reject such entries.
+
+_drift_exception_has_wildcard(ex) if {
+	contains(object.get(ex, "resource_type", ""), "*")
+}
+
+_drift_exception_has_wildcard(ex) if {
+	contains(object.get(ex, "resource_type", ""), "?")
+}
+
+_drift_exception_has_wildcard(ex) if {
+	contains(object.get(ex, "resource_id", ""), "*")
+}
+
+_drift_exception_has_wildcard(ex) if {
+	contains(object.get(ex, "resource_id", ""), "?")
+}
+
+# ── Scope environment matching helpers ──
+# Empty list → universal match (exception applies to all environments).
+# Non-empty list → exception must include input.environment explicitly.
+_drift_exception_env_matches(ex) if {
+	count(object.get(ex, "environments", [])) == 0
+}
+
+_drift_exception_env_matches(ex) if {
+	count(object.get(ex, "environments", [])) > 0
+	input.environment in ex.environments
+}
 
 # ── Validation d'une exception drift ──
 valid_drift_exception(ex) if {
@@ -304,6 +344,14 @@ valid_drift_exception(ex) if {
 	# Temporalité : approuvée dans le passé et non encore expirée
 	time.parse_rfc3339_ns(ex.approved_at) <= time.now_ns()
 	time.now_ns() < time.parse_rfc3339_ns(ex.expires_at)
+	# Cohérence temporelle : approved_at doit être antérieur à expires_at
+	# (évite les exceptions mal formées où l'expiration précède l'approbation)
+	time.parse_rfc3339_ns(ex.approved_at) < time.parse_rfc3339_ns(ex.expires_at)
+	# Scope : l'exception doit correspondre à l'environnement courant
+	_drift_exception_env_matches(ex)
+	# Sécurité : les wildcards (* ou ?) sont interdits dans resource_type et resource_id
+	# pour éviter les exceptions trop larges qui masqueraient de vraies violations
+	not _drift_exception_has_wildcard(ex)
 }
 
 # ── Matching exception ↔ violation ──

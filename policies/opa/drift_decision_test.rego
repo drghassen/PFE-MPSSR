@@ -7,8 +7,7 @@
 
 package cloudsentinel.shiftright.drift
 
-import future.keywords.if
-import future.keywords.in
+import rego.v1
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Groupe 1 — Defaults et fail-safe (valide P0.1)
@@ -279,4 +278,161 @@ test_unknown_type_has_null_custodian_policy if {
 		"actions": ["update"],
 	})
 	result.custodian_policy == null
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Groupe 6 — Environment scope matching (B4)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# B4: exception with empty environments list matches any environment
+test_exception_with_empty_environments_is_universal if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# B4: exception with matching environment is valid
+test_exception_matching_environment_is_valid if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": ["staging"],
+	}
+	valid_drift_exception(ex) with input as {"environment": "staging"}
+}
+
+# B4: exception with non-matching environment is rejected
+test_exception_wrong_environment_is_rejected if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": ["staging"],
+	}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Groupe 7 — Temporal coherence approved_at < expires_at (B6)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# B6: exception where expires_at precedes approved_at is rejected
+test_exception_expires_before_approved_is_rejected if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		# approved_at is AFTER expires_at — incoherent, must be rejected
+		"approved_at": "2099-01-01T00:00:00Z",
+		"expires_at": "2020-01-01T00:00:00Z",
+		"environments": [],
+	}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# B6: well-formed exception with correct temporal order is accepted
+test_exception_correct_temporal_order_is_accepted if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Groupe 8 — Wildcard rejection (B10)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# B10: wildcard * in resource_type is rejected
+test_exception_wildcard_resource_type_star_rejected if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_*",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# B10: wildcard ? in resource_id is rejected
+test_exception_wildcard_resource_id_question_mark_rejected if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.exampl?",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# B10: wildcard * in resource_id is rejected
+test_exception_wildcard_resource_id_star_rejected if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.*",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
+}
+
+# B10: exception with no wildcards and exact resource_id is accepted
+test_exception_no_wildcard_is_accepted if {
+	ex := {
+		"source": "defectdojo",
+		"status": "approved",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2099-12-31T23:59:59Z",
+		"environments": [],
+	}
+	valid_drift_exception(ex) with input as {"environment": "production"}
 }

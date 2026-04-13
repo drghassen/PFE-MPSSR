@@ -1,0 +1,156 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-04-13T00:00:00Z",
+  "project": "CloudSentinel — PFE-MPSSR",
+  "auditor": "DevSecOps Correction Agent",
+  "total_bugs_fixed": 10,
+  "fixes": [
+    {
+      "id": "B1",
+      "title": "docker-compose.yml + drift_exceptions.json bootstrap + drift_decision.rego comment",
+      "severity": "HIGH",
+      "files_changed": [
+        "docker-compose.yml",
+        ".cloudsentinel/drift_exceptions.json",
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "Added drift_exceptions.json volume mount to opa-server service. Created bootstrap .cloudsentinel/drift_exceptions.json with empty exceptions list so OPA server starts without errors. Replaced incorrect comment about OPA recursion with accurate architectural explanation.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B2",
+      "title": "drift_decision.rego — Replace deprecated future.keywords imports with rego.v1",
+      "severity": "MEDIUM",
+      "files_changed": [
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "Replaced 'import future.keywords.if' and 'import future.keywords.in' with 'import rego.v1' — the canonical import for OPA >= 0.59. The future.keywords form is deprecated and will be removed in a future OPA release.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B3",
+      "title": "Severity casing inconsistency across drift engine components",
+      "severity": "HIGH",
+      "files_changed": [
+        "shift-right/drift-engine/utils/enrichment.py",
+        "shift-right/drift-engine/utils/json_normalizer.py",
+        "shift-right/drift-engine/drift-engine.py"
+      ],
+      "description": "OPA returns ALL CAPS severities (CRITICAL, HIGH, MEDIUM, LOW, INFO) but DefectDojo and the drift engine use Title case (Critical, High, Medium, Low, Info). Added _OPA_SEVERITY_NORMALIZE dict in enrichment.py to normalize on ingestion. Fixed json_normalizer.py to use OPA severity when opa_evaluated=True. Changed _OCSF_ORDER from 'Informational' to 'Info' in drift-engine.py and updated default severity accordingly.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B4",
+      "title": "drift_decision.rego missing environment scope check for exceptions",
+      "severity": "HIGH",
+      "files_changed": [
+        "policies/opa/drift_decision.rego",
+        "shift-right/drift-engine/utils/opa_normalizer.py"
+      ],
+      "description": "Drift exceptions were not validated against the current environment (production/staging/dev). Added _drift_exception_env_matches() helper rules with empty-list-means-universal semantics, and added the check to valid_drift_exception(). Added 'environment' field to opa_normalizer.normalize_drift_for_opa() output using DRIFT_ENVIRONMENT or CI_ENVIRONMENT_NAME env vars, defaulting to 'production'. Added 'import os' to opa_normalizer.py.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B5",
+      "title": "Incorrect comment about OPA recursion in drift_decision.rego",
+      "severity": "LOW",
+      "files_changed": [
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "The comment incorrectly stated the _drift_exceptions_store assignment needed to reference a specific path 'to avoid OPA recursion'. OPA does not recurse on data document references. Replaced with accurate explanation: data.cloudsentinel.drift_exceptions is a static data document loaded at OPA server startup via --data flag, architecturally separate from the Rego package being evaluated.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B6",
+      "title": "Missing approved_at < expires_at temporal coherence check in valid_drift_exception()",
+      "severity": "MEDIUM",
+      "files_changed": [
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "valid_drift_exception() checked that approved_at <= now and now < expires_at, but did not verify that approved_at < expires_at. A malformed exception with expires_at before approved_at would pass if now happened to be in neither range. Added the temporal coherence check time.parse_rfc3339_ns(ex.approved_at) < time.parse_rfc3339_ns(ex.expires_at).",
+      "status": "FIXED"
+    },
+    {
+      "id": "B7",
+      "title": "Create fetch_drift_exceptions.py for shift-right exception governance",
+      "severity": "HIGH",
+      "files_changed": [
+        "shift-right/scripts/fetch_drift_exceptions.py",
+        "Makefile"
+      ],
+      "description": "Created shift-right/scripts/fetch_drift_exceptions.py that fetches Risk Acceptances tagged 'cloudsentinel-drift' from DefectDojo and transforms them into drift_exceptions.json for OPA. Supports scope binding (repo/branch/environment), deterministic SHA-256 IDs for stable exception correlation, and dry-run mode. Added 'fetch-drift-exceptions' Makefile target.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B8",
+      "title": "resource_id ambiguity — ARM ID vs Terraform address",
+      "severity": "HIGH",
+      "files_changed": [
+        "shift-right/drift-engine/utils/opa_normalizer.py",
+        "shift-right/drift-engine/utils/enrichment.py",
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "opa_normalizer was passing item['resource_id'] (Azure ARM ID, may be None for undeployed resources) to OPA as resource_id, while drift_decision.rego used finding.address for exception matching. Changed opa_normalizer to use item['address'] (Terraform resource address, always present and stable) as resource_id. Added defensive assertion warning in enrichment.py for violations missing resource_id. Added clarifying comment in drift_decision.rego evaluate_drift().",
+      "status": "FIXED"
+    },
+    {
+      "id": "B9",
+      "title": "Add separate OPA server for shift-right (port 8182) in docker-compose.yml",
+      "severity": "HIGH",
+      "files_changed": [
+        "docker-compose.yml",
+        "shift-right/drift-engine/config/drift_config.yaml"
+      ],
+      "description": "The single opa-server handled both shift-left (pipeline_decision.rego) and shift-right (drift_decision.rego) policies on port 8181, violating architectural separation. Added new 'opa-server-shiftright' service on port 8182 loading only drift_decision.rego and drift_exceptions.json. Removed drift_decision.rego from opa-server (now shift-left only). Updated drift_config.yaml OPA server_url default from port 8181 to 8182.",
+      "status": "FIXED"
+    },
+    {
+      "id": "B10",
+      "title": "Wildcard check missing in drift exception validation",
+      "severity": "HIGH",
+      "files_changed": [
+        "policies/opa/drift_decision.rego"
+      ],
+      "description": "valid_drift_exception() did not reject exceptions containing wildcards (* or ?) in resource_type or resource_id fields. A wildcard exception like resource_type='azurerm_*' would match all Azure resource types, creating an overly broad exception that masks real violations. Added _drift_exception_has_wildcard() helper rules and not _drift_exception_has_wildcard(ex) condition in valid_drift_exception().",
+      "status": "FIXED"
+    }
+  ],
+  "tests_added": {
+    "file": "policies/opa/drift_decision_test.rego",
+    "new_test_groups": [
+      {
+        "group": 6,
+        "name": "Environment scope matching (B4)",
+        "tests": [
+          "test_exception_with_empty_environments_is_universal",
+          "test_exception_matching_environment_is_valid",
+          "test_exception_wrong_environment_is_rejected"
+        ]
+      },
+      {
+        "group": 7,
+        "name": "Temporal coherence approved_at < expires_at (B6)",
+        "tests": [
+          "test_exception_expires_before_approved_is_rejected",
+          "test_exception_correct_temporal_order_is_accepted"
+        ]
+      },
+      {
+        "group": 8,
+        "name": "Wildcard rejection (B10)",
+        "tests": [
+          "test_exception_wildcard_resource_type_star_rejected",
+          "test_exception_wildcard_resource_id_question_mark_rejected",
+          "test_exception_wildcard_resource_id_star_rejected",
+          "test_exception_no_wildcard_is_accepted"
+        ]
+      }
+    ],
+    "import_fix": "Updated 'import future.keywords.*' to 'import rego.v1' in test file"
+  },
+  "remaining_known_issues": [
+    "NSG SSH source_address_prefix = '*' bug in infra/azure/student-secure/network/main.tf (B0 from CLAUDE.md audit — out of scope for this fix batch)",
+    "Trivy image scan hardcoded to alpine:3.21 (separate infrastructure concern)",
+    "APPSEC_ALLOWED_USERS contains personal account drghassen (governance concern)"
+  ]
+}

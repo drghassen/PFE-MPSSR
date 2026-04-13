@@ -40,9 +40,11 @@ defectdojo:
   minimum_severity: Info
 
   # OPA Policy Decision Point (Shift-Right)
+  # Uses port 8182 (opa-server-shiftright) — architecturally separated from
+  # the shift-left OPA server (port 8181) which handles pipeline_decision.rego.
 opa:
   enabled: ${OPA_ENABLED:-true}
-  server_url: ${OPA_SERVER_URL:-http://localhost:8181}
+  server_url: ${OPA_SERVER_URL:-http://localhost:8182}
   policy_path: cloudsentinel.shiftright.drift
   timeout: 30
   fallback_on_error: true
