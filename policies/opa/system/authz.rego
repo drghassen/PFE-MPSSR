@@ -36,10 +36,6 @@ allow if {
 	input.path == ["health"]
 }
 
-allow if {
-	startswith(concat("/", input.path), "health")
-}
-
 # --- Token validation ---
 # OPA --authentication=token extracts Bearer token from Authorization header
 # and exposes it as input.identity. We compare against the expected token

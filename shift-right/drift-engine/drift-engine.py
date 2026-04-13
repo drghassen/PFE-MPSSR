@@ -90,7 +90,7 @@ class DefectDojoSection(BaseModel):
 class OPASection(BaseModel):
     """OPA Policy Decision Point configuration for Shift-Right drift evaluation."""
     enabled: bool = Field(default=True, description="Enable OPA evaluation")
-    server_url: str = Field(default="http://localhost:8181", description="OPA server URL")
+    server_url: str = Field(default="http://localhost:8182", description="OPA server URL")
     policy_path: str = Field(default="cloudsentinel.shiftright.drift", description="OPA policy path")
     timeout: int = Field(default=30, description="HTTP timeout in seconds")
     fallback_on_error: bool = Field(default=True, description="Use fallback if OPA fails")
@@ -264,7 +264,7 @@ def _redact_sensitive(text: str) -> str:
     redacted = text
 
     # 1) Replace exact secret env values if they appear in output (strongest signal).
-    for key in ("ARM_CLIENT_SECRET", "DEFECTDOJO_API_KEY", "AZURE_CLIENT_SECRET", "ARM_ACCESS_KEY"):
+    for key in ("ARM_CLIENT_SECRET", "DEFECTDOJO_API_KEY", "AZURE_CLIENT_SECRET", "ARM_ACCESS_KEY", "OPA_AUTH_TOKEN"):
         value = os.getenv(key)
         if value:
             redacted = redacted.replace(value, "***REDACTED***")

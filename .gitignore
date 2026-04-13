@@ -39,13 +39,14 @@ shift-left/trivy/results.json
 checkov_scan.log
 tmp_ex.json
 
+# Engine & Tests Output
 shift-right/drift-engine/output/
 shift-right/drift-engine/drift-report.json
 shift-right/drift-engine/drift-report.latest.json
 shift-right/drift-engine/drift-report*.json
 ci/scripts/test-opa-zero-trust.sh
 
-.env.drift
+# Environment settings
 .env.drift
 .claudecode
 .claude
@@ -64,3 +65,6 @@ CLAUDE.md
 # EXCEPT mandatory documentation (Architecture standard)
 !README.md
 !*/README.md
+
+# Ignore Windows NTFS Alternate Data Streams (Downloads)
+*.Zone.Identifier
