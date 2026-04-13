@@ -94,6 +94,7 @@ class OPASection(BaseModel):
     policy_path: str = Field(default="cloudsentinel.shiftright.drift", description="OPA policy path")
     timeout: int = Field(default=30, description="HTTP timeout in seconds")
     fallback_on_error: bool = Field(default=True, description="Use fallback if OPA fails")
+    auth_token: str = Field(default="", description="Bearer token for OPA Zero Trust auth")
 class AppConfig(BaseModel):
     engine: EngineConfig = Field(default_factory=EngineConfig)
     azure: AzureConfig = Field(default_factory=AzureConfig)
@@ -674,7 +675,8 @@ def main(argv: list[str]) -> int:
                     server_url=config.opa.server_url,
                     policy_path=config.opa.policy_path,
                     timeout=config.opa.timeout,
-                    fallback_on_error=config.opa.fallback_on_error
+                    fallback_on_error=config.opa.fallback_on_error,
+                    auth_token=config.opa.auth_token
                 ))
                 
                 opa_decisions = opa_client.evaluate_drift(opa_input)

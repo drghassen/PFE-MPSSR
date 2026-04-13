@@ -19,14 +19,18 @@ class OPAConfig:
     policy_path: str = "cloudsentinel.shiftright.drift"
     timeout: int = 30
     fallback_on_error: bool = True
+    auth_token: str = ""
 
 
 class OPAClient:
     """
     Client HTTP pour OPA Policy Decision Point.
     
+    Zero Trust: All requests carry a Bearer token validated by OPA's
+    system.authz policy. Without a valid token, OPA returns 403.
+    
     Usage:
-        config = OPAConfig(server_url="http://localhost:8181")
+        config = OPAConfig(server_url="http://localhost:8182", auth_token="...")
         client = OPAClient(config)
         decisions = client.evaluate_drift(normalized_findings)
     """
@@ -34,6 +38,9 @@ class OPAClient:
     def __init__(self, config: OPAConfig) -> None:
         self.config = config
         self.session = requests.Session()
+        # Inject Bearer token into all requests via session headers
+        if self.config.auth_token:
+            self.session.headers["Authorization"] = f"Bearer {self.config.auth_token}"
         self._health_check()
     
     def _health_check(self) -> bool:

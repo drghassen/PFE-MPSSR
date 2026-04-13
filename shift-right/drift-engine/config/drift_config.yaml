@@ -48,3 +48,6 @@ opa:
   policy_path: cloudsentinel.shiftright.drift
   timeout: 30
   fallback_on_error: true
+  # Zero Trust: Bearer token for OPA server authentication.
+  # Set OPA_AUTH_TOKEN as a masked CI variable or in .env locally.
+  auth_token: ${OPA_AUTH_TOKEN:-}

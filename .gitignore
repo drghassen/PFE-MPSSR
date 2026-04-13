@@ -43,7 +43,20 @@ shift-right/drift-engine/output/
 shift-right/drift-engine/drift-report.json
 shift-right/drift-engine/drift-report.latest.json
 shift-right/drift-engine/drift-report*.json
+ci/scripts/test-opa-zero-trust.sh
+
 .env.drift
 .env.drift
 .claudecode
 .claude
+.md
+
++# Backups & Diagnostic / IA Prompts
++*.backup
++fix_report.json
++test.yaml
++test-policy.yaml
++.gitlab-ci-diagnostics.yml
++PROMPT_OPA_FIXES.md
++CLAUDE.md
+ci/scripts/test-opa-zero-trust.sh

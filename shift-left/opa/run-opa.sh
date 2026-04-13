@@ -75,6 +75,24 @@ OPA_API_PATH="/v1/data/cloudsentinel/gate/decision"
 OPA_QUERY="data.cloudsentinel.gate.decision"
 OPA_PREFER_CLI="${OPA_PREFER_CLI:-false}"
 
+# --- Zero Trust: Bearer Token for OPA Server authentication ---
+# OPA_AUTH_TOKEN must be set in CI (masked variable) or locally via .env.
+# The system.authz policy in OPA rejects all requests without a valid token.
+# CLI mode (opa eval) does not use token auth — it runs locally with direct
+# file access and no network surface.
+OPA_AUTH_TOKEN="${OPA_AUTH_TOKEN:-}"
+if [[ -z "$OPA_AUTH_TOKEN" && "$OPA_PREFER_CLI" != "true" ]]; then
+  # Attempt to read from bootstrap config (local development fallback)
+  _bootstrap_file="${REPO_ROOT}/.cloudsentinel/opa_auth_config.json"
+  if [[ -f "$_bootstrap_file" ]]; then
+    OPA_AUTH_TOKEN="$(jq -r '.opa_config.auth_token // ""' "$_bootstrap_file" 2>/dev/null || true)"
+  fi
+  if [[ -z "$OPA_AUTH_TOKEN" ]]; then
+    echo -e "${YELLOW}[OPA]${NC} ${BOLD}WARN${NC}  OPA_AUTH_TOKEN not set. OPA server calls will fail with 403." >&2
+    echo -e "${YELLOW}[OPA]${NC} ${BOLD}WARN${NC}  Run: bash scripts/bootstrap-opa-auth.sh" >&2
+  fi
+fi
+
 # --- Mode ---
 MODE="${1:---enforce}"
 if [[ "$MODE" != "--advisory" && "$MODE" != "--enforce" ]]; then
@@ -158,6 +176,7 @@ invoke_opa_server() {
     --connect-timeout 2 \
     -X POST "${OPA_SERVER_URL}${OPA_API_PATH}" \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${OPA_AUTH_TOKEN}" \
     -d "{\"input\": ${input_json}}" \
     -o "$DECISION_FILE" \
     2>/dev/null) || curl_err=$?
