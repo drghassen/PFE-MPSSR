@@ -49,14 +49,18 @@ ci/scripts/test-opa-zero-trust.sh
 .env.drift
 .claudecode
 .claude
-.md
 
-+# Backups & Diagnostic / IA Prompts
-+*.backup
-+fix_report.json
-+test.yaml
-+test-policy.yaml
-+.gitlab-ci-diagnostics.yml
-+PROMPT_OPA_FIXES.md
-+CLAUDE.md
-ci/scripts/test-opa-zero-trust.sh
+# Backups & IA Prompts / Diagnostics
+*.backup
+fix_report.json
+test.yaml
+test-policy.yaml
+.gitlab-ci-diagnostics.yml
+PROMPT_OPA_FIXES.md
+CLAUDE.md
+
+# Ignore all Markdown files by default
+*.md
+# EXCEPT mandatory documentation (Architecture standard)
+!README.md
+!*/README.md
