@@ -133,12 +133,63 @@ finding_resource_id(f) := "" if {
   normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", "")) == ""
 }
 
+finding_occurrence_file(f) := file if {
+  file := normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", ""))
+  file != ""
+}
+
+finding_occurrence_file(f) := file if {
+  normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", "")) == ""
+  file := normalize_path(object.get(object.get(f, "resource", {}), "path", ""))
+  file != ""
+}
+
+finding_occurrence_file(f) := file if {
+  normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", "")) == ""
+  normalize_path(object.get(object.get(f, "resource", {}), "path", "")) == ""
+  file := normalize_path(object.get(object.get(f, "resource", {}), "name", ""))
+  file != ""
+}
+
+finding_occurrence_file(f) := "" if {
+  normalize_path(object.get(object.get(object.get(f, "resource", {}), "location", {}), "file", "")) == ""
+  normalize_path(object.get(object.get(f, "resource", {}), "path", "")) == ""
+  normalize_path(object.get(object.get(f, "resource", {}), "name", "")) == ""
+}
+
+finding_occurrence_line(f) := line if {
+  raw := object.get(object.get(object.get(f, "resource", {}), "location", {}), "start_line", 0)
+  type_name(raw) == "number"
+  line := raw
+}
+
+finding_occurrence_line(f) := line if {
+  raw := object.get(object.get(object.get(f, "resource", {}), "location", {}), "start_line", 0)
+  type_name(raw) == "string"
+  trim_space(raw) != ""
+  line := to_number(raw)
+}
+
+finding_occurrence_line(f) := 0 if {
+  raw := object.get(object.get(object.get(f, "resource", {}), "location", {}), "start_line", 0)
+  type_name(raw) == "string"
+  trim_space(raw) == ""
+}
+
+finding_occurrence_line(f) := 0 if {
+  raw := object.get(object.get(object.get(f, "resource", {}), "location", {}), "start_line", 0)
+  type_name(raw) != "number"
+  type_name(raw) != "string"
+}
+
 finding_severity_level(f) := upper(trim_space(object.get(object.get(f, "severity", {}), "level", "LOW")))
 
 exception_id(ex) := lower(trim_space(object.get(ex, "id", "")))
 exception_tool(ex) := lower(trim_space(object.get(ex, "tool", "")))
 exception_rule(ex) := upper(trim_space(object.get(ex, "rule_id", "")))
 exception_resource(ex) := lower(normalize_path(object.get(ex, "resource", "")))
+exception_occurrence_file(ex) := lower(normalize_path(object.get(object.get(ex, "occurrence", {}), "file_path", "")))
+exception_occurrence_hash(ex) := lower(trim_space(object.get(object.get(ex, "occurrence", {}), "hash_code", "")))
 exception_severity(ex) := upper(trim_space(object.get(ex, "severity", "")))
 exception_requested_by(ex) := lower(trim_space(object.get(ex, "requested_by", "")))
 exception_approved_by(ex) := lower(trim_space(object.get(ex, "approved_by", "")))
@@ -147,6 +198,39 @@ exception_source(ex) := lower(trim_space(object.get(ex, "source", "")))
 exception_decision(ex) := lower(trim_space(object.get(ex, "decision", "")))
 exception_approved_at(ex) := trim_space(object.get(ex, "approved_at", ""))
 exception_expires_at(ex) := trim_space(object.get(ex, "expires_at", ""))
+
+exception_occurrence_line(ex) := line if {
+  raw := object.get(object.get(ex, "occurrence", {}), "line", -1)
+  type_name(raw) == "number"
+  line := raw
+}
+
+exception_occurrence_line(ex) := line if {
+  raw := object.get(object.get(ex, "occurrence", {}), "line", -1)
+  type_name(raw) == "string"
+  trim_space(raw) != ""
+  line := to_number(raw)
+}
+
+exception_occurrence_line(ex) := -1 if {
+  raw := object.get(object.get(ex, "occurrence", {}), "line", -1)
+  type_name(raw) == "string"
+  trim_space(raw) == ""
+}
+
+exception_occurrence_line(ex) := -1 if {
+  raw := object.get(object.get(ex, "occurrence", {}), "line", -1)
+  type_name(raw) != "number"
+  type_name(raw) != "string"
+}
+
+exception_occurrence_hash_valid(ex) if {
+  exception_occurrence_hash(ex) == ""
+}
+
+exception_occurrence_hash_valid(ex) if {
+  regex.match("^[a-f0-9]{64}$", exception_occurrence_hash(ex))
+}
 
 exception_has_wildcard(ex) if {
   contains(exception_resource(ex), "*")
@@ -211,6 +295,9 @@ valid_exception_definition(ex) if {
   allowed_tools[exception_tool(ex)]
   exception_rule(ex) != ""
   exception_resource(ex) != ""
+  exception_occurrence_file(ex) != ""
+  exception_occurrence_line(ex) >= 0
+  exception_occurrence_hash_valid(ex)
   not exception_has_wildcard(ex)
   severity_rank[exception_severity(ex)] >= 1
   exception_requested_by(ex) != ""
@@ -279,6 +366,8 @@ exception_matches_finding(ex, f) if {
   exception_tool(ex) == finding_tool(f)
   exception_rule(ex) == finding_rule_id(f)
   exception_resource(ex) == lower(trim_space(finding_resource_id(f)))
+  exception_occurrence_file(ex) == lower(trim_space(finding_occurrence_file(f)))
+  exception_occurrence_line(ex) == finding_occurrence_line(f)
   exception_scope_matches_repo(ex)
   exception_scope_matches_env(ex)
   exception_scope_matches_branch(ex)
@@ -309,6 +398,14 @@ _resource_mismatch(ex, f) if {
   exception_resource(ex) != lower(trim_space(finding_resource_id(f)))
 }
 
+_occurrence_mismatch(ex, f) if {
+  exception_occurrence_file(ex) != lower(trim_space(finding_occurrence_file(f)))
+}
+
+_occurrence_mismatch(ex, f) if {
+  exception_occurrence_line(ex) != finding_occurrence_line(f)
+}
+
 _repo_mismatch(ex) if {
   not exception_scope_matches_repo(ex)
 }
@@ -325,11 +422,14 @@ partial_mismatch_reasons(ex, f) := array.concat(
   array.concat(
     array.concat(
       [m | _resource_mismatch(ex, f); m := sprintf("Resource path mismatch: exception='%s' finding='%s'", [exception_resource(ex), lower(trim_space(finding_resource_id(f)))])],
-      [m | _repo_mismatch(ex); m := sprintf("Scope repo mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "repos", []), lower(trim_space(object.get(git_meta, "repo", "")))])]
+      [m | _occurrence_mismatch(ex, f); m := sprintf("Occurrence mismatch: exception='%s:%v' finding='%s:%v'", [exception_occurrence_file(ex), exception_occurrence_line(ex), lower(trim_space(finding_occurrence_file(f))), finding_occurrence_line(f)])]
     ),
-    [m | _env_mismatch(ex); m := sprintf("Scope environment mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "environments", []), environment])]
+    [m | _repo_mismatch(ex); m := sprintf("Scope repo mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "repos", []), lower(trim_space(object.get(git_meta, "repo", "")))])]
   ),
-  [m | _branch_mismatch(ex); m := sprintf("Scope branch mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "branches", []), lower(trim_space(object.get(git_meta, "branch", "")))])]
+  array.concat(
+    [m | _env_mismatch(ex); m := sprintf("Scope environment mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "environments", []), environment])],
+    [m | _branch_mismatch(ex); m := sprintf("Scope branch mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "branches", []), lower(trim_space(object.get(git_meta, "branch", "")))])]
+  ),
 )
 
 partial_matches_audit[item] if {

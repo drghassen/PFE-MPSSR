@@ -31,7 +31,11 @@ base_failed_finding := {
   "source": {"tool": "checkov", "id": "CKV2_CS_AZ_001"},
   "resource": {
     "name": "azurerm_storage_account.insecure",
-    "path": "/infra/azure/student-secure/modules/storage/main.tf"
+    "path": "/infra/azure/student-secure/modules/storage/main.tf",
+    "location": {
+      "file": "/infra/azure/student-secure/modules/storage/main.tf",
+      "start_line": 1
+    }
   },
   "severity": {"level": "HIGH"}
 }
@@ -48,7 +52,12 @@ base_v2_exception := {
   "expires_at": "2099-01-01T00:00:00Z",
   "decision": "accept",
   "source": "defectdojo",
-  "status": "approved"
+  "status": "approved",
+  "occurrence": {
+    "file_path": "infra/azure/student-secure/modules/storage/main.tf",
+    "line": 1,
+    "hash_code": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
 }
 
 test_allow_when_thresholds_respected if {

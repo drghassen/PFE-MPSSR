@@ -194,6 +194,7 @@ class FetchExceptionsMappingTests(unittest.TestCase):
                     "id": 369,
                     "title": "Secret Detected in modules/compute/main.tf - GitHub Personal Access Token",
                     "description": "GitHub Personal Access Token\n**Category:** GitHub",
+                    "scanner": "Trivy Scan",
                     "severity": "Critical",
                     "file_path": "modules/compute/main.tf",
                     "tags": ["secret"],

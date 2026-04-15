@@ -43,8 +43,15 @@ class FetchContext:
     dropped: List[Dict[str, Any]] = field(default_factory=list)
 
 
-def stable_exception_id(tool: str, rule_id: str, resource: str) -> str:
-    seed = f"{tool}{rule_id}{resource}"
+def stable_exception_id(
+    tool: str,
+    rule_id: str,
+    resource: str,
+    occurrence_file_path: str = "",
+    occurrence_line: Any = "",
+    occurrence_hash: str = "",
+) -> str:
+    seed = f"{tool}{rule_id}{resource}{occurrence_file_path}{occurrence_line}{occurrence_hash}"
     return sha256_hex(seed)
 
 
@@ -127,6 +134,26 @@ def validate_normalized_exception(ctx: FetchContext, exception_obj: Dict[str, An
     severity = normalize_severity(exception_obj.get("severity"), ctx.severity_enum)
     if not severity:
         return False, "invalid_severity", "severity must be one of CRITICAL|HIGH|MEDIUM|LOW"
+
+    occurrence = exception_obj.get("occurrence")
+    if not isinstance(occurrence, dict):
+        return False, "missing_fields", "occurrence is required"
+
+    occurrence_file_path = sanitize_text(occurrence.get("file_path"))
+    if not occurrence_file_path:
+        return False, "missing_fields", "occurrence.file_path is required"
+
+    raw_line = occurrence.get("line")
+    try:
+        occurrence_line = int(raw_line)
+    except (TypeError, ValueError):
+        return False, "missing_fields", "occurrence.line must be an integer"
+    if occurrence_line < 0:
+        return False, "missing_fields", "occurrence.line must be >= 0"
+
+    occurrence_hash = sanitize_text(occurrence.get("hash_code")).lower()
+    if occurrence_hash and not (len(occurrence_hash) == 64 and all(ch in "0123456789abcdef" for ch in occurrence_hash)):
+        return False, "missing_fields", "occurrence.hash_code must be a 64-char lowercase hex string"
 
     missing_fields = [
         key

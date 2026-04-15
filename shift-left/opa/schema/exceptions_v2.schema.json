@@ -53,7 +53,8 @@
         "expires_at",
         "decision",
         "source",
-        "status"
+        "status",
+        "occurrence"
       ],
       "properties": {
         "id": {
@@ -103,6 +104,29 @@
         "status": {
           "type": "string",
           "const": "approved"
+        },
+        "occurrence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file_path", "line"],
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "line": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hash_code": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "finding_id": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
         "scope": {
           "type": "object",

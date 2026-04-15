@@ -89,16 +89,46 @@ def fetch_risk_acceptances() -> List[Dict[str, Any]]:
     return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, CTX.dojo_engagement_id, logger)
 
 
-def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any]) -> Dict[str, Any]:
+def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any], finding_raw: Dict[str, Any]) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
     resource = normalize_path(finding_candidate.get("resource"))
+    occurrence_file_path = normalize_path(
+        finding_raw.get("file_path")
+        or finding_raw.get("path")
+        or finding_candidate.get("resource")
+    )
+
+    raw_line = finding_raw.get("line")
+    if raw_line is None or sanitize_text(raw_line) == "":
+        raw_line = finding_raw.get("start_line")
+    try:
+        occurrence_line = int(raw_line)
+    except (TypeError, ValueError):
+        occurrence_line = 0
+
+    occurrence_hash = sanitize_text(finding_raw.get("hash_code")).lower()
+    finding_id = sanitize_text(finding_raw.get("id"))
+    occurrence_obj: Dict[str, Any] = {
+        "file_path": occurrence_file_path,
+        "line": occurrence_line,
+        "hash_code": occurrence_hash,
+    }
+    if finding_id.isdigit():
+        occurrence_obj["finding_id"] = int(finding_id)
 
     approved_at = parse_approved_at(ra)
     expires_at = parse_expires_at(ra)
 
     return {
-        "id": stable_exception_id(tool, rule_id, resource) if tool and rule_id and resource else "",
+        "id": stable_exception_id(
+            tool,
+            rule_id,
+            resource,
+            occurrence_file_path,
+            occurrence_line,
+            occurrence_hash,
+        ) if tool and rule_id and resource else "",
         "tool": tool,
         "rule_id": rule_id,
         "resource": resource,
@@ -110,6 +140,7 @@ def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any]) -> D
         "decision": parse_decision(ra),
         "source": "defectdojo",
         "status": parse_status(ra) or "",
+        "occurrence": occurrence_obj,
     }
 
 
@@ -129,7 +160,7 @@ def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
         key=_finding_richness,
     )
     candidate = normalize_finding_candidate(CTX, ra, best_finding)
-    normalized = _draft_exception(ra, candidate)
+    normalized = _draft_exception(ra, candidate, best_finding)
 
     is_valid, reason, detail = validate_normalized_exception(CTX, normalized)
     if not is_valid:

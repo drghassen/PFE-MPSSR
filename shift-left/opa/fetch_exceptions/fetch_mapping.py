@@ -106,10 +106,27 @@ def _draft_exception(
     ctx: FetchContext,
     ra: Dict[str, Any],
     finding_candidate: Dict[str, Any],
+    finding_raw: Dict[str, Any],
 ) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
     resource = normalize_path(finding_candidate.get("resource"))
+    occurrence_file_path = normalize_path(
+        finding_raw.get("file_path")
+        or finding_raw.get("path")
+        or finding_candidate.get("resource")
+    )
+
+    raw_line = finding_raw.get("line")
+    if raw_line is None or sanitize_text(raw_line) == "":
+        raw_line = finding_raw.get("start_line")
+    try:
+        occurrence_line = int(raw_line)
+    except (TypeError, ValueError):
+        occurrence_line = 0
+
+    occurrence_hash = sanitize_text(finding_raw.get("hash_code")).lower()
+    finding_id = sanitize_text(finding_raw.get("id"))
 
     requested_by = parse_requested_by(ra)
     approved_by = parse_approved_by(ra)
@@ -117,8 +134,23 @@ def _draft_exception(
     approved_at = parse_approved_at(ra)
     expires_at = parse_expires_at(ra)
 
+    occurrence_obj: Dict[str, Any] = {
+        "file_path": occurrence_file_path,
+        "line": occurrence_line,
+        "hash_code": occurrence_hash,
+    }
+    if finding_id.isdigit():
+        occurrence_obj["finding_id"] = int(finding_id)
+
     return {
-        "id": stable_exception_id(tool, rule_id, resource) if tool and rule_id and resource else "",
+        "id": stable_exception_id(
+            tool,
+            rule_id,
+            resource,
+            occurrence_file_path,
+            occurrence_line,
+            occurrence_hash,
+        ) if tool and rule_id and resource else "",
         "tool": tool,
         "rule_id": rule_id,
         "resource": resource,
@@ -131,6 +163,7 @@ def _draft_exception(
         "source": "defectdojo",
         "status": parse_status(ra) or "",
         "scope": _build_ci_scope(),
+        "occurrence": occurrence_obj,
     }
 
 
@@ -178,7 +211,7 @@ def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tu
         for finding in findings:
             finding_dict = finding if isinstance(finding, dict) else {"title": sanitize_text(finding)}
             candidate = normalize_finding_candidate(ctx, ra, finding_dict)
-            normalized_exception = _draft_exception(ctx, ra, candidate)
+            normalized_exception = _draft_exception(ctx, ra, candidate, finding_dict)
 
             is_valid, reason, detail = validate_normalized_exception(ctx, normalized_exception)
             if not is_valid:

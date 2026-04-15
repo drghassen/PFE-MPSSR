@@ -27,14 +27,14 @@ _base := {
 _critical_finding := {
 	"status":   "FAILED",
 	"source":   {"tool": "trivy", "id": "CVE-TEST-001"},
-	"resource": {"name": "my-package"},
+	"resource": {"name": "my-package", "path": "my-package", "location": {"file": "my-package", "start_line": 0}},
 	"severity": {"level": "CRITICAL"},
 }
 
 _high_finding := {
 	"status":   "FAILED",
 	"source":   {"tool": "checkov", "id": "CKV_AZ_001"},
-	"resource": {"name": "azurerm_storage_account.example"},
+	"resource": {"name": "azurerm_storage_account.example", "path": "azurerm_storage_account.example", "location": {"file": "azurerm_storage_account.example", "start_line": 0}},
 	"severity": {"level": "HIGH"},
 }
 
@@ -52,6 +52,7 @@ _valid_exception := {
 	"decision":     "accept",
 	"source":       "defectdojo",
 	"status":       "approved",
+	"occurrence":   {"file_path": "my-package", "line": 0, "hash_code": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 }
 
 # ─── TEST 1: Clean pipeline with 0 findings → allow ──────────────────────────
