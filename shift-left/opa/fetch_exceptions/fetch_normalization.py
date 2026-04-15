@@ -120,7 +120,8 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
     if inferred_rule.startswith("CVE-"):
         return "trivy"
     
-    if finding.get("unique_id_from_tool", "").startswith("cloudsentinel-drift"):
+    unique_id = sanitize_text(finding.get("unique_id_from_tool"))
+    if unique_id.startswith("cloudsentinel-drift"):
         return "cloudsentinel-drift"
 
     secret_rule = derive_trivy_secret_rule_id(

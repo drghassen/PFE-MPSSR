@@ -118,7 +118,7 @@ def _enrich_with_accepted_findings(
             ra["accepted_finding_details"] = details
 
 
-def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, logger: Logger) -> List[Dict[str, Any]]:
+def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, dojo_engagement_id: str, logger: Logger) -> List[Dict[str, Any]]:
     if not dojo_url or not dojo_api_key:
         raise DefectDojoFetchError("missing_credentials")
 
@@ -127,22 +127,62 @@ def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, logger: Logger) -> 
         "Accept": "application/json",
     }
 
-    endpoint = f"{dojo_url}/api/v2/risk_acceptance/"
-    results: List[Dict[str, Any]] = []
-    next_url = endpoint
+    start_url = f"{dojo_url}/api/v2/findings/?risk_accepted=true&limit=100"
+    if dojo_engagement_id:
+        start_url += f"&engagement={dojo_engagement_id}"
+    
+    logger.info(f"[fetch-exceptions] Fetching risk accepted findings from {start_url}")
 
-    while next_url:
-        body = _fetch_json(next_url, headers, 15, logger)
+    results: List[Dict[str, Any]] = []
+    current: str = start_url
+    while current:
+        body = _fetch_json(current, headers, 20, logger)
         page = body.get("results", [])
         if not isinstance(page, list):
-            raise DefectDojoFetchError(f"invalid_results_array:{next_url}")
+            raise DefectDojoFetchError(f"invalid_results_array:{current}")
+        results.extend(item for item in page if isinstance(item, dict))
+        current = sanitize_text(body.get("next"))
 
-        for item in page:
-            if isinstance(item, dict):
-                results.append(item)
+    logger.info(f"[fetch-exceptions] Fetched {len(results)} risk-accepted finding(s)")
 
-        next_url = sanitize_text(body.get("next"))
+    ra_map: Dict[str, Dict[str, Any]] = {}
+    user_cache: Dict[str, str] = {}
 
-    _enrich_with_accepted_findings(dojo_url, headers, results, logger)
-    logger.info(f"Fetched {len(results)} risk acceptances from DefectDojo")
-    return results
+    for finding in results:
+        accepted_risks = finding.get("accepted_risks", [])
+        if not isinstance(accepted_risks, list) or len(accepted_risks) == 0:
+            if finding.get("risk_accepted"):
+                legacy_ra_id = f"legacy_ra_{finding.get('id')}"
+                if legacy_ra_id not in ra_map:
+                    ra_map[legacy_ra_id] = {
+                        "id": legacy_ra_id,
+                        "owner": "legacy_admin",
+                        "accepted_by": "legacy_admin",
+                        "expiration_date": None,
+                        "decision": "A",
+                        "status": "Accepted",
+                        "created": finding.get("created"),
+                        "updated": finding.get("updated"),
+                        "accepted_finding_details": [],
+                    }
+                ra_map[legacy_ra_id]["accepted_finding_details"].append(finding)
+            continue
+
+        for ra in accepted_risks:
+            if not isinstance(ra, dict):
+                continue
+            ra_id = str(ra.get("id", ""))
+            if not ra_id:
+                continue
+
+            if ra_id not in ra_map:
+                ra_map[ra_id] = dict(ra)
+                ra_map[ra_id]["accepted_finding_details"] = []
+                ra_map[ra_id]["owner"] = _resolve_user_identity(dojo_url, headers, ra.get("owner"), user_cache, logger)
+                ra_map[ra_id]["accepted_by"] = _resolve_user_identity(dojo_url, headers, ra.get("accepted_by"), user_cache, logger)
+
+            ra_map[ra_id]["accepted_finding_details"].append(finding)
+
+    final_ras = list(ra_map.values())
+    logger.info(f"[fetch-exceptions] Extracted {len(final_ras)} unique Risk Acceptance(s) from findings")
+    return final_ras
