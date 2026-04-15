@@ -28,6 +28,7 @@ class FetchContext:
     logger: Logger
     dojo_url: str
     dojo_api_key: str
+    dojo_engagement_id: str
     repo_root: str
     output_file: str
     dropped_file: str

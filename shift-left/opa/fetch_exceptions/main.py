@@ -62,6 +62,7 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
         logger=logger,
         dojo_url=os.environ.get("DOJO_URL", "").rstrip("/"),
         dojo_api_key=os.environ.get("DOJO_API_KEY", ""),
+        dojo_engagement_id=os.environ.get("DOJO_ENGAGEMENT_ID", ""),
         repo_root=repo_root,
         output_file=output_file,
         dropped_file=dropped_file,
@@ -88,7 +89,7 @@ def execute(ctx: FetchContext) -> None:
         pass
 
     try:
-        raw_ras = fetch_risk_acceptances(ctx.dojo_url, ctx.dojo_api_key, ctx.logger)
+        raw_ras = fetch_risk_acceptances(ctx.dojo_url, ctx.dojo_api_key, ctx.dojo_engagement_id, ctx.logger)
     except DefectDojoFetchError as exc:
         ctx.logger.error(f"DefectDojo fetch failed: {exc}")
         raise SystemExit(2) from exc
