@@ -367,6 +367,10 @@ _drift_exception_has_wildcard(ex) if {
 # ── Scope environment matching helpers ──
 
 valid_env_scope(ex) if {
+	not ex.environments
+} else if {
+	count(ex.environments) == 0
+} else if {
 	input.environment in ex.environments
 }
 
