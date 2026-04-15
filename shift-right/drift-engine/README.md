@@ -54,7 +54,7 @@ Variables:
 
 - `DEFECTDOJO_URL`
 - `DEFECTDOJO_API_KEY`
-- `DEFECTDOJO_ENGAGEMENT_ID`
+- `DOJO_ENGAGEMENT_ID_RIGHT` (ou `DEFECTDOJO_ENGAGEMENT_ID_RIGHT`)
 
 Le moteur utilise `scan_type=Generic Findings Import` et peut fermer les anciens findings via `close_old_findings=true`.
 
@@ -75,7 +75,7 @@ mkdir -p shift-right/drift-engine/output
 docker run --rm \
   --env-file shift-right/drift-engine/.env.example \
   -e ARM_CLIENT_ID=... -e ARM_CLIENT_SECRET=... -e ARM_TENANT_ID=... -e ARM_SUBSCRIPTION_ID=... \
-  -e DEFECTDOJO_URL=... -e DEFECTDOJO_API_KEY=... -e DEFECTDOJO_ENGAGEMENT_ID=... \
+  -e DEFECTDOJO_URL=... -e DEFECTDOJO_API_KEY=... -e DOJO_ENGAGEMENT_ID_RIGHT=... \
   -e TF_WORKING_DIR=/work/iac \
   -e TF_DATA_DIR=/tmp/cloudsentinel-tfdata \
   -e TF_LOCKFILE_MODE=readonly \

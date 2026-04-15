@@ -3,13 +3,13 @@ set -euo pipefail
 
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
-DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID:-}}"
+DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID_LEFT:-}}"
 
 if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
   echo "[dojo] Missing Dojo vars. Accepted names:"
   echo "[dojo] URL: DOJO_URL or DEFECTDOJO_URL"
   echo "[dojo] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
-  echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID"
+  echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID_LEFT"
   echo "[dojo] Skipping upload."
   exit 0
 fi

@@ -11,8 +11,9 @@ Usage:
         --output .cloudsentinel/drift_exceptions.json
 
 Environment variables required:
-    DEFECTDOJO_URL      Base URL of DefectDojo instance (e.g. http://localhost:8080)
-    DEFECTDOJO_API_KEY  DefectDojo API key (masked CI variable)
+    DOJO_URL / DEFECTDOJO_URL                      Base URL of DefectDojo instance
+    DOJO_API_KEY / DEFECTDOJO_API_KEY              DefectDojo API key
+    DOJO_ENGAGEMENT_ID_RIGHT / DEFECTDOJO_ENGAGEMENT_ID_RIGHT
     DRIFT_ENVIRONMENT   Current environment (default: production)
     CI_PROJECT_PATH     GitLab project path (used for scope binding)
     CI_COMMIT_REF_NAME  Current branch (used for scope binding)
@@ -23,6 +24,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -47,6 +49,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 DRIFT_EXCEPTION_SCHEMA_VERSION = "1.0.0"
+_DESCRIPTION_FIELD_RE = re.compile(r"(?im)^\s*-\s*([A-Za-z][A-Za-z _-]+?)\s*:\s*(.+?)\s*$")
 
 
 # ---------------------------------------------------------------------------
@@ -58,16 +61,74 @@ def _stable_exception_id(ra: dict[str, Any]) -> str:
     Deterministic SHA-256 ID for a DefectDojo Risk Acceptance.
     Stable across runs so OPA can correlate the same exception between pipeline runs.
     """
-    key = f"{ra.get('id', '')}:{ra.get('name', '')}:{ra.get('created', '')}"
+    key = f"{ra.get('id', '')}:{ra.get('title', ra.get('name', ''))}:{ra.get('created', '')}"
     return hashlib.sha256(key.encode()).hexdigest()
+
+
+def _clean_text(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _parse_description_fields(description: Any) -> dict[str, str]:
+    text = _clean_text(description)
+    if not text:
+        return {}
+
+    out: dict[str, str] = {}
+    for match in _DESCRIPTION_FIELD_RE.finditer(text):
+        key = _clean_text(match.group(1)).lower().replace(" ", "_")
+        val = _clean_text(match.group(2))
+        if key and val:
+            out[key] = val
+    return out
+
+
+def _extract_structured_resource_type(finding: dict[str, Any], description_fields: dict[str, str]) -> str:
+    resource_obj = finding.get("resource")
+    if isinstance(resource_obj, dict):
+        nested_type = _clean_text(resource_obj.get("type"))
+        if nested_type:
+            return nested_type
+
+    explicit_type = _clean_text(finding.get("resource_type"))
+    if explicit_type:
+        return explicit_type
+
+    vuln_id = _clean_text(finding.get("vuln_id_from_tool"))
+    if vuln_id.startswith("drift_type:"):
+        return _clean_text(vuln_id.split(":", 1)[1])
+
+    return _clean_text(description_fields.get("resource_type"))
+
+
+def _extract_structured_resource_address(finding: dict[str, Any], description_fields: dict[str, str]) -> str:
+    resource_obj = finding.get("resource")
+    if isinstance(resource_obj, dict):
+        nested_address = _clean_text(resource_obj.get("address"))
+        if nested_address:
+            return nested_address
+
+    component_name = _clean_text(finding.get("component_name"))
+    if component_name:
+        return component_name
+
+    unique_id = _clean_text(finding.get("unique_id_from_tool"))
+    if unique_id.startswith("cloudsentinel-drift:"):
+        parts = unique_id.split(":", 2)
+        if len(parts) == 3:
+            return _clean_text(parts[2])
+
+    return _clean_text(description_fields.get("address"))
 
 
 def _build_scope(environment: str) -> dict[str, Any]:
     """Build CI scope for exception binding."""
+    repo = _clean_text(os.getenv("CI_PROJECT_PATH", ""))
+    branch = _clean_text(os.getenv("CI_COMMIT_REF_NAME", ""))
     return {
-        "repos": [os.getenv("CI_PROJECT_PATH", "")],
-        "branches": [os.getenv("CI_COMMIT_REF_NAME", "")],
-        "environments": [environment] if environment else [],
+        "repos": [repo] if repo else [],
+        "branches": [branch] if branch else [],
+        "environments": [_clean_text(environment)] if _clean_text(environment) else [],
     }
 
 
@@ -80,10 +141,17 @@ def _parse_ra_to_exception(finding: dict[str, Any], scope: dict[str, Any]) -> di
     if not finding.get("risk_accepted"):
         return None
 
-    resource_type = str(finding.get("severity", ""))
-    resource_id = str(finding.get("id", ""))
+    description_fields = _parse_description_fields(finding.get("description"))
+    resource_type = _extract_structured_resource_type(finding, description_fields)
+    resource_address = _extract_structured_resource_address(finding, description_fields)
 
-    if not resource_type:
+    if not resource_type or not resource_address:
+        logger.warning(
+            "resource_parsing_rejected",
+            finding_id=finding.get("id"),
+            title=finding.get("title", finding.get("name", "")),
+            reason="missing_structured_resource_context",
+        )
         return None
 
     accepted_risks = finding.get("accepted_risks", [])
@@ -92,36 +160,56 @@ def _parse_ra_to_exception(finding: dict[str, Any], scope: dict[str, Any]) -> di
 
     ra = accepted_risks[0]
 
-    requested_by = str(ra.get("owner", {}).get("username", "unknown") if isinstance(ra.get("owner"), dict) else ra.get("owner", "unknown"))
+    owner_dict = ra.get("owner")
+    if isinstance(owner_dict, dict):
+        requested_by = str(owner_dict.get("username", "unknown"))
+        requested_by_details = {"id": owner_dict.get("id"), "username": requested_by}
+    else:
+        requested_by = str(owner_dict) if owner_dict else "unknown"
+        requested_by_details = {"id": int(owner_dict) if str(owner_dict).isdigit() else None, "username": requested_by}
+
     approved_by = str(ra.get("accepted_by", {}).get("username", "unknown") if isinstance(ra.get("accepted_by"), dict) else ra.get("accepted_by", "unknown"))
 
     approved_at = str(ra.get("created", ""))
     expires_at = str(ra.get("expiration_date", ""))
 
-    if not (approved_at and expires_at and requested_by and approved_by):
+    if not (approved_at and requested_by and approved_by):
         return None
 
     # Ensure RFC3339 format (DefectDojo may return date-only strings)
     if len(approved_at) == 10:
         approved_at = f"{approved_at}T00:00:00Z"
-    if len(expires_at) == 10:
+    if expires_at and len(expires_at) == 10:
         expires_at = f"{expires_at}T23:59:59Z"
+
+    notes_raw = finding.get("notes", [])
+    if isinstance(notes_raw, list):
+        notes_str = "\n".join(n.get("text", "") for n in notes_raw if isinstance(n, dict))
+    else:
+        notes_str = str(notes_raw)
+        notes_raw = []
 
     return {
         "id": _stable_exception_id(finding),
         "source": "defectdojo",
         "status": "approved",
         "resource_type": resource_type,
-        "resource_id": resource_id,
+        "resource_id": resource_address,
+        "resource": {
+            "type": resource_type,
+            "address": resource_address,
+        },
         "requested_by": requested_by,
+        "requested_by_details": requested_by_details,
         "approved_by": approved_by,
         "approved_at": approved_at,
-        "expires_at": expires_at,
+        "expires_at": expires_at or None,
         "environments": scope.get("environments", []),
         "repos": scope.get("repos", []),
         "branches": scope.get("branches", []),
         "defectdojo_ra_id": ra.get("id"),
-        "notes": finding.get("notes", ""),
+        "notes": notes_str,
+        "notes_structured": notes_raw,
     }
 
 
@@ -159,27 +247,72 @@ def fetch_risk_acceptances(base_url: str, api_key: str, engagement: str) -> list
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Fetch drift exceptions from DefectDojo for OPA shift-right evaluation")
     parser.add_argument("--output", default=os.getenv("DRIFT_EXCEPTIONS_PATH", ".cloudsentinel/drift_exceptions.json"))
-    parser.add_argument("--base-url", default=os.getenv("DEFECTDOJO_URL", ""))
-    parser.add_argument("--api-key", default=os.getenv("DOJO_API_KEY", ""))
-    parser.add_argument("--engagement", default=os.getenv("DOJO_ENGAGEMENT_ID_RIGHT", ""))
+    parser.add_argument("--base-url", default=os.getenv("DOJO_URL", os.getenv("DEFECTDOJO_URL", "")))
+    parser.add_argument("--api-key", default=os.getenv("DOJO_API_KEY", os.getenv("DEFECTDOJO_API_KEY", os.getenv("DEFECTDOJO_API_TOKEN", ""))))
+    parser.add_argument("--engagement", default=os.getenv("DOJO_ENGAGEMENT_ID_RIGHT", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_RIGHT", "")))
     parser.add_argument("--environment", default=os.getenv("DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")))
     parser.add_argument("--dry-run", action="store_true", help="Print exceptions without writing to disk")
     args = parser.parse_args(argv)
 
     if not args.base_url:
-        print("ERROR: DEFECTDOJO_URL not set", file=sys.stderr)
+        print("ERROR: DOJO_URL/DEFECTDOJO_URL not set", file=sys.stderr)
         return 1
     if not args.api_key:
-        print("ERROR: DOJO_API_KEY not set", file=sys.stderr)
+        print("ERROR: DOJO_API_KEY/DEFECTDOJO_API_KEY not set", file=sys.stderr)
         return 1
 
     logger.info("fetch_drift_exceptions_start", environment=args.environment, output=args.output)
+
+    def write_output(doc: dict[str, Any]) -> None:
+        if args.dry_run:
+            print(json.dumps(doc, indent=2))
+            return
+        import pathlib
+        out_path = pathlib.Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        logger.info("drift_exceptions_written", path=str(out_path))
+
+    if not args.engagement:
+        logger.warning("DOJO_ENGAGEMENT_ID_RIGHT is missing. Entering DEGRADED mode.")
+        write_output({
+            "cloudsentinel": {
+                "drift_exceptions": {
+                    "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "environment": args.environment,
+                    "source": "defectdojo",
+                    "meta": {
+                        "mode": "DEGRADED",
+                        "reason": "missing_engagement"
+                    },
+                    "exceptions": []
+                }
+            }
+        })
+        return 0
 
     try:
         raw_ras = fetch_risk_acceptances(args.base_url, args.api_key, engagement=args.engagement)
     except Exception as exc:
         print(f"ERROR: Failed to fetch Risk Acceptances from DefectDojo: {exc}", file=sys.stderr)
-        return 1
+        logger.warning("Network failure to DefectDojo. Entering DEGRADED mode.")
+        write_output({
+            "cloudsentinel": {
+                "drift_exceptions": {
+                    "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "environment": args.environment,
+                    "source": "defectdojo",
+                    "meta": {
+                        "mode": "DEGRADED",
+                        "reason": "defectdojo_unreachable"
+                    },
+                    "exceptions": []
+                }
+            }
+        })
+        return 0
 
     logger.info("risk_acceptances_fetched", count=len(raw_ras))
 
@@ -212,15 +345,7 @@ def main(argv: list[str]) -> int:
         }
     }
 
-    if args.dry_run:
-        print(json.dumps(output_doc, indent=2))
-        return 0
-
-    import pathlib
-    out_path = pathlib.Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(output_doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    logger.info("drift_exceptions_written", path=str(out_path), count=len(exceptions))
+    write_output(output_doc)
 
     return 0
 

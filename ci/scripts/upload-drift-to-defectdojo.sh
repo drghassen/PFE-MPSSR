@@ -3,18 +3,18 @@ set -euo pipefail
 
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
-DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID:-}}"
+DOJO_ENGAGEMENT_ID_RIGHT_EFF="${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}"
 
 REPORT_PATH="${DRIFT_REPORT_PATH:-shift-right/drift-engine/output/drift-report.json}"
 OUTPUT_DIR=".cloudsentinel"
 GENERIC_FINDINGS_FILE="${OUTPUT_DIR}/drift_generic_findings.json"
 DOJO_RESPONSE_FILE="${OUTPUT_DIR}/dojo-responses/drift-engine.json"
 
-if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
+if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_RIGHT_EFF}" ]; then
   echo "[dojo-drift] Missing Dojo vars. Accepted names:"
   echo "[dojo-drift] URL: DOJO_URL or DEFECTDOJO_URL"
   echo "[dojo-drift] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
-  echo "[dojo-drift] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID"
+  echo "[dojo-drift] Engagement: DOJO_ENGAGEMENT_ID_RIGHT or DEFECTDOJO_ENGAGEMENT_ID_RIGHT"
   echo "[dojo-drift] Skipping upload."
   exit 0
 fi
@@ -48,6 +48,9 @@ jq -c \
       (.drift.items // [])[] |
       {
         title: ("Terraform drift detected: " + ((.address // "unknown") | tostring)),
+        vuln_id_from_tool: ("drift_type:" + ((.type // "unknown") | tostring)),
+        component_name: ((.address // "unknown") | tostring),
+        unique_id_from_tool: ("cloudsentinel-drift:" + ((.type // "unknown") | tostring) + ":" + ((.address // "unknown") | tostring)),
         severity: normalize_severity(.severity),
         date: $scan_date,
         description:
@@ -69,7 +72,7 @@ HTTP_CODE="$(curl -sS -o "${DOJO_RESPONSE_FILE}" -w "%{http_code}" \
   -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
   -F "file=@${GENERIC_FINDINGS_FILE}" \
   -F "scan_type=Generic Findings Import" \
-  --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+  --form-string "engagement=${DOJO_ENGAGEMENT_ID_RIGHT_EFF}" \
   --form-string "test_title=CloudSentinel Drift Engine (Shift-Right)" \
   --form-string "scan_date=${SCAN_DATE}" \
   --form-string "active=true" \

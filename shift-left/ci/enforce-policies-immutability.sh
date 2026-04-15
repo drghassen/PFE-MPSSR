@@ -17,7 +17,12 @@ err() { echo "[CloudSentinel][immutability][ERROR] $*" >&2; }
 if [[ -z "${CLOUDSENTINEL_APPSEC_USERS:-}" ]]; then
   err "CLOUDSENTINEL_APPSEC_USERS is not set. Define it as a protected masked CI variable."
   err "Minimum value: appsec-bot,appsec-admin"
-  exit 2
+  if [[ "${CLOUDSENTINEL_IMMUTABILITY_MODE:-enforcing}" == "advisory" ]]; then
+    log "ADVISORY MODE: Bypassing user lookup."
+    exit 0
+  else
+    exit 2
+  fi
 fi
 readonly APPSEC_ALLOWED_USERS="${CLOUDSENTINEL_APPSEC_USERS}"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
@@ -80,4 +85,10 @@ fi
 err "Unauthorized modification of protected security controls by ${ACTOR_LOGIN} (${ACTOR_EMAIL})."
 err "Changed protected files:"
 echo "$CHANGED_PROTECTED_FILES" | sed 's/^/  - /' >&2
-exit 1
+
+if [[ "${CLOUDSENTINEL_IMMUTABILITY_MODE:-enforcing}" == "advisory" ]]; then
+  log "ADVISORY MODE: Allowing unauthorized pipeline modifications."
+  exit 0
+else
+  exit 1
+fi

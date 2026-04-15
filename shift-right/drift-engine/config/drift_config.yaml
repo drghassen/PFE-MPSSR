@@ -34,7 +34,7 @@ defectdojo:
   enabled: ${DRIFT_PUSH_TO_DEFECTDOJO:-true}
   base_url: ${DEFECTDOJO_URL:-}
   api_key: ${DEFECTDOJO_API_KEY:-}
-  engagement_id: ${DEFECTDOJO_ENGAGEMENT_ID:-}
+  engagement_id: ${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}
   test_title: CloudSentinel Drift Engine
   close_old_findings: true
   deduplication_on_engagement: true

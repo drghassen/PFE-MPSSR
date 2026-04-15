@@ -29,7 +29,7 @@ services:
       # DefectDojo (optional)
       DEFECTDOJO_URL: ${DEFECTDOJO_URL:-}
       DEFECTDOJO_API_KEY: ${DEFECTDOJO_API_KEY:-}
-      DEFECTDOJO_ENGAGEMENT_ID: ${DEFECTDOJO_ENGAGEMENT_ID:-}
+      DOJO_ENGAGEMENT_ID_RIGHT: ${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}
     volumes:
       # Default points to the sample IaC in this repo; override with an absolute path if needed.
       - ${TF_IAC_PATH:-../../infra/azure/student-secure}:/work/iac:ro

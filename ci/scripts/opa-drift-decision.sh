@@ -81,15 +81,38 @@ for i in {1..15}; do
   sleep 2
 done
 
+mode=$(jq -r '
+  try .cloudsentinel.drift_exceptions.meta.mode
+  catch "ENFORCING"
+' "$EXCEPTIONS_FILE")
+
+# Handle null/empty cases by defaulting to ENFORCING
+if [[ -z "$mode" || "$mode" == "null" ]]; then
+  mode="ENFORCING"
+fi
+
+echo "[CloudSentinel][STATE] MODE=$mode FAIL_CLOSED=${CLOUDSENTINEL_FAIL_CLOSED:-true}"
+
 jq -c \
   --arg environment "${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}" \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg repo "${CI_PROJECT_PATH:-unknown}" \
+  --arg branch "${CI_COMMIT_REF_NAME:-unknown}" \
+  --arg mode "$mode" \
+  --argjson meta '{
+    "allow_legacy_exceptions": true,
+    "allow_degraded": false
+  }' \
+  --slurpfile exceptions "$EXCEPTIONS_FILE" \
   '{
      input: {
        source: "drift-engine",
        scan_type: "shift-right-drift",
        timestamp: $timestamp,
        environment: $environment,
+       repo: $repo,
+       branch: $branch,
+       meta: ($meta + { mode: $mode }),
        findings: [
          (.drift.items // [])[] | {
            address: .address,
@@ -113,11 +136,19 @@ curl -sS -f -X POST \
   -d @"${INPUT_FILE}" \
   > "$DECISION_FILE"
 
+DENY_COUNT="$(jq -r '(.result.deny // []) | length' "$DECISION_FILE")"
 RAW_VIOLATIONS="$(jq -r '(.result.violations // []) | length' "$DECISION_FILE")"
 EFFECTIVE_VIOLATIONS="$(jq -r '(.result.effective_violations // .result.violations // []) | length' "$DECISION_FILE")"
 ACTIONABLE_EFFECTIVE_VIOLATIONS="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select(.action_required != "none" and .action_required != "monitor")] | length' "$DECISION_FILE")"
 EXCEPTED_VIOLATIONS="$(jq -r '(.result.drift_exception_summary.excepted_violations // 0)' "$DECISION_FILE")"
 OPA_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select(.action_required != "none" and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
+
+if [[ "$DENY_COUNT" -gt 0 ]]; then
+  echo "[opa-drift][ERROR] OPA explicit DENY triggered (Zero Trust / Degraded mode)." >&2
+  jq -r '(.result.deny // [])[]' "$DECISION_FILE" >&2
+  exit 1
+fi
+
 if [[ "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 ]]; then
   OPA_DRIFT_BLOCK=true
 else

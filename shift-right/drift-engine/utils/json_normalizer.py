@@ -245,12 +245,16 @@ def drift_items_to_defectdojo_generic_findings(
         findings.append(
             {
                 "title": f"Terraform drift detected: {address}",
+                "vuln_id_from_tool": f"drift_type:{str(item.get('type') or 'unknown')}",
+                "component_name": address,
+                "unique_id_from_tool": f"cloudsentinel-drift:{str(item.get('type') or 'unknown')}:{address}",
                 "severity": severity,
                 "date": scan_date,
                 "description": (
                     "CloudSentinel Drift Engine detected a configuration drift between Terraform state "
                     "and the live Azure resource.\n\n"
                     f"- Address: {address}\n"
+                    f"- Resource type: {str(item.get('type') or 'unknown')}\n"
                     f"- Provider: {provider_name}\n"
                     f"- Actions: {actions}\n"
                     f"- Changed paths (sample): {changed_paths[:20]}\n"

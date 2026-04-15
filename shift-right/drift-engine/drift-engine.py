@@ -470,7 +470,7 @@ def main(argv: list[str]) -> int:
             logger.error("defectdojo_config_missing")
             write_minimal_error_report(
                 message="DefectDojo config incomplete (base_url/api_key/engagement_id).",
-                remediation="Set DEFECTDOJO_URL, DEFECTDOJO_API_KEY, DEFECTDOJO_ENGAGEMENT_ID in the environment (.env or CI secrets).",
+                remediation="Set DEFECTDOJO_URL, DEFECTDOJO_API_KEY, and DOJO_ENGAGEMENT_ID_RIGHT (or DEFECTDOJO_ENGAGEMENT_ID_RIGHT) in the environment (.env or CI secrets).",
             )
             return 1
 

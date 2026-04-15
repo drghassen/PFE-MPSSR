@@ -17,6 +17,53 @@ default violations := []
 default compliant := []
 
 # ==============================================================================
+# DEGRADED MODE & STRICT INPUT VALIDATION (ZERO TRUST)
+# ==============================================================================
+
+is_degraded if {
+	object.get(input, "meta", {}).mode == "DEGRADED"
+}
+
+deny contains msg if {
+	is_degraded
+	not object.get(object.get(input, "meta", {}), "allow_degraded", false)
+	msg := {
+		"code": "DEGRADED_MODE",
+		"message": "Decision blocked: degraded mode"
+	}
+}
+
+deny contains msg if {
+	not object.get(input, "environment", "")
+	msg := "Missing environment in input"
+}
+
+deny contains msg if {
+	not object.get(input, "repo", "")
+	msg := "Missing repo in input"
+}
+
+deny contains msg if {
+	not object.get(input, "branch", "")
+	msg := "Missing branch in input"
+}
+
+deny contains msg if {
+	some ex in object.get(_drift_exceptions_store, "exceptions", [])
+	not ex.repos
+	not ex.branches
+	not object.get(object.get(input, "meta", {}), "allow_legacy_exceptions", false)
+	msg := "Unscoped exception detected"
+}
+
+deny contains msg if {
+	some ex in object.get(_drift_exceptions_store, "exceptions", [])
+	ex.expires_at
+	time.now_ns() > time.parse_rfc3339_ns(ex.expires_at)
+	msg := "Expired exception"
+}
+
+# ==============================================================================
 # Entry Points
 # ==============================================================================
 
@@ -318,15 +365,25 @@ _drift_exception_has_wildcard(ex) if {
 }
 
 # ── Scope environment matching helpers ──
-# Empty list → universal match (exception applies to all environments).
-# Non-empty list → exception must include input.environment explicitly.
-_drift_exception_env_matches(ex) if {
-	count(object.get(ex, "environments", [])) == 0
+
+valid_env_scope(ex) if {
+	input.environment in ex.environments
 }
 
-_drift_exception_env_matches(ex) if {
-	count(object.get(ex, "environments", [])) > 0
-	input.environment in ex.environments
+valid_repo_scope(ex) if {
+	not ex.repos
+} else if {
+	count(ex.repos) == 0
+} else if {
+	input.repo in ex.repos
+}
+
+valid_branch_scope(ex) if {
+	not ex.branches
+} else if {
+	count(ex.branches) == 0
+} else if {
+	input.branch in ex.branches
 }
 
 # ── Validation d'une exception drift ──
@@ -341,23 +398,45 @@ valid_drift_exception(ex) if {
 	ex.resource_type != ""
 	# Four-eyes principle : le demandeur ne peut pas être son propre approbateur
 	ex.requested_by != ex.approved_by
-	# Temporalité : approuvée dans le passé et non encore expirée
+	# Temporalité : approuvée dans le passé
 	time.parse_rfc3339_ns(ex.approved_at) <= time.now_ns()
-	time.now_ns() < time.parse_rfc3339_ns(ex.expires_at)
-	# Cohérence temporelle : approved_at doit être antérieur à expires_at
-	# (évite les exceptions mal formées où l'expiration précède l'approbation)
-	time.parse_rfc3339_ns(ex.approved_at) < time.parse_rfc3339_ns(ex.expires_at)
-	# Scope : l'exception doit correspondre à l'environnement courant
-	_drift_exception_env_matches(ex)
+
+	# Expiration optionnelle
+	not _is_expired(ex)
+
+	# Scope strict
+	valid_env_scope(ex)
+	valid_repo_scope(ex)
+	valid_branch_scope(ex)
+	
 	# Sécurité : les wildcards (* ou ?) sont interdits dans resource_type et resource_id
-	# pour éviter les exceptions trop larges qui masqueraient de vraies violations
 	not _drift_exception_has_wildcard(ex)
+}
+
+_is_expired(ex) if {
+	ex.expires_at
+	time.now_ns() >= time.parse_rfc3339_ns(ex.expires_at)
+}
+
+# ── Extraction des IDs compatibles (v2/legacy) ──
+get_resource_type(ex) := t if {
+	t := object.get(ex, ["resource", "type"], "")
+	t != ""
+} else := t if {
+	t := ex.resource_type
+}
+
+get_resource_id(ex) := id if {
+	id := object.get(ex, ["resource", "address"], "")
+	id != ""
+} else := id if {
+	id := ex.resource_id
 }
 
 # ── Matching exception ↔ violation ──
 _drift_exception_matches(ex, v) if {
-	ex.resource_type == v.resource_type
-	ex.resource_id == v.resource_id
+	get_resource_type(ex) == v.resource_type
+	get_resource_id(ex) == v.resource_id
 }
 
 # ── Prédicat : la violation est-elle couverte par une exception valide ? ──

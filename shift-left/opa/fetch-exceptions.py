@@ -86,7 +86,7 @@ def save_outputs(payload: Dict[str, Any]) -> None:
 
 
 def fetch_risk_acceptances() -> List[Dict[str, Any]]:
-    return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, logger)
+    return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, CTX.dojo_engagement_id, logger)
 
 
 def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any]) -> Dict[str, Any]:

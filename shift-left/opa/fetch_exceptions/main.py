@@ -84,8 +84,12 @@ def execute(ctx: FetchContext) -> None:
         ctx.logger.error("DefectDojo credentials are not configured")
         raise SystemExit(2)
 
+    if not ctx.dojo_engagement_id:
+        ctx.logger.error("DOJO_ENGAGEMENT_ID is not configured. Missing engagement ID risks cross-engagement leakage.")
+        raise SystemExit(2)
+
     ensure_dir(ctx.audit_log_file)
-    with open(ctx.audit_log_file, "w", encoding="utf-8"):
+    with open(ctx.audit_log_file, "a", encoding="utf-8"):
         pass
 
     try:
