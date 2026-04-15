@@ -119,6 +119,9 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         return "checkov"
     if inferred_rule.startswith("CVE-"):
         return "trivy"
+    
+    if finding.get("unique_id_from_tool", "").startswith("cloudsentinel-drift"):
+        return "cloudsentinel-drift"
 
     secret_rule = derive_trivy_secret_rule_id(
         finding.get("title"),
@@ -127,16 +130,16 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         ra.get("name"),
     )
     if secret_rule:
-        return "trivy"
+        return "gitleaks"
 
     tags = finding.get("tags", [])
     if isinstance(tags, list):
         normalized_tags = {sanitize_text(tag).lower() for tag in tags}
-        if "secret" in normalized_tags:
-            return "trivy"
+        if "secret" in normalized_tags or "credential" in normalized_tags:
+            return "gitleaks"
 
-    if sanitize_text(finding.get("title")).lower().startswith("secret detected in"):
-        return "trivy"
+    if sanitize_text(finding.get("title")).lower().startswith("secret detected in") or "hard coded" in sanitize_text(finding.get("title")).lower():
+        return "gitleaks"
 
     if "**category:**" in sanitize_text(finding.get("description")).lower():
         return "trivy"

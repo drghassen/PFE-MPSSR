@@ -105,7 +105,10 @@ def parse_status(ra: Dict[str, Any]) -> str:
 def is_active_accepted(ra: Dict[str, Any]) -> bool:
     status = parse_status(ra)
     is_active_raw = cf(ra, "is_active") or ra.get("is_active")
-    is_active = str(is_active_raw).strip().lower() in {"true", "1", "yes", "on"}
+    if is_active_raw is None:
+        is_active = True
+    else:
+        is_active = str(is_active_raw).strip().lower() in {"true", "1", "yes", "on"}
     return is_active and status == "approved"
 
 
