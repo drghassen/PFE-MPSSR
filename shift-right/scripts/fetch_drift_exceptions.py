@@ -47,8 +47,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 DRIFT_EXCEPTION_SCHEMA_VERSION = "1.0.0"
-# Only Risk Acceptances with this tag are fetched for shift-right.
-DRIFT_EXCEPTION_TAG = "cloudsentinel-drift"
 
 
 # ---------------------------------------------------------------------------
@@ -73,32 +71,32 @@ def _build_scope(environment: str) -> dict[str, Any]:
     }
 
 
-def _parse_ra_to_exception(ra: dict[str, Any], scope: dict[str, Any]) -> dict[str, Any] | None:
+def _parse_ra_to_exception(finding: dict[str, Any], scope: dict[str, Any]) -> dict[str, Any] | None:
     """
-    Transform a DefectDojo Risk Acceptance into a drift exception entry.
+    Transform a DefectDojo Finding into a drift exception entry.
 
-    Returns None if the Risk Acceptance lacks mandatory fields.
+    Returns None if the Finding lacks mandatory fields.
     """
-    # Extract resource_type and resource_id from notes or extra fields.
-    # Convention: RA name format "drift:<resource_type>:<resource_id>"
-    name: str = ra.get("name", "")
-    resource_type = ""
-    resource_id = ""
+    if not finding.get("risk_accepted"):
+        return None
 
-    if name.startswith("drift:"):
-        parts = name.split(":", 2)
-        resource_type = parts[1] if len(parts) > 1 else ""
-        resource_id = parts[2] if len(parts) > 2 else ""
+    resource_type = str(finding.get("severity", ""))
+    resource_id = str(finding.get("id", ""))
 
     if not resource_type:
         return None
 
-    # Resolve requester/approver usernames
-    requested_by = str(ra.get("owner", {}).get("username", "") if isinstance(ra.get("owner"), dict) else ra.get("owner", ""))
-    approved_by = str(ra.get("accepted_by", {}).get("username", "") if isinstance(ra.get("accepted_by"), dict) else ra.get("accepted_by", ""))
+    accepted_risks = finding.get("accepted_risks", [])
+    if not isinstance(accepted_risks, list) or len(accepted_risks) == 0:
+        return None
 
-    approved_at = ra.get("created", "")
-    expires_at = ra.get("expiration_date", "")
+    ra = accepted_risks[0]
+
+    requested_by = str(ra.get("owner", {}).get("username", "unknown") if isinstance(ra.get("owner"), dict) else ra.get("owner", "unknown"))
+    approved_by = str(ra.get("accepted_by", {}).get("username", "unknown") if isinstance(ra.get("accepted_by"), dict) else ra.get("accepted_by", "unknown"))
+
+    approved_at = str(ra.get("created", ""))
+    expires_at = str(ra.get("expiration_date", ""))
 
     if not (approved_at and expires_at and requested_by and approved_by):
         return None
@@ -110,7 +108,7 @@ def _parse_ra_to_exception(ra: dict[str, Any], scope: dict[str, Any]) -> dict[st
         expires_at = f"{expires_at}T23:59:59Z"
 
     return {
-        "id": _stable_exception_id(ra),
+        "id": _stable_exception_id(finding),
         "source": "defectdojo",
         "status": "approved",
         "resource_type": resource_type,
@@ -123,7 +121,7 @@ def _parse_ra_to_exception(ra: dict[str, Any], scope: dict[str, Any]) -> dict[st
         "repos": scope.get("repos", []),
         "branches": scope.get("branches", []),
         "defectdojo_ra_id": ra.get("id"),
-        "notes": ra.get("notes", ""),
+        "notes": finding.get("notes", ""),
     }
 
 
@@ -131,16 +129,16 @@ def _parse_ra_to_exception(ra: dict[str, Any], scope: dict[str, Any]) -> dict[st
 # DefectDojo fetch
 # ---------------------------------------------------------------------------
 
-def fetch_risk_acceptances(base_url: str, api_key: str, tag: str = DRIFT_EXCEPTION_TAG) -> list[dict[str, Any]]:
-    """Fetch all Risk Acceptances from DefectDojo filtered by tag."""
+def fetch_risk_acceptances(base_url: str, api_key: str, engagement: str) -> list[dict[str, Any]]:
+    """Fetch all accepted findings from DefectDojo for the given engagement."""
     headers = {
         "Authorization": f"Token {api_key}",
         "Content-Type": "application/json",
     }
-    url = f"{base_url.rstrip('/')}/api/v2/risk_acceptances/"
-    params: dict[str, Any] = {"limit": 200, "offset": 0}
-    if tag:
-        params["tags"] = tag
+    url = f"{base_url.rstrip('/')}/api/v2/findings/"
+    params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
+    if engagement:
+        params["engagement"] = engagement
 
     results: list[dict[str, Any]] = []
     while url:
@@ -162,9 +160,9 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Fetch drift exceptions from DefectDojo for OPA shift-right evaluation")
     parser.add_argument("--output", default=os.getenv("DRIFT_EXCEPTIONS_PATH", ".cloudsentinel/drift_exceptions.json"))
     parser.add_argument("--base-url", default=os.getenv("DEFECTDOJO_URL", ""))
-    parser.add_argument("--api-key", default=os.getenv("DEFECTDOJO_API_KEY", ""))
+    parser.add_argument("--api-key", default=os.getenv("DOJO_API_KEY", ""))
+    parser.add_argument("--engagement", default=os.getenv("DOJO_ENGAGEMENT_ID_RIGHT", ""))
     parser.add_argument("--environment", default=os.getenv("DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")))
-    parser.add_argument("--tag", default=DRIFT_EXCEPTION_TAG)
     parser.add_argument("--dry-run", action="store_true", help="Print exceptions without writing to disk")
     args = parser.parse_args(argv)
 
@@ -172,13 +170,13 @@ def main(argv: list[str]) -> int:
         print("ERROR: DEFECTDOJO_URL not set", file=sys.stderr)
         return 1
     if not args.api_key:
-        print("ERROR: DEFECTDOJO_API_KEY not set", file=sys.stderr)
+        print("ERROR: DOJO_API_KEY not set", file=sys.stderr)
         return 1
 
     logger.info("fetch_drift_exceptions_start", environment=args.environment, output=args.output)
 
     try:
-        raw_ras = fetch_risk_acceptances(args.base_url, args.api_key, tag=args.tag)
+        raw_ras = fetch_risk_acceptances(args.base_url, args.api_key, engagement=args.engagement)
     except Exception as exc:
         print(f"ERROR: Failed to fetch Risk Acceptances from DefectDojo: {exc}", file=sys.stderr)
         return 1
