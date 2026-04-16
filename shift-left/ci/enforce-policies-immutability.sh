@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# CloudSentinel Security Immutability Guard
-# - Restricts changes to security-critical controls to AppSec identities
-# - Covers policies, schemas, scanner configs/mappings and CI pipeline definition
-# ------------------------------------------------------------------------------
-
 log() { echo "[CloudSentinel][immutability] $*"; }
 err() { echo "[CloudSentinel][immutability][ERROR] $*" >&2; }
 
-# CLOUDSENTINEL_APPSEC_USERS doit être définie comme variable CI protégée
-# et masquée dans GitLab (Settings → CI/CD → Variables).
-# Valeur de production minimale : "appsec-bot,appsec-admin"
-# Ne jamais inclure de comptes personnels dans cette liste.
 if [[ -z "${CLOUDSENTINEL_APPSEC_USERS:-}" ]]; then
   err "CLOUDSENTINEL_APPSEC_USERS is not set. Define it as a protected masked CI variable."
   err "Minimum value: appsec-bot,appsec-admin"

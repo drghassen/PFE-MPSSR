@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# CloudSentinel Retry Guard
-# - Protects CI from retry abuse on same commit SHA
-# - Enforces max retries and minimum delay between retries
-# - Stateless OPA stays focused on policy decision only
-# ------------------------------------------------------------------------------
-
 log()  { echo "[CloudSentinel][retry-guard] $*"; }
 warn() { echo "[CloudSentinel][retry-guard][WARN] $*" >&2; }
 err()  { echo "[CloudSentinel][retry-guard][ERROR] $*" >&2; }

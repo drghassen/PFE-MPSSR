@@ -1,24 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ==============================================================================
-# CloudSentinel — OPA Auth Token Bootstrap
-#
-# Generates .cloudsentinel/opa_auth_config.json from OPA_AUTH_TOKEN env var.
-# This file is mounted into OPA containers as /app/auth/opa_config.json
-# and consumed by policies/opa/system/authz.rego to validate Bearer tokens.
-#
-# Usage:
-#   export OPA_AUTH_TOKEN="your-secret-token-here"
-#   bash scripts/bootstrap-opa-auth.sh
-#
-# In CI: OPA_AUTH_TOKEN is set as a masked GitLab CI/CD variable.
-# Locally: source .env or export manually before running docker compose up.
-#
-# If OPA_AUTH_TOKEN is not set, a random 64-char hex token is generated
-# and printed to stdout for the operator to save.
-# ==============================================================================
-
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
 OUTPUT_FILE="${OUTPUT_DIR}/opa_auth_config.json"

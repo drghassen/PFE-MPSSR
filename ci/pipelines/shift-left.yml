@@ -26,8 +26,8 @@ variables:
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "2"
-  RETRY_GUARD_MAX_RETRIES: "3"
-  RETRY_GUARD_MIN_INTERVAL_SEC: "120"
+  RETRY_GUARD_MAX_RETRIES: "1"
+  RETRY_GUARD_MIN_INTERVAL_SEC: "10"
 
   # ── Security governance variables (must be set in GitLab CI/CD Settings) ──
   # CLOUDSENTINEL_APPSEC_USERS: "user1,user2"  # comma-separated GitLab usernames
