@@ -139,14 +139,15 @@ trivy-config-scan:
       - shift-left/trivy/reports/raw/trivy-config-raw.json
 
 terraform-plan:
-  image: hashicorp/terraform:1.7.5
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:3a5a7b53028fa1c8bdfbaa7052d627414d5c1348b8aaa8b8fe4488a7ba5a8025"
+  before_script: []
   stage: scan
   script:
     - cd infra/azure/student-secure
-    - terraform init -backend=false
-    - terraform plan -var-file="terraform.tfvars" -out=tfplan.bin
-    - terraform show -json tfplan.bin > ../../../.cloudsentinel/tfplan.json
-    - echo "[terraform-plan] Plan JSON exporté vers .cloudsentinel/tfplan.json"
+    - tofu init -backend=false
+    - tofu plan -var-file="terraform.tfvars" -out=tfplan.bin
+    - tofu show -json tfplan.bin > ../../../.cloudsentinel/tfplan.json
+    - echo "[terraform-plan] Plan JSON exported to .cloudsentinel/tfplan.json"
   artifacts:
     paths:
       - .cloudsentinel/tfplan.json
