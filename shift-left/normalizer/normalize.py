@@ -19,7 +19,16 @@ class CloudSentinelNormalizer:
         self.root = Path(self._run(["git", "rev-parse", "--show-toplevel"], os.getcwd()))
         self.out_dir = self.root / ".cloudsentinel"
         self.out_file = self.out_dir / "golden_report.json"
-        self.schema_version = "1.1.0"
+        self.schema_version = "1.2.1"
+
+        # Confidence map: deterministic, scanner-type-based.
+        # DevSecOps contract: confidence MUST be set here, NEVER recomputed downstream.
+        # Invariant: local == CI (no runtime dependency, no env var influence).
+        self._confidence_map: Dict[str, str] = {
+            "gitleaks": "HIGH",   # Signature-based rules — very low false positive rate
+            "checkov":  "MEDIUM", # IaC heuristics — context-dependent, moderate FP risk
+            "trivy":    "HIGH",   # CVE database — well-validated, very low FP rate
+        }
 
         self.env = os.environ.get("ENVIRONMENT", os.environ.get("CI_ENVIRONMENT_NAME", "dev")).lower()
         self.env = "staging" if self.env == "stage" else self.env
@@ -424,8 +433,8 @@ class CloudSentinelNormalizer:
             return "SECRETS"
         return "VULNERABILITIES"
 
-    def _fingerprint(self, tool: str, rid: str, rname: str, rpath: str, sl: int, el: int, desc: str, secret_hash: str) -> str:
-        ctx = "|".join([rpath.lower(), str(sl), str(el), desc.strip().lower(), secret_hash.strip().lower()])
+    def _fingerprint(self, tool: str, rid: str, rname: str, rpath: str, sl: int, el: int, secret_hash: str) -> str:
+        ctx = "|".join([rpath.lower(), str(sl), str(el), secret_hash.strip().lower()])
         return hashlib.sha256("|".join([tool.lower(), rid.strip().upper(), rname.lower(), ctx]).encode("utf-8")).hexdigest()
 
     def _normalize_finding(self, f: Dict[str, Any], tool: str, version: str, idx: int) -> Dict[str, Any]:
@@ -442,11 +451,14 @@ class CloudSentinelNormalizer:
         sd = f.get("severity", {}) if isinstance(f.get("severity"), dict) else {}
         raw_sev = f.get("severity") if isinstance(f.get("severity"), str) else (sd.get("level") or f.get("original_severity"))
         sev = self.sev_lut.get(str(raw_sev).upper(), "MEDIUM")
-        st = str(f.get("status", "FAILED")).upper()
-        if st not in {"EXEMPTED", "PASSED"}:
-            st = "FAILED"
+        # Status normalization: set once at normalization, immutable downstream.
+        # DevSecOps rule: only PASSED (scanner explicit pass, e.g. Trivy misconfig)
+        # or FAILED (all detections). EXEMPTED is NOT a valid raw-input status —
+        # duplicate tracking lives exclusively in context.deduplication metadata.
+        raw_st = str(f.get("status", "FAILED")).upper()
+        st = "PASSED" if raw_st == "PASSED" else "FAILED"
         secret_hash = str(meta.get("secret_hash", "")).strip()
-        fp = self._fingerprint(tool, str(rid), str(rname), rpath, sl, el, str(desc), secret_hash)
+        fp = self._fingerprint(tool, str(rid), str(rname), rpath, sl, el, secret_hash)
         fid = f"CS-{tool}-{hashlib.sha256(f'{fp}|{idx}'.encode('utf-8')).hexdigest()[:16]}"
         cvss = sd.get("cvss_score") or f.get("cvss_score") or meta.get("cvss")
         try:
@@ -455,8 +467,13 @@ class CloudSentinelNormalizer:
             cvss = None
         refs = f.get("references") or meta.get("references") or []
         refs = refs if isinstance(refs, list) else []
+        # --- Confidence: set once at normalization, never recomputed ---
+        # Mapping is deterministic (scanner → confidence level).
+        # DevSecOps invariant: confidence is stable between local and CI execution.
+        confidence = self._confidence_map.get(tool.lower(), "MEDIUM")
         return {
             "id": fid,
+            "confidence": confidence,
             "source": {"tool": tool, "version": version or "unknown", "id": str(rid), "scanner_type": self._first(f.get("finding_type"), f.get("source", {}).get("scanner_type"), cat.lower(), "security")},
             "resource": {"name": rname, "version": self._first(rsrc.get("version"), meta.get("installed_version"), "N/A"), "type": self._first(rsrc.get("type"), f.get("finding_type"), "asset"), "path": rpath, "location": {"file": rpath, "start_line": sl, "end_line": el}},
             "description": str(desc),
@@ -475,6 +492,18 @@ class CloudSentinelNormalizer:
         return {"tool": name, "version": v, "status": st, "errors": [str(x) for x in data.get("errors", [])], "stats": self._empty_stats(), "findings": [self._normalize_finding(f, name, v, i) for i, f in enumerate(raws)]}
 
     def _dedup(self, findings: List[Dict[str, Any]]) -> None:
+        """Metadata enrichment pass — marks duplicate findings via context.deduplication.
+
+        DevSecOps contract (non-negotiable):
+          - ONLY modifies: context.deduplication.is_duplicate
+          - ONLY modifies: context.deduplication.duplicate_of
+          - NEVER modifies: status, severity, confidence, category
+          - Deduplication = metadata enrichment, NOT state mutation.
+
+        Duplicate signal consumers:
+          - OPA: reads `context.deduplication.is_duplicate` (not status) to exclude dupes
+          - _stats(): reads `context.deduplication.is_duplicate` for EXEMPTED counter
+        """
         seen: Dict[str, str] = {}
         for f in findings:
             d = f.get("context", {}).get("deduplication", {})
@@ -484,7 +513,7 @@ class CloudSentinelNormalizer:
             if fp in seen:
                 d["is_duplicate"] = True
                 d["duplicate_of"] = seen[fp]
-                f["status"] = "EXEMPTED"
+                # status intentionally NOT modified — immutable after normalization.
             else:
                 seen[fp] = f.get("id")
                 d["is_duplicate"] = False
@@ -493,10 +522,13 @@ class CloudSentinelNormalizer:
     def _stats(self, findings: List[Dict[str, Any]]) -> Dict[str, int]:
         s = self._empty_stats()
         for f in findings:
-            st = str(f.get("status", "FAILED")).upper()
-            if st == "EXEMPTED":
+            # Deduplication signal: read from metadata, NOT from status.
+            # status is immutable after _normalize_finding(); _dedup() only enriches metadata.
+            is_dup = bool(f.get("context", {}).get("deduplication", {}).get("is_duplicate", False))
+            if is_dup:
                 s["EXEMPTED"] += 1
                 continue
+            st = str(f.get("status", "FAILED")).upper()
             if st == "PASSED":
                 s["PASSED"] += 1
                 continue
@@ -546,7 +578,7 @@ class CloudSentinelNormalizer:
                 "environment": self.env,
                 "execution": {"mode": self.exec_mode},
                 "git": {"repo": self.git_repo, "repository": self.git_repo, "branch": self.git_branch, "commit": self.git_commit, "commit_date": self.git_commit_date, "author_email": self.git_author_email, "pipeline_id": self.pipeline_id},
-                "normalizer": {"version": self.schema_version, "source_reports": {"gitleaks": g_trace, "checkov": c_trace, "trivy": t_trace}},
+                "normalizer": {"version": self.schema_version, "compatibility": "backward", "source_reports": {"gitleaks": g_trace, "checkov": c_trace, "trivy": t_trace}},
             },
             "scanners": scanners,
             "findings": findings,

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 CloudSentinel Drift Engine (Shift-Right).
 
@@ -7,6 +5,8 @@ Scheduled batch job that detects configuration drift between Terraform IaC and l
 using `terraform plan -refresh-only -detailed-exitcode`, then emits a standardized drift report and
 optionally pushes findings to DefectDojo (v2 API).
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -493,6 +493,30 @@ def main(argv: list[str]) -> int:
 
     logger.info("iac_cli_selected", run_id=run_id, binary=tf_bin, working_dir=str(tf_working_dir))
 
+    tf_version: str | None = None
+    init_result: dict[str, Any] = {}
+    plan_result: dict[str, Any] = {}
+    drift_items: list[dict[str, Any]] = []
+    drift_summary_obj: dict[str, Any] = {"resources_changed": 0, "resources_by_action": {}, "provider_names": []}
+
+    def emit_report(*, finished_at: datetime, exit_code: int, detected: bool) -> None:
+        context = build_report_context(
+            config=config,
+            run_id=run_id,
+            started_at=started_at,
+            finished_at=finished_at,
+            exit_code=exit_code,
+            detected=detected,
+            tf_version=tf_version,
+            init_result=init_result,
+            plan_result=plan_result,
+            drift_summary=drift_summary_obj,
+            drift_items=drift_items,
+            errors=errors,
+        )
+        report_payload = render_report(template_path, context)
+        write_json(out_path, report_payload)
+
     # Fail-fast: Terraform needs at least one *.tf/*.tf.json file in the working directory.
     if not tf_working_dir.exists() or not tf_working_dir.is_dir():
         errors.append(
@@ -522,29 +546,9 @@ def main(argv: list[str]) -> int:
         logger.error("run_failed", run_id=run_id, output_path=str(out_path))
         return 1
 
+    # tf_version updated here after runner is available.
     tf_version = tf_runner.version()
-    init_result: dict[str, Any] = {}
-    plan_result: dict[str, Any] = {}
-    drift_items: list[dict[str, Any]] = []
-    drift_summary_obj: dict[str, Any] = {"resources_changed": 0, "resources_by_action": {}, "provider_names": []}
 
-    def emit_report(*, finished_at: datetime, exit_code: int, detected: bool) -> None:
-        context = build_report_context(
-            config=config,
-            run_id=run_id,
-            started_at=started_at,
-            finished_at=finished_at,
-            exit_code=exit_code,
-            detected=detected,
-            tf_version=tf_version,
-            init_result=init_result,
-            plan_result=plan_result,
-            drift_summary=drift_summary_obj,
-            drift_items=drift_items,
-            errors=errors,
-        )
-        report_payload = render_report(template_path, context)
-        write_json(out_path, report_payload)
 
     # Optional Azure validation/enrichment (does not block drift detection).
     if config.azure.validate_access:

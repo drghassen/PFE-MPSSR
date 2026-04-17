@@ -79,6 +79,11 @@
               "type": "string",
               "pattern": "^\\d+\\.\\d+\\.\\d+$"
             },
+            "compatibility": {
+              "type": "string",
+              "enum": ["backward", "forward", "strict"],
+              "description": "Schema evolution compatibility guarantee. backward: new fields added only, old consumers unaffected. forward: old fields may be removed. strict: schema frozen."
+            },
             "source_reports": {
               "type": "object",
               "additionalProperties": false,
@@ -288,6 +293,11 @@
       ],
       "properties": {
         "id": { "type": "string" },
+        "confidence": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW"],
+          "description": "Deterministic confidence level of the detection, set by the normalizer based on scanner type. Never computed at runtime or modified downstream."
+        },
         "source": {
           "type": "object",
           "additionalProperties": false,
@@ -337,7 +347,8 @@
         "category": { "type": "string" },
         "status": {
           "type": "string",
-          "enum": ["PASSED", "FAILED", "EXEMPTED"]
+          "enum": ["PASSED", "FAILED"],
+          "description": "Immutable detection status set by the normalizer. PASSED = scanner explicit pass (e.g. Trivy misconfig). FAILED = active finding requiring evaluation. Duplicate tracking is via context.deduplication.is_duplicate — NOT via status. EXEMPTED is deprecated as of v1.2.1 and no longer produced by the normalizer."
         },
         "remediation": {
           "type": "object",

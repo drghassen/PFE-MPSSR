@@ -57,7 +57,7 @@ def _diff_paths(before: Any, after: Any, prefix: str = "", max_paths: int = 50) 
     def walk(a: Any, b: Any, p: str) -> None:
         if len(paths) >= max_paths:
             return
-        if type(a) != type(b):
+        if type(a) is not type(b):
             add(p)
             return
         if isinstance(a, dict):

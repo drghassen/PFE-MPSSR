@@ -14,32 +14,22 @@ SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fetch_exceptions.fetch_defectdojo import fetch_risk_acceptances as _fetch_risk_acceptances
-from fetch_exceptions.fetch_mapping import (
+from fetch_exceptions.fetch_defectdojo import fetch_risk_acceptances as _fetch_risk_acceptances  # noqa: E402
+from fetch_exceptions.fetch_mapping import (  # noqa: E402
     drop as _drop,
     emit_audit_event as _emit_audit_event,
     json_payload as _json_payload,
     map_risk_acceptances as _map_risk_acceptances,
     save_outputs as _save_outputs,
 )
-from fetch_exceptions.fetch_normalization import accepted_findings, normalize_finding_candidate
-from fetch_exceptions.fetch_utils import (
-    cf,
-    ensure_dir,
-    first_non_empty,
-    get_custom_fields,
+from fetch_exceptions.fetch_normalization import accepted_findings, normalize_finding_candidate  # noqa: E402
+from fetch_exceptions.fetch_utils import (  # noqa: E402
     normalize_path,
     normalize_severity as _normalize_severity,
-    now_utc,
-    parse_bool,
-    parse_datetime,
-    safe_str,
     sanitize_text,
-    sanitize_username,
-    save_json,
     to_rfc3339,
 )
-from fetch_exceptions.fetch_validation import (
+from fetch_exceptions.fetch_validation import (  # noqa: E402
     parse_approved_at,
     parse_approved_by,
     parse_decision,
@@ -48,9 +38,8 @@ from fetch_exceptions.fetch_validation import (
     parse_status,
     stable_exception_id,
     validate_normalized_exception,
-    is_active_accepted,
 )
-from fetch_exceptions.main import build_context, execute
+from fetch_exceptions.main import build_context, execute  # noqa: E402
 
 CTX = build_context()
 
