@@ -145,7 +145,7 @@ terraform-plan:
   script:
     - echo "[terraform-plan] Extraction intent contract depuis tfvars..."
     - python3 ci/scripts/extract-intent-from-tfvars.py
-        --tfvars infra/azure/student-secure/terraform.ci.tfvars
+        --tfvars infra/azure/student-secure/intent.auto.tfvars
         --output .cloudsentinel/tfplan.json
     - echo "[terraform-plan] tfplan.json genere"
   artifacts:

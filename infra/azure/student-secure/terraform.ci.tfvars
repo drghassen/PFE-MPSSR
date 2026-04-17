@@ -5,9 +5,3 @@
 subscription_id      = "00000000-0000-0000-0000-000000000000"
 admin_ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholder ci-plan-placeholder"
 
-resource_intent = {
-  service_type   = "web-server"
-  exposure_level = "internet-facing"
-  owner          = "team-devops"
-  approved_by    = "team-security"
-}
