@@ -9,7 +9,9 @@
     "summary",
     "scanners",
     "findings",
-    "quality_gate"
+    "quality_gate",
+    "intent_contract",
+    "intent_mismatches"
   ],
   "properties": {
     "schema_version": {
@@ -141,6 +143,45 @@
     "findings": {
       "type": "array",
       "items": { "$ref": "#/definitions/finding" }
+    },
+    "intent_contract": {
+      "description": "Contrat d'intention déclaré dans intent.tf. Null si absent (MISSING_INTENT_CONTRACT déclenche un deny OPA).",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "declared": {
+          "description": "Champs resource_intent extraits du plan Terraform. Null si le plan n'est pas disponible.",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "service_type":   { "type": "string", "enum": ["web-server", "database", "cache", "worker", "gateway"] },
+            "exposure_level": { "type": "string", "enum": ["internet-facing", "internal-only", "isolated"] },
+            "owner":          { "type": "string" },
+            "approved_by":    { "type": "string" }
+          }
+        },
+        "violation": {
+          "description": "Code de violation si le contrat est absent ou invalide. Ex: MISSING_INTENT_CONTRACT.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "intent_mismatches": {
+      "description": "Liste des écarts détectés entre l'intention déclarée et les findings des scanners (role spoofing, exposure mismatch).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "severity", "declared", "observed", "mitre", "source_findings"],
+        "properties": {
+          "rule":            { "type": "string" },
+          "severity":        { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
+          "declared":        { "type": "string" },
+          "observed":        { "type": "string" },
+          "mitre":           { "type": "string" },
+          "source_findings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
     },
     "quality_gate": {
       "type": "object",
