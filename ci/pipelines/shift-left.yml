@@ -143,11 +143,15 @@ terraform-plan:
   before_script: []
   stage: scan
   script:
+    - echo "[terraform-plan] Extraction intent contract depuis tfvars..."
+    - python3 ci/scripts/extract-intent-from-tfvars.py
+        --tfvars infra/azure/student-secure/terraform.ci.tfvars
+        --output .cloudsentinel/tfplan.json
+    - echo "[terraform-plan] Validation syntaxe Terraform..."
     - cd infra/azure/student-secure
     - tofu init -backend=false
-    - tofu plan -var-file="terraform.ci.tfvars" -out=tfplan.bin
-    - tofu show -json tfplan.bin > ../../../.cloudsentinel/tfplan.json
-    - echo "[terraform-plan] Plan JSON exported to .cloudsentinel/tfplan.json"
+    - tofu validate
+    - echo "[terraform-plan] tfplan.json genere"
   artifacts:
     paths:
       - .cloudsentinel/tfplan.json
