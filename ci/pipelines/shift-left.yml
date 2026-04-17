@@ -171,32 +171,7 @@ normalize-reports:
       artifacts: true
   script:
     - bash ci/scripts/normalize-reports.sh --tfplan .cloudsentinel/tfplan.json
-    - python3 -c "
-import json, sys
-report = json.load(open('.cloudsentinel/golden_report.json'))
-intent = report.get('intent_contract', {})
-mismatches = report.get('intent_mismatches', [])
-print('', flush=True)
-print('━' * 60, flush=True)
-print('[INTENT CONTRACT SUMMARY]', flush=True)
-if intent.get('violation'):
-    print(f'  STATUS   : ❌ VIOLATION — {intent[\"violation\"]}', flush=True)
-    sys.exit(1)
-declared = intent.get('declared', {})
-print(f'  STATUS   : ✅ Contrat présent', flush=True)
-print(f'  Type     : {declared.get(\"service_type\")}', flush=True)
-print(f'  Exposure : {declared.get(\"exposure_level\")}', flush=True)
-print(f'  Owner    : {declared.get(\"owner\")}', flush=True)
-print(f'  Approver : {declared.get(\"approved_by\")}', flush=True)
-if mismatches:
-    print(f'  ⚠️  {len(mismatches)} mismatch(es) détecté(s):', flush=True)
-    for m in mismatches:
-        print(f'    → {m[\"rule\"]} | {m[\"observed\"]}', flush=True)
-        print(f'      MITRE: {m[\"mitre\"]}', flush=True)
-else:
-    print('  Mismatches : ✅ Aucun', flush=True)
-print('━' * 60, flush=True)
-"
+    - python3 ci/scripts/normalize-intent-summary.py
   artifacts:
     when: always
     expire_in: 30 days
