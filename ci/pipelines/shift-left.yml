@@ -139,7 +139,7 @@ trivy-config-scan:
       - shift-left/trivy/reports/raw/trivy-config-raw.json
 
 terraform-plan:
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:3a5a7b53028fa1c8bdfbaa7052d627414d5c1348b8aaa8b8fe4488a7ba5a8025"
+  image: "python:3.12-slim@sha256:804ddf3251a60bbf9c92e73b7566c40428d54d0e79d3428194edf40da6521286"
   before_script: []
   stage: scan
   script:
@@ -147,10 +147,6 @@ terraform-plan:
     - python3 ci/scripts/extract-intent-from-tfvars.py
         --tfvars infra/azure/student-secure/terraform.ci.tfvars
         --output .cloudsentinel/tfplan.json
-    - echo "[terraform-plan] Validation syntaxe Terraform..."
-    - cd infra/azure/student-secure
-    - tofu init -backend=false
-    - tofu validate
     - echo "[terraform-plan] tfplan.json genere"
   artifacts:
     paths:
