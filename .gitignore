@@ -11,6 +11,8 @@ __pycache__/
 *.tfstate.*
 *.tfvars
 *.tfvars.json
+# Exception: CI-only vars file (no secrets, used by terraform-plan -backend=false)
+!infra/azure/student-secure/terraform.ci.tfvars
 crash.log
 override.tf
 override.tf.json
