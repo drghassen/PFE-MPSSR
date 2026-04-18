@@ -100,6 +100,11 @@ def _unwrap_hcl_value(value: Any) -> Any:
 
 def _extract_tags(resource_body: Dict[str, Any]) -> Dict[str, str]:
     tags = _unwrap_hcl_value(resource_body.get("tags"))
+    if isinstance(tags, str):
+        extracted_from_expr = _extract_tags_from_expression(tags)
+        if extracted_from_expr:
+            return extracted_from_expr
+        return {}
     if not isinstance(tags, dict):
         return {}
 
@@ -109,6 +114,21 @@ def _extract_tags(resource_body: Dict[str, Any]) -> Dict[str, str]:
             continue
         result[key.strip()] = str(value).strip()
     return result
+
+
+def _extract_tags_from_expression(expression: str) -> Dict[str, str]:
+    # python-hcl2 often serializes HCL expressions as strings, e.g.:
+    # "${merge(var.tags,{'cs:role': 'web-server'})}"
+    # We only extract explicit literal entries from inline map fragments.
+    map_matches = re.findall(r"\{[^{}]*\}", expression)
+    if not map_matches:
+        return {}
+
+    extracted: Dict[str, str] = {}
+    for fragment in map_matches:
+        for key, value in re.findall(r"[\"']([^\"']+)[\"']\s*:\s*[\"']([^\"']*)[\"']", fragment):
+            extracted[key.strip()] = value.strip()
+    return extracted
 
 
 def _extract_role_tag(tags: Dict[str, str]) -> str:
