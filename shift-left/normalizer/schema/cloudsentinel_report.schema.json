@@ -148,21 +148,24 @@
       "description": "Contrat d'intention déclaré dans intent.tf. Null si absent (MISSING_INTENT_CONTRACT déclenche un deny OPA).",
       "type": ["object", "null"],
       "additionalProperties": false,
+      "required": ["declared", "violation"],
       "properties": {
         "declared": {
           "description": "Champs resource_intent extraits du plan Terraform. Null si le plan n'est pas disponible.",
           "type": ["object", "null"],
           "additionalProperties": false,
+          "required": ["service_type", "exposure_level", "owner", "approved_by"],
           "properties": {
             "service_type":   { "type": "string", "enum": ["web-server", "database", "cache", "worker", "gateway"] },
             "exposure_level": { "type": "string", "enum": ["internet-facing", "internal-only", "isolated"] },
-            "owner":          { "type": "string" },
-            "approved_by":    { "type": "string" }
+            "owner":          { "type": "string", "minLength": 1 },
+            "approved_by":    { "type": "string", "minLength": 1 }
           }
         },
         "violation": {
           "description": "Code de violation si le contrat est absent ou invalide. Ex: MISSING_INTENT_CONTRACT.",
-          "type": ["string", "null"]
+          "type": ["string", "null"],
+          "enum": [null, "MISSING_INTENT_CONTRACT", "EMPTY_INTENT_CONTRACT_FIELDS", "INVALID_INTENT_CONTRACT"]
         }
       }
     },
