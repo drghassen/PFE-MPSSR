@@ -46,7 +46,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # --- Paths ---
 GOLDEN_REPORT="${REPO_ROOT}/.cloudsentinel/golden_report.json"
-POLICY_FILE="${REPO_ROOT}/policies/opa/pipeline_decision.rego"
+GATE_POLICY_DIR="${REPO_ROOT}/policies/opa/gate"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
 
 # Security hardening:
@@ -147,7 +147,11 @@ command -v jq >/dev/null 2>&1 || { log_err "jq is required. Install with: apt-ge
   exit 2
 }
 
-[[ -f "$POLICY_FILE" ]] || { log_err "Policy not found: ${POLICY_FILE}"; exit 2; }
+if [[ ! -d "$GATE_POLICY_DIR" ]] || [[ -z "$(find "$GATE_POLICY_DIR" -maxdepth 1 -name '*.rego' -print -quit)" ]]; then
+  log_err "Gate policies not found under: ${GATE_POLICY_DIR}"
+  exit 2
+fi
+mapfile -t GATE_REGO_FILES < <(find "$GATE_POLICY_DIR" -maxdepth 1 -name '*.rego' -type f | sort)
 [[ -f "$EXCEPTIONS_FILE" ]] || { log_err "Exceptions not found: ${EXCEPTIONS_FILE}"; exit 2; }
 
 mkdir -p "$OUTPUT_DIR"
@@ -215,9 +219,9 @@ invoke_opa_cli() {
   if ! opa eval \
     --format json \
     --input "$GOLDEN_REPORT" \
-    --data "$POLICY_FILE" \
     --data "$EXCEPTIONS_FILE" \
     "$OPA_QUERY" \
+    "${GATE_REGO_FILES[@]}" \
     > "$tmp_raw" 2> "$tmp_err"; then
     log_err "OPA CLI eval failed. Check policy compatibility and OPA version."
     if [[ -s "$tmp_err" ]]; then
@@ -245,7 +249,7 @@ GIT_BRANCH="$(jq -r '.metadata.git.branch // "unknown"' "$GOLDEN_REPORT")"
 log_info "Mode        : ${BOLD}${MODE}${NC}"
 log_info "Environment : ${BOLD}${ENVIRONMENT}${NC}"
 log_info "Commit      : ${GIT_COMMIT} (${GIT_BRANCH})"
-log_info "Policy      : ${POLICY_FILE}"
+log_info "Policy      : ${GATE_POLICY_DIR} (${#GATE_REGO_FILES[@]} modules)"
 log_info "Exceptions  : ${EXCEPTIONS_FILE}"
 echo ""
 
@@ -356,7 +360,7 @@ tmp_decision="$(mktemp -t opa_decision_enriched.XXXXXX.json)"
 jq \
   --arg mode        "$MODE" \
   --arg engine      "$INVOCATION_MODE" \
-  --arg policy_file "$POLICY_FILE" \
+  --arg policy_file "$GATE_POLICY_DIR" \
   --arg exc_file    "$EXCEPTIONS_FILE" \
   --arg timestamp   "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   '.result += {

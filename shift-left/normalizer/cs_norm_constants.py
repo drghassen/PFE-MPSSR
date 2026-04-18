@@ -1,5 +1,5 @@
 # CloudSentinel normalizer — shared constants.
-# DB_PORTS must stay in sync with db_ports in policies/opa/pipeline_decision.rego.
+# DB_PORTS must stay in sync with db_ports in policies/opa/gate/gate_context.rego.
 
 from __future__ import annotations
 

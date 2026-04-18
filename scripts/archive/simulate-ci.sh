@@ -183,7 +183,7 @@ fi
 echo "--- [3/4] OPA STAGE (Smoke Test) ---"
 opa run --server --addr=127.0.0.1:8181 \
     --log-level=error \
-    policies/opa/pipeline_decision.rego \
+    policies/opa/gate \
     .cloudsentinel/exceptions.json \
     > .cloudsentinel/opa-smoke.log 2>&1 &
 SERVER_PID=$!

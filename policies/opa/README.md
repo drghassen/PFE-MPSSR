@@ -2,12 +2,26 @@
 
 Ce dossier contient le moteur de décision OPA (PDP) de CloudSentinel.
 
+## Modules `gate/` (`package cloudsentinel.gate`)
+
+| Fichier | Contenu |
+|---------|---------|
+| `gate_context.rego` | Seuils, `metadata`, `failed_findings`, `db_ports` |
+| `gate_helpers.rego` | `normalize_path`, `to_bool` |
+| `gate_findings.rego` | Accesseurs `finding_*` |
+| `gate_exceptions_fields.rego` | Accesseurs `exception_*`, scopes, TTL |
+| `gate_exceptions_validate.rego` | `valid_exception_definition`, ensembles d’IDs |
+| `gate_exceptions_match.rego` | Matching, effectifs, métriques, `scanner_not_run` |
+| `gate_deny.rego` | Règles `deny` (seuils, scanners, gouvernance exceptions) |
+| `gate_deny_intent.rego` | Règles intent non contournables |
+| `gate_decision.rego` | `allow`, `decision` |
+
 ## Rôle dans le pipeline
 
 1. Scanners (`gitleaks`, `checkov`, `trivy`) produisent des rapports.
 2. `normalize.py` génère `golden_report.json`.
 3. `fetch-exceptions.py` construit `.cloudsentinel/exceptions.json` (modèle enterprise v2).
-4. `run-opa.sh` applique `pipeline_decision.rego`.
+4. `run-opa.sh` charge tous les `gate/*.rego` (même package).
 5. CI fait l’enforcement (`--enforce`) ; local reste advisory (`--advisory`).
 
 ## Moteur d’exceptions enterprise

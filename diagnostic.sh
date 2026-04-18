@@ -30,7 +30,7 @@ echo "1️⃣  SÉPARATION ARCHITECTURALE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Packages OPA
-LEFT_PKG=$(grep "^package" policies/opa/pipeline_decision.rego 2>/dev/null | awk '{print $2}')
+LEFT_PKG=$(grep "^package" policies/opa/gate/gate_context.rego 2>/dev/null | awk '{print $2}')
 RIGHT_PKG=$(grep "^package" policies/opa/drift_decision.rego 2>/dev/null | awk '{print $2}')
 
 if [ "$LEFT_PKG" = "cloudsentinel.shiftleft.pipeline" ]; then
@@ -46,7 +46,7 @@ else
 fi
 
 # Références croisées
-DRIFT_IN_LEFT=$(grep -i "drift" policies/opa/pipeline_decision.rego 2>/dev/null | wc -l)
+DRIFT_IN_LEFT=$(grep -ri "drift" policies/opa/gate/*.rego 2>/dev/null | wc -l)
 PIPELINE_IN_RIGHT=$(grep -i "pipeline" policies/opa/drift_decision.rego 2>/dev/null | wc -l)
 
 if [ $DRIFT_IN_LEFT -eq 0 ] && [ $PIPELINE_IN_RIGHT -eq 0 ]; then
@@ -93,10 +93,16 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "3️⃣  SYNTAXE OPA"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-if opa check policies/opa/pipeline_decision.rego &>/dev/null; then
-    print_result "OK" "pipeline_decision.rego syntaxe valide"
+if bash ci/scripts/verify-db-ports-sync.sh &>/dev/null; then
+    print_result "OK" "DB_PORTS (Python) et db_ports (Rego) synchronisés"
 else
-    print_result "FAIL" "pipeline_decision.rego erreur syntaxe"
+    print_result "FAIL" "Drift DB_PORTS vs db_ports — lancer: bash ci/scripts/verify-db-ports-sync.sh"
+fi
+
+if opa check policies/opa/gate &>/dev/null; then
+    print_result "OK" "policies/opa/gate syntaxe valide"
+else
+    print_result "FAIL" "policies/opa/gate erreur syntaxe"
 fi
 
 if opa check policies/opa/drift_decision.rego &>/dev/null; then

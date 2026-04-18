@@ -21,6 +21,7 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `trivy-db-warm.sh` | warm Trivy vulnerability DB cache with timeout + repository fallback | trivy | n/a |
 | `normalize-reports.sh` | merge trivy sub-reports, run normalizer, fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | `cloudsentinel_contracts.py merge-trivy` |
 | `contract-test.sh` | validate wrapper contracts, schema, and smoke tests | python3, bash | `cloudsentinel_contracts.py validate-scanner-contract`, `validate-schema` |
+| `verify-db-ports-sync.sh` | fail if `DB_PORTS` (Python) and `db_ports` (Rego) drift | bash, grep, sed | n/a |
 | `opa-image-smoke.sh` | smoke test OPA runtime image | opa, curl, jq, git | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
 | `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |

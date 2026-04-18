@@ -14,7 +14,7 @@ Le projet distingue explicitement deux phases d'évaluation :
 policies/
 ├── opa/                            # Phase 1 : Shift-Left (Pré-déploiement)
 │   ├── README.md                   # Documentation OPA détaillée
-│   ├── pipeline_decision.rego      # Le Policy Decision Point (PDP) principal
+│   ├── gate/                       # PDP Shift-Left (package cloudsentinel.gate)
 │   ├── test_pipeline_decision.rego # Suite de tests unitaires OPA
 │   └── examples/                   # Cas d'usage et inputs factices pour tests
 │
@@ -34,7 +34,7 @@ policies/
 **Rôle** : Reçoit le "Golden Report" généré par le Normalizer, applique **exclusivement** les règles métier, traite les `exceptions.json`, et retourne une décision `ALLOW` ou `DENY` stricte.
 
 ### Flux de Décision (PDP)
-La logique `pipeline_decision.rego` ingère un compte-rendu consolidé (Gitleaks, Checkov, Trivy) et détermine :
+La logique `gate/*.rego` (package `cloudsentinel.gate`) ingère un compte-rendu consolidé (Gitleaks, Checkov, Trivy) et détermine :
 - Les quotas de tolérance (ex: `critical_max: 0`, `high_max: 2`).
 - Les exemptions conditionnées (environnement de dev, approbateurs distincts, limites temporelles).
 - Un refus total et non négociable sur un scan échoué (binaire introuvable, json mal-formé).

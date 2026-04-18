@@ -35,7 +35,7 @@ services:
 
   # ==============================================================================
   # opa-server — Shift-Left PDP (pipeline gate decisions)
-  # Handles: pipeline_decision.rego + shift-left exceptions.json
+  # Handles: policies/opa/gate/*.rego (cloudsentinel.gate) + shift-left exceptions.json
   # Port: 8181
   # ==============================================================================
   opa-server:
@@ -50,7 +50,7 @@ services:
       - "127.0.0.1:8181:8181"
     volumes:
       # Shift-Left Policy only — the Shift-Right policy is handled by opa-server-shiftright (port 8182)
-      - ./policies/opa/pipeline_decision.rego:/app/policies/pipeline_decision.rego:ro
+      - ./policies/opa/gate:/app/policies/gate:ro
       # System authorization policy — evaluated on every incoming HTTP request.
       # Enforces: read-only API + bearer token authentication.
       # See policies/opa/system/authz.rego for the security model.
@@ -81,7 +81,7 @@ services:
       - --log-format=json
       - --set=decision_logs.console=true
       - --watch
-      - /app/policies/pipeline_decision.rego
+      - /app/policies/gate
       - /app/policies/system/authz.rego
       - /app/data/exceptions.json
       - /app/auth/opa_config.json

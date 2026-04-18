@@ -123,18 +123,22 @@ trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
 	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"
 	@bash shift-left/trivy/tests/integration/test-trivy.sh
 
-opa-test: ## Tester les policies OPA (unit tests Rego)
+opa-test: ## Tester les policies OPA (sync DB_PORTS + opa check + unit tests Rego)
+	@echo "$(GREEN)⚖️  Vérification DB_PORTS / db_ports...$(RESET)"
+	@bash ci/scripts/verify-db-ports-sync.sh
+	@echo "$(GREEN)⚖️  opa check...$(RESET)"
+	@opa check policies/opa
 	@echo "$(GREEN)⚖️  Tests OPA...$(RESET)"
-	@cd policies/opa && opa test . -v
+	@opa test policies/opa -v
 
 opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.decision)
 	@echo "$(GREEN)⚖️  Évaluation OPA...$(RESET)"
-	@opa eval \
+	@bash -c 'opa eval \
 		--input .cloudsentinel/golden_report.json \
-		--data policies/opa/pipeline_decision.rego \
 		--data .cloudsentinel/exceptions.json \
+		--format pretty \
 		"data.cloudsentinel.gate.decision" \
-		--format pretty
+		$$(find policies/opa/gate -maxdepth 1 -name "*.rego" -type f | sort)'
 
 ##@ Shift-Right (Monitoring Runtime)
 

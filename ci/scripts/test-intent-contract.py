@@ -138,7 +138,7 @@ if __name__ == "__main__":
 #   Lit le Golden Report enrichi, vérifie la présence et la cohérence du contrat,
 #   et bloque le pipeline avant qu'OPA soit même invoqué si violation détectée.
 #
-# LIGNE 4 — OPA pipeline_decision.rego
+# LIGNE 4 — OPA policies/opa/gate (cloudsentinel.gate)
 #   Règles multi-signaux non-waivable sur input.findings brut (pas effective_failed_findings).
 #   Même avec une exception DefectDojo valide four-eyes, le deny persiste.
 #   CS-INTENT-CONTRACT-MISSING et CS-MULTI-SIGNAL-ROLE-SPOOFING ne peuvent pas être exemptées.

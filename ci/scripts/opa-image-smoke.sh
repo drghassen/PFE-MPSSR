@@ -19,7 +19,7 @@ opa run --server --addr=127.0.0.1:8181 \
   --authorization=basic \
   --log-level=error \
   --set=decision_logs.console=true \
-  policies/opa/pipeline_decision.rego \
+  policies/opa/gate \
   policies/opa/system/authz.rego \
   .cloudsentinel/exceptions.json \
   .cloudsentinel/opa_auth_config.json \

@@ -233,6 +233,10 @@ opa-unit-tests:
     - job: normalize-reports
       artifacts: true
   script:
+    - echo "[opa-unit-tests] Policy integrity — DB_PORTS vs db_ports (Python/Rego drift guard)"
+    - bash ci/scripts/verify-db-ports-sync.sh
+    - echo "[opa-unit-tests] opa check (syntax + bundle)"
+    - opa check policies/opa
     - echo "[opa-unit-tests] Running OPA policy unit tests (isolated from production data)"
     - opa test policies/opa -v
     - echo "[opa-unit-tests] All tests passed"
