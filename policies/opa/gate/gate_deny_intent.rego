@@ -15,6 +15,9 @@ import rego.v1
 non_waivable_violations := {
 	"CS-INTENT-CONTRACT-MISSING",
 	"CS-MULTI-SIGNAL-ROLE-SPOOFING",
+	"CS-INTENT-FOUR-EYES-VIOLATION",
+	"CS-INTENT-DB-INTERNET-FACING",
+	"CS-SCHEMA-VERSION-UNSUPPORTED",
 }
 
 # ─── CS-INTENT-CONTRACT-MISSING ──────────────────────────────────────────────
@@ -60,4 +63,32 @@ deny[msg] if {
 		"CS-MULTI-SIGNAL-ROLE-SPOOFING [CRITICAL|non_waivable]: role spoofing détecté — signals=[signal_1:service_type=web-server, signal_2:mismatch=%s, signal_3:checkov_finding=%s|%s]",
 		[mm.rule, finding_tool(f), finding_severity_level(f)],
 	)
+}
+
+# \u2500\u2500\u2500 CS-INTENT-FOUR-EYES-VIOLATION \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+deny[msg] if {
+	declared := object.get(object.get(input, "intent_contract", {}), "declared", {})
+	owner := trim_space(object.get(declared, "owner", ""))
+	approved_by := trim_space(object.get(declared, "approved_by", ""))
+	owner != ""
+	approved_by != ""
+	lower(owner) == lower(approved_by)
+	msg := "CS-INTENT-FOUR-EYES-VIOLATION [CRITICAL|non_waivable]: owner and approved_by must be different (Four-Eyes Principle)"
+}
+
+# \u2500\u2500\u2500 CS-INTENT-DB-INTERNET-FACING \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+deny[msg] if {
+	declared := object.get(object.get(input, "intent_contract", {}), "declared", {})
+	service_type := object.get(declared, "service_type", "")
+	exposure_level := object.get(declared, "exposure_level", "")
+	service_type == "database"
+	exposure_level == "internet-facing"
+	msg := "CS-INTENT-DB-INTERNET-FACING [CRITICAL|non_waivable]: databases cannot be internet-facing"
+}
+
+# \u2500\u2500\u2500 CS-SCHEMA-VERSION-UNSUPPORTED \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+deny[msg] if {
+	schema_version := object.get(input, "schema_version", "")
+	not regex.match(`^1\.[2-9][0-9]*\.\d+$`, schema_version)
+	msg := "CS-SCHEMA-VERSION-UNSUPPORTED [CRITICAL|non_waivable]: schema_version is unsupported or missing"
 }
