@@ -2,7 +2,7 @@
 # CloudSentinel — System Authorization Policy Tests
 # Verifies Zero Trust enforcement on the OPA PDP API surface.
 #
-# Run: opa test policies/opa -v
+# Run: make opa-test-system  (ou bash ci/scripts/verify-opa-architecture.sh)
 # ==============================================================================
 
 package system.authz_test

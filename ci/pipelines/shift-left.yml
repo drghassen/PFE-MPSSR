@@ -235,10 +235,8 @@ opa-unit-tests:
   script:
     - echo "[opa-unit-tests] Policy integrity — DB_PORTS vs db_ports (Python/Rego drift guard)"
     - bash ci/scripts/verify-db-ports-sync.sh
-    - echo "[opa-unit-tests] opa check (syntax + bundle)"
-    - opa check policies/opa
-    - echo "[opa-unit-tests] Running OPA policy unit tests (isolated from production data)"
-    - opa test policies/opa -v
+    - echo "[opa-unit-tests] opa check + gate/drift/system split tests + cross-ref guard"
+    - bash ci/scripts/verify-opa-architecture.sh
     - echo "[opa-unit-tests] All tests passed"
   allow_failure: false
 

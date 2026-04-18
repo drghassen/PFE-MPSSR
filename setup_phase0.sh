@@ -5,10 +5,10 @@ cd ~/pfe-cloud-sentinel
 echo "=== Phase 0 : Création structure OPA Drift Integration ==="
 
 mkdir -p shift-right/drift-engine/tests/integration
-mkdir -p policies/opa
+mkdir -p policies/opa/drift
 
 echo "Création des fichiers..."
-touch policies/opa/drift_decision.rego
+touch policies/opa/drift/drift_context.rego
 touch shift-right/drift-engine/utils/opa_client.py
 touch shift-right/drift-engine/utils/opa_normalizer.py
 touch shift-right/drift-engine/utils/enrichment.py

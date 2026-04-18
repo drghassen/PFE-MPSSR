@@ -1,7 +1,7 @@
 # ==============================================================================
 # CloudSentinel — Tests unitaires Shift-Right Drift Policy
 # ==============================================================================
-# Run: opa test policies/opa/ -v
+# Run: make opa-test-drift  (ou bash ci/scripts/verify-opa-architecture.sh)
 # Coverage: 18 tests across 5 groups
 # ==============================================================================
 

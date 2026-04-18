@@ -4,7 +4,7 @@ fetch_drift_exceptions.py — Fetch drift exceptions from DefectDojo for shift-r
 
 Analogous to shift-left/normalizer/fetch_exceptions/fetch_exceptions.py but scoped to
 the drift engine (shift-right). Fetches Risk Acceptances from DefectDojo and transforms
-them into the drift_exceptions.json format consumed by drift_decision.rego.
+them into the drift_exceptions.json format consumed by policies/opa/drift (cloudsentinel.shiftright.drift).
 
 Usage:
     python shift-right/scripts/fetch_drift_exceptions.py \

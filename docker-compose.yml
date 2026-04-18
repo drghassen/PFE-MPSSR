@@ -104,7 +104,7 @@ services:
 
   # ==============================================================================
   # opa-server-shiftright — Shift-Right PDP (drift engine decisions)
-  # Handles: drift_decision.rego + drift_exceptions.json
+  # Handles: policies/opa/drift/*.rego + drift_exceptions.json
   # Port: 8182 — separate from shift-left to enforce architectural boundary.
   # The drift engine (drift-engine.py) uses OPA_SERVER_URL=http://localhost:8182.
   # ==============================================================================
@@ -117,7 +117,7 @@ services:
       - "127.0.0.1:8182:8182"
     volumes:
       # Shift-Right Policy only
-      - ./policies/opa/drift_decision.rego:/app/policies/drift_decision.rego:ro
+      - ./policies/opa/drift:/app/policies/drift:ro
       # Shared system authorization policy (same read-only + token enforcement)
       - ./policies/opa/system/authz.rego:/app/policies/system/authz.rego:ro
       # Token configuration — same token as shift-left for operational simplicity
@@ -134,7 +134,7 @@ services:
       - --log-format=json
       - --set=decision_logs.console=true
       - --watch
-      - /app/policies/drift_decision.rego
+      - /app/policies/drift
       - /app/policies/system/authz.rego
       - /app/data/drift_exceptions.json
       - /app/auth/opa_config.json

@@ -4,7 +4,7 @@ package cloudsentinel.gate
 # Test suite B — Exception lifecycle + threshold ceiling edge cases
 # Companion: pipeline_decision_test.rego (functional allow/deny scenarios)
 # Total coverage: 22 tests across both files. Zero overlap.
-# Run: opa test policies/opa -v
+# Run: make opa-test-gate  (ou bash ci/scripts/verify-opa-architecture.sh)
 # ─────────────────────────────────────────────────────────────────────
 
 import rego.v1

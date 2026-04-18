@@ -3,7 +3,7 @@
 # Commandes pratiques pour le développement et l'exploitation
 # ============================================================================
 
-.PHONY: help setup scan test clean deploy dashboard
+.PHONY: help setup scan test clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system
 
 # Couleurs pour l'affichage
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -123,13 +123,19 @@ trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
 	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"
 	@bash shift-left/trivy/tests/integration/test-trivy.sh
 
-opa-test: ## Tester les policies OPA (sync DB_PORTS + opa check + unit tests Rego)
+opa-test: ## Tester les policies OPA (DB_PORTS + isolation gate/drift + opa check + tests scopés)
 	@echo "$(GREEN)⚖️  Vérification DB_PORTS / db_ports...$(RESET)"
 	@bash ci/scripts/verify-db-ports-sync.sh
-	@echo "$(GREEN)⚖️  opa check...$(RESET)"
-	@opa check policies/opa
-	@echo "$(GREEN)⚖️  Tests OPA...$(RESET)"
-	@opa test policies/opa -v
+	@bash ci/scripts/verify-opa-architecture.sh
+
+opa-test-gate: ## Tests OPA uniquement shift-left gate (+ pipeline_decision_test)
+	@opa test policies/opa/gate policies/opa/pipeline_decision_test.rego policies/opa/test_pipeline_decision.rego -v
+
+opa-test-drift: ## Tests OPA uniquement shift-right drift (+ drift_decision_test)
+	@opa test policies/opa/drift policies/opa/drift_decision_test.rego -v
+
+opa-test-system: ## Tests OPA system.authz
+	@opa test policies/opa/system/authz.rego policies/opa/system/authz_test.rego -v
 
 opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.decision)
 	@echo "$(GREEN)⚖️  Évaluation OPA...$(RESET)"

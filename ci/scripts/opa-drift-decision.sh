@@ -45,7 +45,7 @@ OPA_LOG_FILE="${OUTPUT_DIR}/opa_drift_server.log"
 EXCEPTIONS_FILE="${OUTPUT_DIR}/drift_exceptions.json"
 OPA_SERVER_ADDR="${OPA_SERVER_ADDR:-127.0.0.1:8282}"
 OPA_SERVER_URL="${OPA_SERVER_URL:-http://${OPA_SERVER_ADDR}}"
-OPA_DRIFT_POLICY_FILE="${OPA_DRIFT_POLICY_FILE:-policies/opa/drift_decision.rego}"
+OPA_DRIFT_POLICY_DIR="${OPA_DRIFT_POLICY_DIR:-policies/opa/drift}"
 OPA_SYSTEM_AUTHZ_FILE="${OPA_SYSTEM_AUTHZ_FILE:-policies/opa/system/authz.rego}"
 OPA_AUTH_TOKEN="${OPA_AUTH_TOKEN:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
 export OPA_AUTH_TOKEN
@@ -77,7 +77,7 @@ log_info "Mode        : --enforce (shift-right)"
 log_info "Environment : ${ENVIRONMENT}"
 log_info "Commit      : ${COMMIT_SHA} (${BRANCH_NAME})"
 log_info "Repo        : ${REPO_PATH}"
-log_info "Policy      : ${REPO_ROOT}/${OPA_DRIFT_POLICY_FILE}"
+log_info "Policy dir   : ${REPO_ROOT}/${OPA_DRIFT_POLICY_DIR}"
 log_info "Exceptions  : ${EXCEPTIONS_FILE}"
 log_info "Engine      : OPA Server ${OPA_SERVER_URL} [REST API]"
 log_info "Input       : ${REPORT_PATH}"
@@ -88,7 +88,7 @@ opa run --server --addr="${OPA_SERVER_ADDR}" \
   --log-level=info \
   --log-format=json \
   --set=decision_logs.console=true \
-  "${OPA_DRIFT_POLICY_FILE}" \
+  "${OPA_DRIFT_POLICY_DIR}" \
   "${OPA_SYSTEM_AUTHZ_FILE}" \
   "${EXCEPTIONS_FILE}" \
   "${OUTPUT_DIR}/opa_auth_config.json" \

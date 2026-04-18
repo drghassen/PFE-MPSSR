@@ -2,6 +2,38 @@
 
 Ce dossier contient le moteur de décision OPA (PDP) de CloudSentinel.
 
+## Graphe de politiques & PDPs (`architecture/policy_graph.rego`)
+
+Le package `cloudsentinel.architecture` documente **propriété**, **ports**, **chemins de données** et **limites connues** (pas une enforcement runtime sauf requête explicite vers `data.cloudsentinel.architecture.*`).
+
+Points clés validés en revue :
+
+| Sujet | État |
+|-------|------|
+| Isolation gate / drift | Deux packages distincts ; **aucune** référence Rego croisée entre `policies/opa/gate` et `policies/opa/drift` (vérifié par `ci/scripts/verify-opa-architecture.sh`). |
+| Serveurs OPA | **8181** = gate + `exceptions.json` ; **8182** = drift + `drift_exceptions.json` ; même `system/authz.rego`, jetons distincts possibles via le même fichier config. |
+| Divergence sémantique gate vs drift | **Volontaire** : le gate applique des seuils scanners / qualité ; le drift classe des `changed_paths` Terraform. Il n’existe pas aujourd’hui d’invariant automatique « gate severity ≥ drift » — à traiter au niveau produit / couche partagée si requis. |
+| Exceptions dupliquées | `data.cloudsentinel.exceptions` vs `data.cloudsentinel.drift_exceptions` — **deux cycles de vie** ; consolidation « core » = chantier P0 futur. |
+| Tests | CI exécute des **scopes séparés** (gate, drift, system) via `verify-opa-architecture.sh` pour éviter la confusion « un seul `opa test` = une seule vérité métier ». |
+
+## Modules `drift/` (`package cloudsentinel.shiftright.drift`)
+
+| Fichier | Contenu |
+|---------|---------|
+| `drift_context.rego` | Defaults fail-safe (`violations` / `compliant` vides) |
+| `drift_deny.rego` | `deny` (mode dégradé, champs requis, hygiène exceptions) |
+| `drift_lists.rego` | `violations`, `compliant` |
+| `drift_evaluate.rego` | `evaluate_drift`, `_malformed_finding_decision` |
+| `drift_severity.rego` | `determine_severity`, règles `is_*_drift` |
+| `drift_action.rego` | `determine_action` |
+| `drift_custodian.rego` | `get_custodian_policy` |
+| `drift_reason.rego` | `build_reason` |
+| `drift_exceptions_store.rego` | `_drift_exceptions_store` ← `data.cloudsentinel.drift_exceptions` |
+| `drift_exceptions_fields.rego` | Wildcards, scopes, `valid_drift_exception` |
+| `drift_exceptions_match.rego` | Matching, `effective_violations`, métriques |
+
+Le serveur OPA shift-right (`opa-server-shiftright`) et `ci/scripts/opa-drift-decision.sh` chargent le répertoire `policies/opa/drift` (tous les `.rego` du même package). Les tests Rego restent dans `drift_decision_test.rego` à la racine `policies/opa/`.
+
 ## Modules `gate/` (`package cloudsentinel.gate`)
 
 | Fichier | Contenu |
@@ -73,7 +105,12 @@ OPA expose:
 
 ## Tests
 
+CI et `make opa-test` exécutent `bash ci/scripts/verify-opa-architecture.sh` (garde croisée gate/drift + `opa check` + tests par scope). En local :
+
 ```bash
-opa test policies/opa -v
+make opa-test              # DB_PORTS + verify-opa-architecture (recommandé)
+make opa-test-gate         # gate uniquement
+make opa-test-drift        # drift uniquement
+make opa-test-system       # system.authz uniquement
 python3 -m unittest shift-left/opa/tests/test_fetch_exceptions.py
 ```
