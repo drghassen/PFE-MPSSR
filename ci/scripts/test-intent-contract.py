@@ -73,7 +73,7 @@ def main() -> None:
 
     # 4. Afficher les champs du contrat déclaré
     declared = intent.get("declared") or {}
-    log("OK",   f"Contrat présent ✓")
+    log("OK",   "Contrat présent ✓")
     log("INFO",  f"  service_type   : {declared.get('service_type', 'N/A')}")
     log("INFO",  f"  exposure_level : {declared.get('exposure_level', 'N/A')}")
     log("INFO",  f"  owner          : {declared.get('owner', 'N/A')}")

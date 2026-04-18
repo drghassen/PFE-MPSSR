@@ -1,80 +1,20 @@
-# ==============================================================================
-# CloudSentinel — OPA Policy Decision Point (PDP) Infrastructure
-#
-# Architecture Pattern: PEP / PDP Separation
-#
-#   PEP (Policy Enforcement Point) → shift-left/opa/run-opa.sh
-#     Receives scan results, calls OPA, enforces the gate decision (exit 0/1).
-#
-#   PDP (Policy Decision Point)    → opa-server (this service)
-#     Stateless evaluation engine. Accepts input JSON, returns allow/deny.
-#     Policies are loaded from the filesystem (hot-reload via --watch).
-#
-# Why a server instead of CLI one-shot?
-#   - Policies update without re-deploying CI infrastructure
-#   - Decision logs centralized (console → stdout, collectable via ELK/Loki)
-#   - REST API: any tool (curl, Python, Java) can evaluate policies
-#   - <50ms evaluation latency for repeated calls (no cold start penalty)
-#
-# Usage:
-#   OPA_SERVER_IMAGE=$CI_REGISTRY_IMAGE/opa:1.13.1 docker compose up -d opa-server
-#   docker compose up -d opa-server          # start the PDP daemon
-#   docker compose logs -f opa-server        # stream decision logs
-#   curl http://localhost:8181/health         # health check (no auth required)
-#   curl -H "Authorization: Bearer $OPA_AUTH_TOKEN" \
-#        http://localhost:8181/v1/policies    # list loaded policies (auth required)
-#
-# To evaluate from CI (handled automatically by run-opa.sh):
-#   curl -s -X POST http://localhost:8181/v1/data/cloudsentinel/gate/decision \
-#     -H "Content-Type: application/json" \
-#     -H "Authorization: Bearer $OPA_AUTH_TOKEN" \
-#     -d '{"input": <golden_report.json content>}'
-# ==============================================================================
-
 services:
 
-  # ==============================================================================
-  # opa-server — Shift-Left PDP (pipeline gate decisions)
-  # Handles: policies/opa/gate/*.rego (cloudsentinel.gate) + shift-left exceptions.json
-  # Port: 8181
-  # ==============================================================================
   opa-server:
     image: ${OPA_SERVER_IMAGE:-openpolicyagent/opa:1.13.1-static}
     container_name: cloudsentinel-opa-server
     entrypoint: ["/opa"]
-    # SECURITY: Host-binding restricted to loopback — OPA is NEVER exposed
-    # to external network interfaces. Only local processes (run-opa.sh, CI
-    # scripts) can reach the PDP. This is the first line of Zero Trust defense.
-    # If cross-host access is needed, place an mTLS reverse proxy in front.
     ports:
       - "127.0.0.1:8181:8181"
     volumes:
-      # Shift-Left Policy only — the Shift-Right policy is handled by opa-server-shiftright (port 8182)
       - ./policies/opa/gate:/app/policies/gate:ro
-      # System authorization policy — evaluated on every incoming HTTP request.
-      # Enforces: read-only API + bearer token authentication.
-      # See policies/opa/system/authz.rego for the security model.
       - ./policies/opa/system/authz.rego:/app/policies/system/authz.rego:ro
-      # Token configuration — contains the expected bearer token for API auth.
-      # Generated at startup from OPA_AUTH_TOKEN env var (see entrypoint below).
       - ./.cloudsentinel/opa_auth_config.json:/app/auth/opa_config.json:ro
-      # Exceptions data generated from DefectDojo fetch-exceptions flow.
-      # Only exceptions.json is loaded by OPA; scanner/raw artifacts in this
-      # directory must not be loaded as OPA data documents.
       - ./.cloudsentinel:/app/data:ro
     command:
       - run
       - --server
-      # Bind to all interfaces INSIDE the container — this is safe because
-      # the Docker port mapping above restricts to 127.0.0.1 on the host.
-      # OPA inside the container must listen on 0.0.0.0 for Docker's port
-      # forwarding to work (Docker forwards to the container's eth0, not lo).
       - --addr=0.0.0.0:8181
-      # ZERO TRUST: Bearer token authentication + system authorization policy.
-      # --authentication=token: extracts Bearer token from Authorization header
-      #   and exposes it as input.identity to the authz policy.
-      # --authorization=basic: evaluates data.system.authz.allow on every request.
-      #   If allow=false, OPA returns 403 before processing the request.
       - --authentication=token
       - --authorization=basic
       - --log-level=info
@@ -102,27 +42,16 @@ services:
       cloudsentinel.role: "policy-decision-point-shiftleft"
       cloudsentinel.opa.bundle: "cloudsentinel-shiftleft"
 
-  # ==============================================================================
-  # opa-server-shiftright — Shift-Right PDP (drift engine decisions)
-  # Handles: policies/opa/drift/*.rego + drift_exceptions.json
-  # Port: 8182 — separate from shift-left to enforce architectural boundary.
-  # The drift engine (drift-engine.py) uses OPA_SERVER_URL=http://localhost:8182.
-  # ==============================================================================
   opa-server-shiftright:
     image: ${OPA_SERVER_IMAGE:-openpolicyagent/opa:1.13.1-static}
     container_name: cloudsentinel-opa-server-shiftright
     entrypoint: ["/opa"]
-    # SECURITY: Same Zero Trust binding as shift-left — loopback only.
     ports:
       - "127.0.0.1:8182:8182"
     volumes:
-      # Shift-Right Policy only
       - ./policies/opa/drift:/app/policies/drift:ro
-      # Shared system authorization policy (same read-only + token enforcement)
       - ./policies/opa/system/authz.rego:/app/policies/system/authz.rego:ro
-      # Token configuration — same token as shift-left for operational simplicity
       - ./.cloudsentinel/opa_auth_config.json:/app/auth/opa_config.json:ro
-      # Drift exceptions fetched from DefectDojo by fetch_drift_exceptions.py
       - ./.cloudsentinel/drift_exceptions.json:/app/data/drift_exceptions.json:ro
     command:
       - run

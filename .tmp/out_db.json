@@ -1,0 +1,11 @@
+{
+  "variables": {
+    "resource_intent": {
+      "value": null
+    }
+  },
+  "_cloudsentinel_validation": {
+    "validated_by": "extract-intent-from-tfvars.py",
+    "violation": "INVALID_INTENT_CONTRACT"
+  }
+}

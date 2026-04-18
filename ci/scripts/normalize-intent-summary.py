@@ -22,7 +22,7 @@ if intent.get("violation"):
     sys.exit(1)
 
 declared = intent.get("declared") or {}
-print(f"  STATUS   : Contrat present", flush=True)
+print("  STATUS   : Contrat present", flush=True)
 print(f"  Type     : {declared.get('service_type')}", flush=True)
 print(f"  Exposure : {declared.get('exposure_level')}", flush=True)
 print(f"  Owner    : {declared.get('owner')}", flush=True)
