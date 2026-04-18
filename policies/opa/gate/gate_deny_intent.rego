@@ -2,91 +2,77 @@ package cloudsentinel.gate
 
 import rego.v1
 
-# Intent contract rules (non-waivable) — module 8a/8
-#
-# Ces règles évaluent le contrat d'intention (intent.tf) contre les findings des scanners.
-# Elles opèrent sur input.findings bruts (PAS effective_failed_findings) — ce qui les rend
-# intrinsèquement non-waivable : les exceptions individuelles ne peuvent pas les neutraliser.
+# Cloud-init role-spoofing v2 rules.
+# Non-waivable in production.
 
-# non_waivable_violations : règles pour lesquelles aucune exception n'est acceptée,
-# même approuvée via four-eyes dans DefectDojo. L'exception existante dans exceptions_store
-# peut exempter le finding individuel de effective_failed_findings, mais la deny rule
-# continue de s'appliquer car elle lit input.findings (signal brut).
 non_waivable_violations := {
-	"CS-INTENT-CONTRACT-MISSING",
-	"CS-MULTI-SIGNAL-ROLE-SPOOFING",
-	"CS-INTENT-FOUR-EYES-VIOLATION",
-	"CS-INTENT-DB-INTERNET-FACING",
+	"CS-CLOUDINIT-ROLE-TAG-MISSING",
+	"CS-CLOUDINIT-REMOTE-EXEC",
+	"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2",
 	"CS-SCHEMA-VERSION-UNSUPPORTED",
 }
 
-# ─── CS-INTENT-CONTRACT-MISSING ──────────────────────────────────────────────
-# Bloque tout déploiement sans déclaration d'intention.
-# Déclenché quand extract_intent_contract() retourne violation=MISSING_INTENT_CONTRACT.
-# non_waivable : aucune exception possible, même approuvée four-eyes.
+resources_analyzed := object.get(input, "resources_analyzed", [])
+
+resource_signals(resource) := object.get(resource, "signals", {})
+
+resource_env(resource) := lower(trim_space(object.get(resource, "environment", environment)))
+
+resource_is_prod(resource) if {
+	resource_env(resource) == "prod"
+}
+
+resource_role(resource) := lower(trim_space(object.get(resource, "role_tag", "")))
+
+# Missing mandatory cs:role tag on VM resources in prod.
 deny[msg] if {
-	object.get(object.get(input, "intent_contract", {}), "violation", "") == "MISSING_INTENT_CONTRACT"
+	some resource in resources_analyzed
+	resource_is_prod(resource)
+	object.get(resource_signals(resource), "role_tag_missing", false)
 	msg := sprintf(
-		"CS-INTENT-CONTRACT-MISSING [CRITICAL|non_waivable]: Intent contract absent — tout déploiement sans déclaration d'intention est bloqué (rule=%s)",
-		["CS-INTENT-CONTRACT-MISSING"],
+		"CS-CLOUDINIT-ROLE-TAG-MISSING [CRITICAL|non_waivable]: cs:role is missing on VM resource %s",
+		[object.get(resource, "resource_address", "unknown")],
 	)
 }
 
-# ─── CS-MULTI-SIGNAL-ROLE-SPOOFING ───────────────────────────────────────────
-# Détection par convergence de 3 signaux indépendants. Les 3 signaux doivent être
-# simultanément vrais pour déclencher le deny (réduction des faux positifs).
-#
-# Signal 1 — intent.declared.service_type == "web-server"
-# Signal 2 — intent_mismatches contient CS-INTENT-ROLE-SPOOFING (corrélé par normalize.py)
-# Signal 3 — au moins un finding Checkov de sévérité HIGH ou CRITICAL dans input.findings bruts
-#
-# Signal 3 utilise input.findings (PAS effective_failed_findings) : les exceptions individuelles
-# sur les findings Checkov ne neutralisent PAS cette règle.
-# non_waivable : aucune exception possible, même approuvée four-eyes.
+# Remote execution payload in cloud-init is forbidden in prod.
 deny[msg] if {
-	# Signal 1 : service_type déclaré = web-server
-	object.get(
-		object.get(object.get(input, "intent_contract", {}), "declared", {}),
-		"service_type", "",
-	) == "web-server"
-
-	# Signal 2 : normalize.py a détecté un mismatch CS-INTENT-ROLE-SPOOFING
-	some mm in object.get(input, "intent_mismatches", [])
-	mm.rule == "CS-INTENT-ROLE-SPOOFING"
-
-	# Signal 3 : au moins un finding Checkov HIGH/CRITICAL dans les findings bruts
-	some f in object.get(input, "findings", [])
-	finding_tool(f) == "checkov"
-	finding_severity_level(f) in {"HIGH", "CRITICAL"}
-
+	some resource in resources_analyzed
+	resource_is_prod(resource)
+	object.get(resource_signals(resource), "remote_exec_detected", false)
+	patterns := object.get(resource_signals(resource), "remote_exec_patterns", [])
 	msg := sprintf(
-		"CS-MULTI-SIGNAL-ROLE-SPOOFING [CRITICAL|non_waivable]: role spoofing détecté — signals=[signal_1:service_type=web-server, signal_2:mismatch=%s, signal_3:checkov_finding=%s|%s]",
-		[mm.rule, finding_tool(f), finding_severity_level(f)],
+		"CS-CLOUDINIT-REMOTE-EXEC [CRITICAL|non_waivable]: remote execution pattern detected on %s (patterns=%v)",
+		[object.get(resource, "resource_address", "unknown"), patterns],
 	)
 }
 
-# \u2500\u2500\u2500 CS-INTENT-FOUR-EYES-VIOLATION \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# Multi-signal role spoofing detection (3 independent signals):
+#   signal_1: IaC tag cs:role=web-server
+#   signal_2: cloud-init behavior indicates database workload on same VM
+#   signal_3: failed checkov HIGH/CRITICAL finding present in raw findings
+# Enforced only in prod and non-waivable.
 deny[msg] if {
-	declared := object.get(object.get(input, "intent_contract", {}), "declared", {})
-	owner := trim_space(object.get(declared, "owner", ""))
-	approved_by := trim_space(object.get(declared, "approved_by", ""))
-	owner != ""
-	approved_by != ""
-	lower(owner) == lower(approved_by)
-	msg := "CS-INTENT-FOUR-EYES-VIOLATION [CRITICAL|non_waivable]: owner and approved_by must be different (Four-Eyes Principle)"
+	some resource in resources_analyzed
+	resource_is_prod(resource)
+	resource_role(resource) == "web-server"
+	object.get(resource_signals(resource), "role_spoofing_candidate", false)
+
+	some finding in object.get(input, "findings", [])
+	finding_tool(finding) == "checkov"
+	finding_severity_level(finding) in {"HIGH", "CRITICAL"}
+
+	msg := sprintf(
+		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable]: role spoofing detected on %s (signals=tag:web-server, cloud-init:db-workload, finding:%s|%s)",
+		[
+			object.get(resource, "resource_address", "unknown"),
+			finding_tool(finding),
+			finding_severity_level(finding),
+		],
+	)
 }
 
-# \u2500\u2500\u2500 CS-INTENT-DB-INTERNET-FACING \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-deny[msg] if {
-	declared := object.get(object.get(input, "intent_contract", {}), "declared", {})
-	service_type := object.get(declared, "service_type", "")
-	exposure_level := object.get(declared, "exposure_level", "")
-	service_type == "database"
-	exposure_level == "internet-facing"
-	msg := "CS-INTENT-DB-INTERNET-FACING [CRITICAL|non_waivable]: databases cannot be internet-facing"
-}
-
-# \u2500\u2500\u2500 CS-SCHEMA-VERSION-UNSUPPORTED \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# Keep schema governance deny for gate payload compatibility.
 deny[msg] if {
 	schema_version := object.get(input, "schema_version", "")
 	not regex.match(`^1\.[2-9][0-9]*\.\d+$`, schema_version)

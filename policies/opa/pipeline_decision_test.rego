@@ -1,16 +1,10 @@
 package cloudsentinel.gate_test
 
-# ─────────────────────────────────────────────────────────────────────
-# Test suite A — Functional scenarios (allow/deny, scanners, thresholds)
-# Companion: test_pipeline_decision.rego (exception lifecycle + edge cases)
-# Total coverage: 22 tests across both files. Zero overlap.
-# Run: make opa-test-gate  (ou bash ci/scripts/verify-opa-architecture.sh)
-# ─────────────────────────────────────────────────────────────────────
+# Functional scenarios for gate allow/deny behavior.
 
 import rego.v1
 
-# ─── Shared fixtures ─────────────────────────────────────────────────────────
-
+# Shared fixtures
 _scanners_ok := {
 	"gitleaks": {"status": "PASSED"},
 	"checkov": {"status": "PASSED"},
@@ -18,7 +12,7 @@ _scanners_ok := {
 }
 
 _base := {
-	"schema_version": "1.2.1",
+	"schema_version": "1.3.0",
 	"metadata": {"environment": "dev"},
 	"quality_gate": {"thresholds": {"critical_max": 0, "high_max": 2}},
 	"scanners": _scanners_ok,
@@ -39,7 +33,6 @@ _high_finding := {
 	"severity": {"level": "HIGH"},
 }
 
-# Valid exception matching _critical_finding exactly (tool/rule_id/resource)
 _valid_exception := {
 	"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	"tool": "trivy",
@@ -56,8 +49,95 @@ _valid_exception := {
 	"occurrence": {"file_path": "my-package", "line": 0, "hash_code": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 }
 
-# ─── TEST 1: Clean pipeline with 0 findings → allow ──────────────────────────
-# All 3 scanners present, no findings → decision.allow must be true.
+_valid_checkov_exception := {
+	"id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	"tool": "checkov",
+	"rule_id": "CKV_AZ_001",
+	"resource": "azurerm_storage_account.example",
+	"severity": "HIGH",
+	"requested_by": "dev-team",
+	"approved_by": "security-team",
+	"approved_at": "2026-01-01T00:00:00Z",
+	"expires_at": "2099-01-01T00:00:00Z",
+	"decision": "accept",
+	"source": "defectdojo",
+	"status": "approved",
+	"occurrence": {"file_path": "azurerm_storage_account.example", "line": 0, "hash_code": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+}
+
+_cloudinit_web_prod_spoofing := {
+	"resource_address": "azurerm_linux_virtual_machine.web",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "web",
+	"file": "infra/azure/student-secure/modules/compute/main.tf",
+	"environment": "prod",
+	"role_tag": "web-server",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": true,
+		"remote_exec_detected": false,
+		"db_packages_detected": ["postgresql"],
+		"remote_exec_patterns": [],
+	},
+	"violations": [],
+}
+
+_cloudinit_prod_missing_tag := {
+	"resource_address": "azurerm_linux_virtual_machine.web",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "web",
+	"file": "infra/azure/student-secure/modules/compute/main.tf",
+	"environment": "prod",
+	"role_tag": null,
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": true,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+	},
+	"violations": [],
+}
+
+_cloudinit_prod_remote_exec := {
+	"resource_address": "azurerm_linux_virtual_machine.web",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "web",
+	"file": "infra/azure/student-secure/modules/compute/main.tf",
+	"environment": "prod",
+	"role_tag": "worker",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": ["curl_pipe_shell"],
+	},
+	"violations": [],
+}
+
+_cloudinit_web_dev_spoofing := {
+	"resource_address": "azurerm_linux_virtual_machine.web",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "web",
+	"file": "infra/azure/student-secure/modules/compute/main.tf",
+	"environment": "dev",
+	"role_tag": "web-server",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": true,
+		"remote_exec_detected": false,
+		"db_packages_detected": ["postgresql"],
+		"remote_exec_patterns": [],
+	},
+	"violations": [],
+}
+
+# TEST 1
 
 test_allow_clean_pipeline if {
 	result := data.cloudsentinel.gate.decision with input as _base
@@ -69,8 +149,7 @@ test_allow_clean_pipeline if {
 	result.metrics.high == 0
 }
 
-# ─── TEST 2: 2 HIGH findings at threshold boundary → allow ───────────────────
-# high_max=2, enforced_high_max=min(2,5)=2. effective_high=2. 2>2 is false → allow.
+# TEST 2
 
 test_allow_with_high_within_threshold if {
 	f1 := object.union(_high_finding, {"resource": {"name": "res-1"}})
@@ -84,9 +163,7 @@ test_allow_with_high_within_threshold if {
 	count(result.deny) == 0
 }
 
-# ─── TEST 3: Valid exception exempts CRITICAL finding → allow ─────────────────
-# Exception matches on tool/rule_id/resource. Finding is removed from
-# effective_failed_findings, so effective_critical=0 → no threshold deny.
+# TEST 3
 
 test_allow_with_valid_exception if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {"findings": [_critical_finding]})
@@ -97,8 +174,7 @@ test_allow_with_valid_exception if {
 	result.metrics.critical == 0
 }
 
-# ─── TEST 4: 1 CRITICAL finding, no exception → deny ─────────────────────────
-# enforced_critical_max = min(0, 0) = 0. effective_critical=1 > 0 → deny.
+# TEST 4
 
 test_deny_on_critical if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {"findings": [_critical_finding]})
@@ -110,8 +186,7 @@ test_deny_on_critical if {
 	contains(msg, "exceed enforced threshold")
 }
 
-# ─── TEST 5: 3 HIGH findings (threshold=2) → deny ────────────────────────────
-# enforced_high_max = min(2, 5) = 2. effective_high=3 > 2 → deny.
+# TEST 5
 
 test_deny_on_high_exceeds_threshold if {
 	f1 := object.union(_high_finding, {"resource": {"name": "r1"}})
@@ -127,8 +202,7 @@ test_deny_on_high_exceeds_threshold if {
 	contains(msg, "exceed enforced threshold")
 }
 
-# ─── TEST 6: Trivy scanner missing (NOT_RUN) in CI mode → deny ───────────────
-# scanner_not_run fires for trivy (is_local is false in default CI mode).
+# TEST 6
 
 test_deny_missing_scanner if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
@@ -147,9 +221,7 @@ test_deny_missing_scanner if {
 	contains(msg, "did not run")
 }
 
-# ─── TEST 7: CI injects critical_max=999 → ceiling clamps to 0, deny ─────────
-# _policy_critical_max_ceiling=0. enforced_critical_max=min(999,0)=0.
-# With 1 CRITICAL finding: 1>0 → deny regardless of injected value.
+# TEST 7
 
 test_deny_threshold_injection_attempt if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
@@ -164,9 +236,7 @@ test_deny_threshold_injection_attempt if {
 	contains(msg, "CRITICAL findings")
 }
 
-# ─── TEST 8: Expired exception does not exempt CRITICAL finding → deny ────────
-# exception_is_expired fires → valid_exception_definition fails → not exempting.
-# Additionally expired_enabled_exception_ids fires → own deny message.
+# TEST 8
 
 test_deny_expired_exception if {
 	expired := object.union(_valid_exception, {"expires_at": "2020-01-01T00:00:00Z"})
@@ -175,18 +245,12 @@ test_deny_expired_exception if {
 		with data.cloudsentinel.exceptions.exceptions as [expired]
 
 	not result.allow
-
-	# Expired exception generates its own deny
 	some exp_msg in result.deny
 	contains(exp_msg, "expires_at is in the past")
-
-	# And the CRITICAL finding is no longer exempted
 	result.metrics.critical == 1
 }
 
-# ─── TEST 9: Duplicate finding is excluded from counts → allow ───────────────
-# context.deduplication.is_duplicate=true filters the finding out of
-# failed_findings. effective_critical=0 → allow.
+# TEST 9
 
 test_duplicate_finding_not_counted if {
 	dup := object.union(_critical_finding, {"context": {"deduplication": {"is_duplicate": true}}})
@@ -199,10 +263,7 @@ test_duplicate_finding_not_counted if {
 	result.metrics.failed_input == 0
 }
 
-# ─── TEST 10: Local mode is advisory for scanner checks → allow ───────────────
-# NOTE: local mode only bypasses scanner_not_run — threshold violations still
-# deny. This test demonstrates the advisory behavior: checkov+trivy both
-# NOT_RUN in local mode with 0 findings → allow (scanner absence not blocked).
+# TEST 10
 
 test_local_mode_advisory if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
@@ -224,216 +285,7 @@ test_local_mode_advisory if {
 	result.execution_mode == "local"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Test suite B — Intent Contract (role spoofing, exposure mismatch)
-# Les 6 tests couvrent : contract absent, présent+clean, role spoofing deny,
-# non_waivable enforcement, exposure mismatch, web-server légitime.
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Fixture : finding Checkov CRITICAL — NSG rule autorisant le port PostgreSQL (5432) depuis 0.0.0.0/0.
-# Source : CKV2_CS_AZ_021_ssh_restricted simulant une règle DB exposée sur un "web-server".
-_checkov_db_port_finding := {
-	"status": "FAILED",
-	"source": {"tool": "checkov", "id": "CKV2_CS_AZ_DB_EXPOSED", "version": "3.0.0", "scanner_type": "misconfig"},
-	"resource": {
-		"name": "azurerm_network_security_rule.allow_db",
-		"path": "infra/azure/student-secure/modules/network/main.tf",
-		"type": "infrastructure",
-		"version": "N/A",
-		"location": {"file": "infra/azure/student-secure/modules/network/main.tf", "start_line": 42, "end_line": 55},
-	},
-	"description": "NSG rule allows inbound connection on port 5432 from source 0.0.0.0/0 — database exposed to internet",
-	"severity": {"level": "CRITICAL", "original_severity": "CRITICAL", "cvss_score": null},
-	"category": "INFRASTRUCTURE_AS_CODE",
-	"context": {
-		"git": {"author_email": "dev@company.com", "commit_date": "2026-04-17T10:00:00Z"},
-		"deduplication": {"fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "is_duplicate": false, "duplicate_of": null},
-		"traceability": {"source_report": "checkov_raw.json", "source_index": 0, "normalized_at": "2026-04-17T10:00:00Z"},
-	},
-	"remediation": {"sla_hours": 24, "fix_version": "N/A", "references": []},
-}
-
-# Fixture : intent contract déclarant web-server (role spoofing pattern).
-_intent_web_server_spoofing := {
-	"declared": {
-		"service_type": "web-server",
-		"exposure_level": "internet-facing",
-		"owner": "dev@company.com",
-		"approved_by": "lead@company.com",
-	},
-	"violation": null,
-}
-
-# Fixture : intent_mismatches produit par correlate_intent_vs_reality().
-# Simule le résultat de normalize.py après détection du port 5432 sur un web-server.
-_intent_mismatches_role_spoofing := [{
-	"rule": "CS-INTENT-ROLE-SPOOFING",
-	"severity": "CRITICAL",
-	"declared": "service_type=web-server",
-	"observed": "db_ports_detected={5432}",
-	"mitre": "T1036 - Masquerading",
-	"source_findings": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
-}]
-
-# Fixture : exception valide pour le finding Checkov DB exposé.
-# Four-eyes : requested_by != approved_by. Source : defectdojo. Status : approved.
-_exception_for_db_finding := {
-	"id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-	"tool": "checkov",
-	"rule_id": "CKV2_CS_AZ_DB_EXPOSED",
-	"resource": "azurerm_network_security_rule.allow_db",
-	"severity": "CRITICAL",
-	"requested_by": "dev-team",
-	"approved_by": "security-team",
-	"approved_at": "2026-01-01T00:00:00Z",
-	"expires_at": "2099-01-01T00:00:00Z",
-	"decision": "accept",
-	"source": "defectdojo",
-	"status": "approved",
-	"occurrence": {
-		"file_path": "infra/azure/student-secure/modules/network/main.tf",
-		"line": 42,
-		"hash_code": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-	},
-}
-
-# ─── TEST 12: Pas d'intent_contract dans l'input → deny CS-INTENT-CONTRACT-MISSING ─
-# Pipeline sans intent.tf déployé : extract_intent_contract() retourne MISSING_INTENT_CONTRACT.
-# OPA doit bloquer avec CS-INTENT-CONTRACT-MISSING.
-
-test_intent_contract_missing if {
-	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": {"declared": null, "violation": "MISSING_INTENT_CONTRACT"},
-		"intent_mismatches": [],
-	})
-		with data.cloudsentinel.exceptions.exceptions as []
-
-	not result.allow
-	some msg in result.deny
-	contains(msg, "CS-INTENT-CONTRACT-MISSING")
-	contains(msg, "non_waivable")
-}
-
-# ─── TEST 13: Intent présent, aucun mismatch → pas de violation intent ────────
-# web-server déclaré, aucun finding avec port DB → pas de CS-INTENT-ROLE-SPOOFING.
-# Les scanners sont clean : pipeline autorisé.
-
-test_intent_contract_present_no_mismatch if {
-	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": _intent_web_server_spoofing,
-		"intent_mismatches": [],
-	})
-		with data.cloudsentinel.exceptions.exceptions as []
-
-	result.allow
-	count(result.deny) == 0
-}
-
-# ─── TEST 14: Role spoofing — web-server + port 5432 + checkov CRITICAL → deny ─
-# Signal 1 : service_type=web-server. Signal 2 : mismatch CS-INTENT-ROLE-SPOOFING.
-# Signal 3 : finding Checkov CRITICAL. Les 3 signaux convergent → deny non_waivable.
-
-test_role_spoofing_web_server_with_db_ports if {
-	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": _intent_web_server_spoofing,
-		"intent_mismatches": _intent_mismatches_role_spoofing,
-		"findings": [_checkov_db_port_finding],
-	})
-		with data.cloudsentinel.exceptions.exceptions as []
-
-	not result.allow
-	some msg in result.deny
-	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING")
-	contains(msg, "non_waivable")
-	contains(msg, "web-server")
-}
-
-# ─── TEST 15: Role spoofing + exception valide four-eyes → deny maintenu (non_waivable) ─
-# Même scénario que TEST 14, avec une exception four-eyes valide pour le finding Checkov.
-# L'exception peut exempter le finding individuel de effective_failed_findings,
-# MAIS CS-MULTI-SIGNAL-ROLE-SPOOFING utilise input.findings bruts (Signal 3) →
-# le deny continue de s'appliquer malgré l'exception.
-
-test_role_spoofing_exception_refused if {
-	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": _intent_web_server_spoofing,
-		"intent_mismatches": _intent_mismatches_role_spoofing,
-		"findings": [_checkov_db_port_finding],
-	})
-		with data.cloudsentinel.exceptions.exceptions as [_exception_for_db_finding]
-
-	# Le deny doit persister malgré l'exception valide four-eyes
-	not result.allow
-	some msg in result.deny
-	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING")
-	contains(msg, "non_waivable")
-}
-
-# ─── TEST 16: Exposure mismatch — internal-only avec IP publique → mismatch détecté ─
-# intent.declared.exposure_level=internal-only + finding mentionnant public_ip ou 0.0.0.0/0.
-# normalize.py produit intent_mismatches avec CS-INTENT-EXPOSURE-MISMATCH.
-# Vérifie que l'intent_mismatch est bien présent dans l'input (simulate normalize.py output).
-
-test_exposure_mismatch_internal_with_public_ip if {
-	exposure_mismatch_input := object.union(_base, {
-		"intent_contract": {
-			"declared": {
-				"service_type": "worker",
-				"exposure_level": "internal-only",
-				"owner": "ops@company.com",
-				"approved_by": "security@company.com",
-			},
-			"violation": null,
-		},
-		"intent_mismatches": [{
-			"rule": "CS-INTENT-EXPOSURE-MISMATCH",
-			"severity": "HIGH",
-			"declared": "exposure_level=internal-only",
-			"observed": "public_ip_or_open_cidr_detected",
-			"mitre": "T1048 - Exfiltration Over Alternative Protocol",
-			"source_findings": ["dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
-		}],
-	})
-
-	result := data.cloudsentinel.gate.decision with input as exposure_mismatch_input
-		with data.cloudsentinel.exceptions.exceptions as []
-
-	# Le mismatch est présent dans le document d'entrée (produit par normalize.py)
-	count(exposure_mismatch_input.intent_mismatches) == 1
-	exposure_mismatch_input.intent_mismatches[0].rule == "CS-INTENT-EXPOSURE-MISMATCH"
-
-	# CS-MULTI-SIGNAL-ROLE-SPOOFING ne doit PAS fire (service_type=worker, pas web-server)
-	every msg in result.deny { not contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING") }
-}
-
-# ─── TEST 17: Serveur web légitime — web-server + internet-facing, aucun port DB → allow ─
-# Intent cohérent et conforme : service_type=web-server, exposure_level=internet-facing,
-# aucun finding Checkov avec port DB, aucun intent_mismatch. Pipeline autorisé.
-
-test_legitimate_web_server if {
-	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": {
-			"declared": {
-				"service_type": "web-server",
-				"exposure_level": "internet-facing",
-				"owner": "webteam@company.com",
-				"approved_by": "lead@company.com",
-			},
-			"violation": null,
-		},
-		"intent_mismatches": [],
-		"findings": [],
-	})
-		with data.cloudsentinel.exceptions.exceptions as []
-
-	result.allow
-	count(result.deny) == 0
-}
-
-# ─── TEST 11: trivy-image-scan-* removed, fs+config only → allow ──────────────
-# Simulates pipeline after trivy-image-scan-* jobs were removed.
-# trivy scanner status is PASSED (fs+config ran), no image reports produced.
-# OPA must ALLOW when all three scanners ran and findings are within thresholds.
+# TEST 11
 
 test_allow_when_trivy_image_scans_removed if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
@@ -452,69 +304,93 @@ test_allow_when_trivy_image_scans_removed if {
 	result.metrics.high == 0
 }
 
-# \u2500\u2500\u2500 TEST 18: Four-Eyes Principle \u2014 owner equals approved_by \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-test_four_eyes_violation_owner_equals_approver if {
+# TESTS 12-17 removed (legacy intent contract flow)
+
+# TEST 18: prod multi-signal role spoofing deny
+
+test_role_spoofing_v2_prod_three_signals_deny if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": {
-			"declared": {
-				"service_type": "web-server",
-				"exposure_level": "internet-facing",
-				"owner": "dev@company.com",
-				"approved_by": "dev@company.com",
-			},
-			"violation": null,
-		},
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_web_prod_spoofing],
+		"findings": [_high_finding],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 
 	not result.allow
 	some msg in result.deny
-	contains(msg, "CS-INTENT-FOUR-EYES-VIOLATION")
+	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+	contains(msg, "non_waivable")
 }
 
-# \u2500\u2500\u2500 TEST 19: Four-Eyes Principle \u2014 valid different users \u2192 allow \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-test_four_eyes_valid_different_users if {
+# TEST 19: non-waivable in prod even with valid exception
+
+test_role_spoofing_v2_exception_refused_in_prod if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": {
-			"declared": {
-				"service_type": "web-server",
-				"exposure_level": "internet-facing",
-				"owner": "dev@company.com",
-				"approved_by": "lead@company.com",
-			},
-			"violation": null,
-		},
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_web_prod_spoofing],
+		"findings": [_high_finding],
 	})
-		with data.cloudsentinel.exceptions.exceptions as []
+		with data.cloudsentinel.exceptions.exceptions as [_valid_checkov_exception]
 
-	every msg in result.deny { not contains(msg, "CS-INTENT-FOUR-EYES-VIOLATION") }
+	not result.allow
+	result.metrics.excepted == 1
+	some msg in result.deny
+	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
 }
 
-# \u2500\u2500\u2500 TEST 20: Database exposed to internet \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-test_db_internet_facing_forbidden if {
+# TEST 20: missing cs:role in prod deny
+
+test_cloudinit_role_tag_missing_prod_denied if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": {
-			"declared": {
-				"service_type": "database",
-				"exposure_level": "internet-facing",
-				"owner": "dev@company.com",
-				"approved_by": "lead@company.com",
-			},
-			"violation": null,
-		},
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_prod_missing_tag],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 
 	not result.allow
 	some msg in result.deny
-	contains(msg, "CS-INTENT-DB-INTERNET-FACING")
+	contains(msg, "CS-CLOUDINIT-ROLE-TAG-MISSING")
 }
 
-# \u2500\u2500\u2500 TEST 21: Unsupported schema version \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# TEST 21: remote exec in prod deny
+
+test_cloudinit_remote_exec_prod_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_prod_remote_exec],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-REMOTE-EXEC")
+}
+
+# TEST 22: dev environment does not block cloud-init spoofing signal
+
+test_cloudinit_dev_env_not_blocking if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "dev"},
+		"resources_analyzed": [_cloudinit_web_dev_spoofing],
+		"findings": [_high_finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	every msg in result.deny {
+		not contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+		not contains(msg, "CS-CLOUDINIT-ROLE-TAG-MISSING")
+		not contains(msg, "CS-CLOUDINIT-REMOTE-EXEC")
+	}
+}
+
+# TEST 23: schema version missing deny
+
 test_schema_version_missing_denied if {
 	invalid_base := object.remove(_base, {"schema_version"})
 	result := data.cloudsentinel.gate.decision with input as object.union(invalid_base, {
-		"intent_contract": _intent_web_server_spoofing,
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_web_prod_spoofing],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 
@@ -523,10 +399,12 @@ test_schema_version_missing_denied if {
 	contains(msg, "CS-SCHEMA-VERSION-UNSUPPORTED")
 }
 
-# \u2500\u2500\u2500 TEST 22: Correct schema version "1.2.1" \u2192 no schema deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-test_schema_version_1_2_1_accepted if {
+# TEST 24: schema version accepted
+
+test_schema_version_1_3_0_accepted if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
-		"intent_contract": _intent_web_server_spoofing,
+		"schema_version": "1.3.0",
+		"resources_analyzed": [],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 
