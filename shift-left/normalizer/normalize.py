@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 # Allow sibling imports when executed as a script or loaded via importlib (tests).
 _NORM_DIR = str(Path(__file__).resolve().parent)
@@ -41,7 +41,7 @@ class CloudSentinelNormalizer(
         self.root = Path(self._run(["git", "rev-parse", "--show-toplevel"], os.getcwd()))
         self.out_dir = self.root / ".cloudsentinel"
         self.out_file = self.out_dir / "golden_report.json"
-        self.schema_version = "1.2.1"
+        self.schema_version = "1.3.0"
 
         # Confidence map: deterministic, scanner-type-based.
         # DevSecOps contract: confidence MUST be set here, NEVER recomputed downstream.
@@ -79,12 +79,39 @@ class CloudSentinelNormalizer(
         self._checkov_map: Optional[Dict[str, Dict[str, str]]] = None
         self._gitleaks_sev_map: Optional[Dict[str, str]] = None
 
+    def _load_cloudinit_resources(self) -> List[Dict[str, Any]]:
+        default_path = self.root / ".cloudsentinel" / "cloudinit_analysis.json"
+        cloudinit_path = Path(os.environ.get("CLOUDINIT_ANALYSIS_JSON", str(default_path)))
+
+        try:
+            resolved = cloudinit_path.resolve(strict=False)
+            resolved.relative_to(self.root.resolve())
+        except (OSError, ValueError):
+            print(f"\033[31m[ERROR]\033[0m Cloud-init analysis path outside repo — rejected: {cloudinit_path}", file=sys.stderr)
+            return []
+
+        if not resolved.is_file():
+            return []
+
+        try:
+            with resolved.open("r", encoding="utf-8") as f:
+                doc = json.load(f)
+        except Exception as e:
+            print(f"\033[33m[WARN]\033[0m Cloud-init analysis unreadable ({resolved}): {e}")
+            return []
+
+        resources = doc.get("resources_analyzed", [])
+        if isinstance(resources, list):
+            return [r for r in resources if isinstance(r, dict)]
+        return []
+
     def generate(self):
         print("\033[34m[INFO]\033[0m Starting CloudSentinel normalization (raw ingestion)...")
         skip = self.local_fast and self.exec_mode in {"local", "advisory"}
         g_data, g_trace = self._parse_gitleaks(skip=False)
         c_data, c_trace = self._parse_checkov(skip=skip)
         t_data, t_trace = self._parse_trivy(skip=skip)
+        resources_analyzed = self._load_cloudinit_resources()
 
         scanners = {"gitleaks": self._process_scanner(g_data, "gitleaks"), "checkov": self._process_scanner(c_data, "checkov"), "trivy": self._process_scanner(t_data, "trivy")}
         findings = scanners["gitleaks"]["findings"] + scanners["checkov"]["findings"] + scanners["trivy"]["findings"]
@@ -143,6 +170,7 @@ class CloudSentinelNormalizer(
             "quality_gate": {"decision": "NOT_EVALUATED", "reason": "evaluation-performed-by-opa-only", "thresholds": {"critical_max": self.critical_max, "high_max": self.high_max}, "details": {"reasons": ["opa_is_single_enforcement_point"], "not_run_scanners": not_run}},
             "intent_contract":   intent_contract,
             "intent_mismatches": intent_mismatches,
+            "resources_analyzed": resources_analyzed,
         }
         report["metadata"]["generation_duration_ms"] = int((time.time() - self.start_time) * 1000)
 

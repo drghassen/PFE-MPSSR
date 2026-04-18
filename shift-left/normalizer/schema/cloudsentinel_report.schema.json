@@ -11,7 +11,8 @@
     "findings",
     "quality_gate",
     "intent_contract",
-    "intent_mismatches"
+    "intent_mismatches",
+    "resources_analyzed"
   ],
   "properties": {
     "schema_version": {
@@ -183,6 +184,68 @@
           "observed":        { "type": "string" },
           "mitre":           { "type": "string" },
           "source_findings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "resources_analyzed": {
+      "description": "Résultats du scanner cloud-init corrélés par ressource VM.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_address",
+          "resource_type",
+          "resource_name",
+          "file",
+          "environment",
+          "role_tag",
+          "cloud_init_field",
+          "signals",
+          "violations"
+        ],
+        "properties": {
+          "resource_address": { "type": "string", "minLength": 1 },
+          "resource_type": { "type": "string", "minLength": 1 },
+          "resource_name": { "type": "string", "minLength": 1 },
+          "file": { "type": "string", "minLength": 1 },
+          "line": { "type": "integer", "minimum": 0 },
+          "environment": { "type": "string", "enum": ["dev", "test", "staging", "prod"] },
+          "role_tag": { "type": ["string", "null"] },
+          "cloud_init_field": { "type": ["string", "null"] },
+          "signals": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "role_tag_missing",
+              "role_spoofing_candidate",
+              "remote_exec_detected",
+              "db_packages_detected",
+              "remote_exec_patterns"
+            ],
+            "properties": {
+              "role_tag_missing": { "type": "boolean" },
+              "role_spoofing_candidate": { "type": "boolean" },
+              "remote_exec_detected": { "type": "boolean" },
+              "db_packages_detected": { "type": "array", "items": { "type": "string" } },
+              "remote_exec_patterns": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rule", "severity", "message", "non_waivable_in_prod", "block"],
+              "properties": {
+                "rule": { "type": "string", "minLength": 1 },
+                "severity": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
+                "message": { "type": "string", "minLength": 1 },
+                "non_waivable_in_prod": { "type": "boolean" },
+                "block": { "type": "boolean" }
+              }
+            }
+          }
         }
       }
     },
