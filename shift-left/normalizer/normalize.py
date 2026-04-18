@@ -21,7 +21,6 @@ from cs_norm_constants import (  # noqa: E402
     DEFAULT_SLA,
 )
 from cs_norm_finding import NormalizerFindingMixin  # noqa: E402
-from cs_norm_intent import NormalizerIntentMixin  # noqa: E402
 from cs_norm_mappings import NormalizerMappingMixin  # noqa: E402
 from cs_norm_raw_parsers import NormalizerRawParsersMixin  # noqa: E402
 from cs_norm_utils import NormalizerUtilsMixin  # noqa: E402
@@ -34,7 +33,6 @@ class CloudSentinelNormalizer(
     NormalizerMappingMixin,
     NormalizerRawParsersMixin,
     NormalizerFindingMixin,
-    NormalizerIntentMixin,
 ):
     def __init__(self):
         self.start_time = time.time()
@@ -116,24 +114,6 @@ class CloudSentinelNormalizer(
         scanners = {"gitleaks": self._process_scanner(g_data, "gitleaks"), "checkov": self._process_scanner(c_data, "checkov"), "trivy": self._process_scanner(t_data, "trivy")}
         findings = scanners["gitleaks"]["findings"] + scanners["checkov"]["findings"] + scanners["trivy"]["findings"]
         self._dedup(findings)
-
-        # ── Intent Contract : extraction + corrélation ──────────────────────
-        # Le chemin du plan Terraform est configurable via TERRAFORM_PLAN_JSON.
-        # Par défaut : infra/azure/student-secure/tfplan.json (produit par terraform show -json).
-        # Si le fichier est absent : violation MISSING_INTENT_CONTRACT → deny OPA CRITICAL non_waivable.
-        terraform_plan_path = os.environ.get(
-            "TERRAFORM_PLAN_JSON",
-            str(self.root / "infra" / "azure" / "student-secure" / "tfplan.json"),
-        )
-        try:
-            tf_path = Path(terraform_plan_path).resolve(strict=False)
-            tf_path.relative_to(self.root.resolve())
-            intent_contract = self.extract_intent_contract(terraform_plan_path)
-            intent_mismatches = self.correlate_intent_vs_reality(intent_contract, findings)
-        except (ValueError, OSError):
-            print(f"\033[31m[ERROR]\033[0m Intent contract path outside repo \u2014 rejected: {terraform_plan_path}", file=sys.stderr)
-            intent_contract = {"declared": None, "violation": "INVALID_INTENT_CONTRACT"}
-            intent_mismatches = []
         for nm, sc in scanners.items():
             sc["stats"] = self._stats(sc["findings"])
             src = {"gitleaks": g_data, "checkov": c_data, "trivy": t_data}[nm]
@@ -168,8 +148,6 @@ class CloudSentinelNormalizer(
             "findings": findings,
             "summary": summary,
             "quality_gate": {"decision": "NOT_EVALUATED", "reason": "evaluation-performed-by-opa-only", "thresholds": {"critical_max": self.critical_max, "high_max": self.high_max}, "details": {"reasons": ["opa_is_single_enforcement_point"], "not_run_scanners": not_run}},
-            "intent_contract":   intent_contract,
-            "intent_mismatches": intent_mismatches,
             "resources_analyzed": resources_analyzed,
         }
         report["metadata"]["generation_duration_ms"] = int((time.time() - self.start_time) * 1000)
@@ -199,25 +177,12 @@ class CloudSentinelNormalizer(
 
 
 if __name__ == "__main__":
-    import argparse
     import logging
-
-    _parser = argparse.ArgumentParser(description="CloudSentinel — Golden Report normalizer")
-    _parser.add_argument(
-        "--tfplan",
-        default=None,
-        help="Chemin vers le plan Terraform JSON (terraform show -json). "
-             "Surcharge la variable d'environnement TERRAFORM_PLAN_JSON.",
-    )
-    _args, _ = _parser.parse_known_args()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s %(name)s %(message)s",
         stream=sys.stderr,
     )
-
-    if _args.tfplan:
-        os.environ["TERRAFORM_PLAN_JSON"] = _args.tfplan
 
     CloudSentinelNormalizer().generate()
