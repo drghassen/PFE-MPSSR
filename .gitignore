@@ -71,3 +71,6 @@ CLAUDE.md
 
 # Ignore Windows NTFS Alternate Data Streams (Downloads)
 *.Zone.Identifier
+
+# Windows WSL artifacts
+*:Zone.Identifier
