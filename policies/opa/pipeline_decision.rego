@@ -13,7 +13,7 @@ allowed_decisions := {"accept", "mitigate", "fix", "transfer", "avoid"}
 # db_ports : ports associés aux moteurs de base de données courants.
 # Utilisé par CS-MULTI-SIGNAL-ROLE-SPOOFING pour corréler le contrat d'intention
 # avec les findings Checkov détectant des ports DB dans des ressources web-server.
-# Doit rester synchronisé avec DB_PORTS dans normalize.py.
+# Doit rester synchronisé avec DB_PORTS dans shift-left/normalizer/cs_norm_constants.py.
 db_ports := {3306, 5432, 27017, 1433, 6379, 5984, 9042, 2181}
 
 metadata := object.get(input, "metadata", {})
