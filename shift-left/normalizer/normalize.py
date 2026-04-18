@@ -57,7 +57,8 @@ class CloudSentinelNormalizer(
         if self.exec_mode not in {"ci", "local", "advisory"}:
             self.exec_mode = "local"
         self.local_fast = os.environ.get("CLOUDSENTINEL_LOCAL_FAST", "false").lower() == "true"
-        self.schema_strict = os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT", "false").lower() == "true"
+        _def_strict = "true" if os.environ.get("CI") else "false"
+        self.schema_strict = os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT", _def_strict).lower() == "true"
 
         self.critical_max = 0 if os.environ.get("CI") else self._to_int(os.environ.get("CRITICAL_MAX"), 0)
         self.high_max = 2 if os.environ.get("CI") else self._to_int(os.environ.get("HIGH_MAX"), 2)
