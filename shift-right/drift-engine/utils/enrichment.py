@@ -1,6 +1,7 @@
 """
 Enrich drift findings with OPA decisions.
 """
+
 from __future__ import annotations
 
 import structlog
@@ -56,22 +57,14 @@ def enrich_drift_items_with_opa(
             )
 
     effective_violations_by_address = {
-        v["resource_id"]: v
-        for v in effective_violations
-        if v.get("resource_id")
+        v["resource_id"]: v for v in effective_violations if v.get("resource_id")
     }
 
     excepted_addresses = {
-        v["resource_id"]
-        for v in excepted_violations
-        if v.get("resource_id")
+        v["resource_id"] for v in excepted_violations if v.get("resource_id")
     }
 
-    compliant_addresses = {
-        c["resource_id"]
-        for c in compliant
-        if c.get("resource_id")
-    }
+    compliant_addresses = {c["resource_id"] for c in compliant if c.get("resource_id")}
 
     enriched_items: list[dict[str, Any]] = []
 
@@ -81,7 +74,9 @@ def enrich_drift_items_with_opa(
         if address in effective_violations_by_address:
             decision = effective_violations_by_address[address]
             raw_severity = str(decision.get("severity", "MEDIUM"))
-            item["severity"] = _OPA_SEVERITY_NORMALIZE.get(raw_severity, raw_severity.capitalize())
+            item["severity"] = _OPA_SEVERITY_NORMALIZE.get(
+                raw_severity, raw_severity.capitalize()
+            )
             item["opa_reason"] = decision.get("reason", "OPA violation detected")
             item["action_required"] = decision.get("action_required", "manual_review")
             item["custodian_policy"] = decision.get("custodian_policy")
@@ -115,7 +110,13 @@ def enrich_drift_items_with_opa(
     logger.info(
         "enrichment_complete",
         total=len(enriched_items),
-        actionable=len([i for i in enriched_items if i.get("action_required") not in [None, "none", "monitor"]]),
+        actionable=len(
+            [
+                i
+                for i in enriched_items
+                if i.get("action_required") not in [None, "none", "monitor"]
+            ]
+        ),
         excepted=len([i for i in enriched_items if i.get("opa_excepted")]),
         compliant=len([i for i in enriched_items if i.get("severity") == "Info"]),
         opa_evaluated=len([i for i in enriched_items if i.get("opa_evaluated")]),

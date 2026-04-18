@@ -154,7 +154,9 @@ def resolve_report_paths(base_dir: Path, cli_report: Optional[str]) -> List[Path
     return [(base_dir / p).resolve() for p in DEFAULT_REPORT_CANDIDATES]
 
 
-def lookup_fingerprint(rule_id: str, resource_id: str, reports: List[Path]) -> Tuple[str, str]:
+def lookup_fingerprint(
+    rule_id: str, resource_id: str, reports: List[Path]
+) -> Tuple[str, str]:
     target_rule = rule_id.upper()
     for report_path in reports:
         if not report_path.exists():
@@ -206,19 +208,29 @@ def validate_fields(fields: Dict[str, Any]) -> None:
         raise ValueError("expires_at must be in the future")
 
 
-def build_fields(args: argparse.Namespace, template: Dict[str, Any], report_paths: List[Path]) -> Tuple[Dict[str, Any], str]:
+def build_fields(
+    args: argparse.Namespace, template: Dict[str, Any], report_paths: List[Path]
+) -> Tuple[Dict[str, Any], str]:
     defaults = template["defaults"]
 
     rule_id = safe_str(args.rule_id or defaults.get("rule_id")).upper()
     scanner = safe_str(args.scanner or defaults.get("scanner")).lower() or "checkov"
-    scope_type = safe_str(args.scope_type or defaults.get("scope_type")).lower() or "repo"
+    scope_type = (
+        safe_str(args.scope_type or defaults.get("scope_type")).lower() or "repo"
+    )
     severity = safe_str(args.severity or defaults.get("severity")).upper() or "HIGH"
 
     requested_by = safe_str(args.requested_by or defaults.get("requested_by"))
     approved_by = safe_str(args.approved_by or defaults.get("approved_by"))
-    approved_by_role = safe_str(args.approved_by_role or defaults.get("approved_by_role")).upper()
+    approved_by_role = safe_str(
+        args.approved_by_role or defaults.get("approved_by_role")
+    ).upper()
 
-    break_glass = bool(args.break_glass if args.break_glass is not None else defaults.get("break_glass", False))
+    break_glass = bool(
+        args.break_glass
+        if args.break_glass is not None
+        else defaults.get("break_glass", False)
+    )
     incident_id = safe_str(args.incident_id or defaults.get("incident_id", ""))
 
     expires_at = to_rfc3339(parse_datetime(args.expires_at))
@@ -227,7 +239,9 @@ def build_fields(args: argparse.Namespace, template: Dict[str, Any], report_path
     fingerprint = safe_str(args.fingerprint)
     source_hint = ""
     if not fingerprint:
-        fingerprint, source_hint = lookup_fingerprint(rule_id, args.resource_id, report_paths)
+        fingerprint, source_hint = lookup_fingerprint(
+            rule_id, args.resource_id, report_paths
+        )
     if not fingerprint:
         fingerprint = deterministic_fingerprint(rule_id, args.resource_id)
         source_hint = "deterministic-fallback"
@@ -260,10 +274,17 @@ def build_fields(args: argparse.Namespace, template: Dict[str, Any], report_path
     return fields, source_hint
 
 
-def build_defectdojo_payload(fields: Dict[str, Any], template: Dict[str, Any], accepted_findings: List[int], owner_id: Optional[int]) -> Dict[str, Any]:
+def build_defectdojo_payload(
+    fields: Dict[str, Any],
+    template: Dict[str, Any],
+    accepted_findings: List[int],
+    owner_id: Optional[int],
+) -> Dict[str, Any]:
     dojo_cfg = template["defectdojo"]
     name_prefix = safe_str(dojo_cfg.get("name_prefix"))
-    payload_name = f"{name_prefix}: {fields['rule_id']}" if name_prefix else fields["rule_id"]
+    payload_name = (
+        f"{name_prefix}: {fields['rule_id']}" if name_prefix else fields["rule_id"]
+    )
 
     custom_fields: Dict[str, Any] = {
         "rule_id": fields["rule_id"],
@@ -308,7 +329,9 @@ def build_defectdojo_payload(fields: Dict[str, Any], template: Dict[str, Any], a
     return payload
 
 
-def post_to_defectdojo(dojo_url: str, dojo_api_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def post_to_defectdojo(
+    dojo_url: str, dojo_api_key: str, payload: Dict[str, Any]
+) -> Dict[str, Any]:
     endpoint = f"{dojo_url.rstrip('/')}/api/v2/risk_acceptance/"
     request = urllib.request.Request(
         endpoint,
@@ -329,30 +352,62 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create CloudSentinel-compatible DefectDojo Risk Acceptance payloads from a reusable template."
     )
-    parser.add_argument("--template", default=DEFAULT_TEMPLATE_PATH, help="Template JSON path")
-    parser.add_argument("--report", default="", help="Optional report JSON path for fingerprint lookup")
+    parser.add_argument(
+        "--template", default=DEFAULT_TEMPLATE_PATH, help="Template JSON path"
+    )
+    parser.add_argument(
+        "--report", default="", help="Optional report JSON path for fingerprint lookup"
+    )
 
-    parser.add_argument("--resource-id", required=True, help="Resource ID/name (CloudSentinel resource_id)")
+    parser.add_argument(
+        "--resource-id",
+        required=True,
+        help="Resource ID/name (CloudSentinel resource_id)",
+    )
     parser.add_argument("--repo", required=True, help="Repository path/name")
-    parser.add_argument("--branch-scope", required=True, help="Branch scope value (or * for repo/global)")
-    parser.add_argument("--justification", required=True, help="Exception justification")
-    parser.add_argument("--expires-at", required=True, help="Expiration datetime (YYYY-MM-DD or RFC3339)")
+    parser.add_argument(
+        "--branch-scope",
+        required=True,
+        help="Branch scope value (or * for repo/global)",
+    )
+    parser.add_argument(
+        "--justification", required=True, help="Exception justification"
+    )
+    parser.add_argument(
+        "--expires-at",
+        required=True,
+        help="Expiration datetime (YYYY-MM-DD or RFC3339)",
+    )
 
     parser.add_argument("--rule-id", default="", help="Override rule/check id")
     parser.add_argument("--scanner", default="", help="Override scanner/tool")
     parser.add_argument("--scope-type", default="", help="Override scope_type")
     parser.add_argument("--severity", default="", help="Override severity")
-    parser.add_argument("--requested-by", default="", help="Override requested_by email")
+    parser.add_argument(
+        "--requested-by", default="", help="Override requested_by email"
+    )
     parser.add_argument("--approved-by", default="", help="Override approved_by email")
-    parser.add_argument("--approved-by-role", default="", help="Override approved_by_role")
-    parser.add_argument("--fingerprint", default="", help="Explicit fingerprint/resource_hash")
+    parser.add_argument(
+        "--approved-by-role", default="", help="Override approved_by_role"
+    )
+    parser.add_argument(
+        "--fingerprint", default="", help="Explicit fingerprint/resource_hash"
+    )
     parser.add_argument("--incident-id", default="", help="Incident ID for break-glass")
 
-    parser.add_argument("--break-glass", action="store_true", help="Set break_glass=true")
-    parser.add_argument("--accepted-findings", default="", help="Comma-separated DefectDojo finding IDs")
-    parser.add_argument("--owner-id", type=int, default=None, help="Optional DefectDojo owner user ID")
+    parser.add_argument(
+        "--break-glass", action="store_true", help="Set break_glass=true"
+    )
+    parser.add_argument(
+        "--accepted-findings", default="", help="Comma-separated DefectDojo finding IDs"
+    )
+    parser.add_argument(
+        "--owner-id", type=int, default=None, help="Optional DefectDojo owner user ID"
+    )
 
-    parser.add_argument("--post", action="store_true", help="POST payload to DefectDojo")
+    parser.add_argument(
+        "--post", action="store_true", help="POST payload to DefectDojo"
+    )
     parser.add_argument("--output", default="", help="Write payload JSON to file")
     return parser
 
@@ -368,7 +423,9 @@ def main() -> int:
 
     fields, source_hint = build_fields(args, template, report_paths)
     accepted_findings = normalize_csv_ids(args.accepted_findings)
-    payload = build_defectdojo_payload(fields, template, accepted_findings, args.owner_id)
+    payload = build_defectdojo_payload(
+        fields, template, accepted_findings, args.owner_id
+    )
 
     if args.output:
         out_path = Path(args.output).expanduser().resolve()

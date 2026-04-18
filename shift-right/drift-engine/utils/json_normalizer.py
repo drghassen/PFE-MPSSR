@@ -42,7 +42,9 @@ def _safe_list_str(value: Any) -> list[str]:
     return out
 
 
-def _diff_paths(before: Any, after: Any, prefix: str = "", max_paths: int = 50) -> list[str]:
+def _diff_paths(
+    before: Any, after: Any, prefix: str = "", max_paths: int = 50
+) -> list[str]:
     """
     Lightweight structural diff that returns up to `max_paths` changed JSON paths.
     Values are not returned to avoid leaking sensitive data.
@@ -96,7 +98,9 @@ def _diff_paths(before: Any, after: Any, prefix: str = "", max_paths: int = 50) 
     return paths
 
 
-def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, list[dict[str, Any]]]:
+def normalize_terraform_plan(
+    plan_json: dict[str, Any],
+) -> tuple[DriftSummary, list[dict[str, Any]]]:
     """
     Normalize `terraform show -json` output into a compact drift representation.
     """
@@ -195,17 +199,18 @@ def normalize_terraform_plan(plan_json: dict[str, Any]) -> tuple[DriftSummary, l
 
 
 _SEVERITY_MAP: dict[tuple[str, str], str] = {
-    ("azurerm_network_security_group",      "security_rule"):       "Critical",
-    ("azurerm_network_security_rule",       "access"):              "Critical",
-    ("azurerm_linux_virtual_machine",       "admin_password"):      "Critical",
-    ("azurerm_key_vault",                   "access_policy"):       "High",
-    ("azurerm_key_vault",                   "network_acls"):        "High",
-    ("azurerm_storage_account",             "min_tls_version"):     "High",
-    ("azurerm_storage_account",             "allow_blob_public_access"): "High",
-    ("azurerm_sql_server",                  "administrator_login_password"): "Critical",
-    ("azurerm_monitor_diagnostic_setting",  "enabled_log"):         "Medium",
-    ("azurerm_log_analytics_workspace",     "retention_in_days"):   "Low",
+    ("azurerm_network_security_group", "security_rule"): "Critical",
+    ("azurerm_network_security_rule", "access"): "Critical",
+    ("azurerm_linux_virtual_machine", "admin_password"): "Critical",
+    ("azurerm_key_vault", "access_policy"): "High",
+    ("azurerm_key_vault", "network_acls"): "High",
+    ("azurerm_storage_account", "min_tls_version"): "High",
+    ("azurerm_storage_account", "allow_blob_public_access"): "High",
+    ("azurerm_sql_server", "administrator_login_password"): "Critical",
+    ("azurerm_monitor_diagnostic_setting", "enabled_log"): "Medium",
+    ("azurerm_log_analytics_workspace", "retention_in_days"): "Low",
 }
+
 
 def classify_drift_severity(resource_type: str, changed_paths: list[str]) -> str:
     for path in changed_paths:
@@ -214,6 +219,7 @@ def classify_drift_severity(resource_type: str, changed_paths: list[str]) -> str
         if key in _SEVERITY_MAP:
             return _SEVERITY_MAP[key]
     return "Medium"
+
 
 def drift_items_to_defectdojo_generic_findings(
     items: list[dict[str, Any]],

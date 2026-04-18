@@ -20,22 +20,81 @@ class NormalizerRawParsersMixin:
         sha = self._hash_file(p)
         doc, err = self._read_json(p)
         if err:
-            return self._not_run("gitleaks", str(p), f"invalid_json:{p}", present=True, sha=sha)
+            return self._not_run(
+                "gitleaks", str(p), f"invalid_json:{p}", present=True, sha=sha
+            )
         if not isinstance(doc, list):
-            return self._not_run("gitleaks", str(p), "invalid_raw_structure:expected_array", present=True, valid=True, sha=sha)
+            return self._not_run(
+                "gitleaks",
+                str(p),
+                "invalid_raw_structure:expected_array",
+                present=True,
+                valid=True,
+                sha=sha,
+            )
         sev_map = self._gitleaks_mapping()
         findings: List[Dict[str, Any]] = []
         for i, it in enumerate(doc):
             if not isinstance(it, dict):
-                findings.append({"id": "GITLEAKS_UNKNOWN", "description": "Malformed gitleaks finding entry", "file": "unknown", "start_line": 0, "end_line": 0, "severity": "HIGH", "status": "FAILED", "finding_type": "secret", "resource": {"name": "unknown", "path": "unknown", "type": "file"}, "metadata": {"raw_index": i, "raw_sha256": self._sha256(str(it))}})
+                findings.append(
+                    {
+                        "id": "GITLEAKS_UNKNOWN",
+                        "description": "Malformed gitleaks finding entry",
+                        "file": "unknown",
+                        "start_line": 0,
+                        "end_line": 0,
+                        "severity": "HIGH",
+                        "status": "FAILED",
+                        "finding_type": "secret",
+                        "resource": {
+                            "name": "unknown",
+                            "path": "unknown",
+                            "type": "file",
+                        },
+                        "metadata": {
+                            "raw_index": i,
+                            "raw_sha256": self._sha256(str(it)),
+                        },
+                    }
+                )
                 continue
             rid = self._first(it.get("RuleID"), it.get("rule_id"), "GITLEAKS_UNKNOWN")
             fp = self._norm_path(self._first(it.get("File"), it.get("file"), "unknown"))
-            st = self._to_int(self._first(it.get("StartLine"), it.get("start_line"), it.get("line"), "0"), 0)
-            en = self._to_int(self._first(it.get("EndLine"), it.get("end_line"), str(st)), st)
-            secret = self._first(it.get("Secret"), it.get("Match"), it.get("match"), "") or ""
-            raw_sev = self._first(it.get("Severity"), sev_map.get(str(rid), "HIGH"), "HIGH")
-            findings.append({"id": rid, "description": self._first(it.get("Description"), "No description"), "file": fp, "start_line": st, "end_line": en, "severity": self.sev_lut.get(str(raw_sev).upper(), "HIGH"), "status": "FAILED", "finding_type": "secret", "resource": {"name": fp, "path": fp, "type": "file"}, "metadata": {"secret_hash": self._sha256(secret) if secret else "", "commit": self._first(it.get("Commit"), ""), "author": self._first(it.get("Email"), ""), "date": self._first(it.get("Date"), "")}})
+            st = self._to_int(
+                self._first(
+                    it.get("StartLine"), it.get("start_line"), it.get("line"), "0"
+                ),
+                0,
+            )
+            en = self._to_int(
+                self._first(it.get("EndLine"), it.get("end_line"), str(st)), st
+            )
+            secret = (
+                self._first(it.get("Secret"), it.get("Match"), it.get("match"), "")
+                or ""
+            )
+            raw_sev = self._first(
+                it.get("Severity"), sev_map.get(str(rid), "HIGH"), "HIGH"
+            )
+            findings.append(
+                {
+                    "id": rid,
+                    "description": self._first(it.get("Description"), "No description"),
+                    "file": fp,
+                    "start_line": st,
+                    "end_line": en,
+                    "severity": self.sev_lut.get(str(raw_sev).upper(), "HIGH"),
+                    "status": "FAILED",
+                    "finding_type": "secret",
+                    "resource": {"name": fp, "path": fp, "type": "file"},
+                    "metadata": {
+                        "secret_hash": self._sha256(secret) if secret else "",
+                        "commit": self._first(it.get("Commit"), ""),
+                        "author": self._first(it.get("Email"), ""),
+                        "date": self._first(it.get("Date"), ""),
+                    },
+                }
+            )
         # Enrichissement depuis le scan range (best-effort)
         range_p = self.out_dir / "gitleaks_range_raw.json"
         if range_p.is_file():
@@ -85,8 +144,22 @@ class NormalizerRawParsersMixin:
                                 meta["author"] = r_email
                                 meta["date"] = str(match.get("Date") or "").strip()
 
-        rep = {"tool": "gitleaks", "version": os.environ.get("GITLEAKS_VERSION", "unknown"), "status": "OK", "findings": findings, "errors": []}
-        tr = {"tool": "gitleaks", "path": str(p), "present": True, "valid_json": True, "status": self._trace_status("OK", findings), "reason": "", "sha256": sha}
+        rep = {
+            "tool": "gitleaks",
+            "version": os.environ.get("GITLEAKS_VERSION", "unknown"),
+            "status": "OK",
+            "findings": findings,
+            "errors": [],
+        }
+        tr = {
+            "tool": "gitleaks",
+            "path": str(p),
+            "present": True,
+            "valid_json": True,
+            "status": self._trace_status("OK", findings),
+            "reason": "",
+            "sha256": sha,
+        }
         return rep, tr
 
     def _parse_checkov(self, skip=False):
@@ -98,9 +171,18 @@ class NormalizerRawParsersMixin:
         sha = self._hash_file(p)
         doc, err = self._read_json(p)
         if err:
-            return self._not_run("checkov", str(p), f"invalid_json:{p}", present=True, sha=sha)
+            return self._not_run(
+                "checkov", str(p), f"invalid_json:{p}", present=True, sha=sha
+            )
         if not isinstance(doc, dict) or not isinstance(doc.get("results"), dict):
-            return self._not_run("checkov", str(p), "invalid_raw_structure:expected_object_results", present=True, valid=True, sha=sha)
+            return self._not_run(
+                "checkov",
+                str(p),
+                "invalid_raw_structure:expected_object_results",
+                present=True,
+                valid=True,
+                sha=sha,
+            )
         failed = doc.get("results", {}).get("failed_checks", [])
         if not isinstance(failed, list):
             failed = []
@@ -111,18 +193,63 @@ class NormalizerRawParsersMixin:
                 continue
             cid = self._first(it.get("check_id"), "CHECKOV_UNKNOWN")
             me = cmap.get(str(cid), {})
-            fp = self._norm_path(self._first(it.get("file_path"), it.get("file_abs_path"), "unknown"))
+            fp = self._norm_path(
+                self._first(it.get("file_path"), it.get("file_abs_path"), "unknown")
+            )
             lr = it.get("file_line_range", [])
             ln = self._to_int(lr[0] if isinstance(lr, list) and lr else 0, 0)
-            sev = self.sev_lut.get(str(self._first(it.get("severity"), me.get("severity"), "MEDIUM")).upper(), "MEDIUM")
+            sev = self.sev_lut.get(
+                str(
+                    self._first(it.get("severity"), me.get("severity"), "MEDIUM")
+                ).upper(),
+                "MEDIUM",
+            )
             refs = []
             g = self._first(it.get("guideline"), "")
             if g:
                 refs.append(g)
-            findings.append({"id": cid, "description": self._first(it.get("check_name"), it.get("check_id"), "No description"), "file": fp, "line": ln, "severity": sev, "status": "FAILED", "category": self._first(me.get("category"), "INFRASTRUCTURE_AS_CODE"), "finding_type": "misconfig", "resource": {"name": self._first(it.get("resource"), fp, "unknown"), "path": fp, "type": "infrastructure"}, "references": refs, "metadata": {"raw_index": i}})
+            findings.append(
+                {
+                    "id": cid,
+                    "description": self._first(
+                        it.get("check_name"), it.get("check_id"), "No description"
+                    ),
+                    "file": fp,
+                    "line": ln,
+                    "severity": sev,
+                    "status": "FAILED",
+                    "category": self._first(
+                        me.get("category"), "INFRASTRUCTURE_AS_CODE"
+                    ),
+                    "finding_type": "misconfig",
+                    "resource": {
+                        "name": self._first(it.get("resource"), fp, "unknown"),
+                        "path": fp,
+                        "type": "infrastructure",
+                    },
+                    "references": refs,
+                    "metadata": {"raw_index": i},
+                }
+            )
         sm = doc.get("summary", {}) if isinstance(doc.get("summary"), dict) else {}
-        rep = {"tool": "checkov", "version": self._first(sm.get("checkov_version"), os.environ.get("CHECKOV_VERSION"), "unknown"), "status": "OK", "findings": findings, "errors": []}
-        tr = {"tool": "checkov", "path": str(p), "present": True, "valid_json": True, "status": self._trace_status("OK", findings), "reason": "", "sha256": sha}
+        rep = {
+            "tool": "checkov",
+            "version": self._first(
+                sm.get("checkov_version"), os.environ.get("CHECKOV_VERSION"), "unknown"
+            ),
+            "status": "OK",
+            "findings": findings,
+            "errors": [],
+        }
+        tr = {
+            "tool": "checkov",
+            "path": str(p),
+            "present": True,
+            "valid_json": True,
+            "status": self._trace_status("OK", findings),
+            "reason": "",
+            "sha256": sha,
+        }
         return rep, tr
 
     def _cvss(self, v: Any) -> Optional[float]:
@@ -136,7 +263,9 @@ class NormalizerRawParsersMixin:
                     return None
         return None
 
-    def _trivy_from_doc(self, doc: Dict[str, Any], scan_type: str) -> List[Dict[str, Any]]:
+    def _trivy_from_doc(
+        self, doc: Dict[str, Any], scan_type: str
+    ) -> List[Dict[str, Any]]:
         res = doc.get("Results", [])
         if not isinstance(res, list):
             return []
@@ -145,26 +274,112 @@ class NormalizerRawParsersMixin:
             if not isinstance(r, dict):
                 continue
             tgt = self._first(r.get("Target"), "unknown") or "unknown"
-            for v in (r.get("Vulnerabilities", []) if isinstance(r.get("Vulnerabilities"), list) else []):
+            for v in (
+                r.get("Vulnerabilities", [])
+                if isinstance(r.get("Vulnerabilities"), list)
+                else []
+            ):
                 if not isinstance(v, dict):
                     continue
-                out.append({"id": self._first(v.get("VulnerabilityID"), "TRIVY_VULN_UNKNOWN"), "description": self._first(v.get("Title"), v.get("Description"), "No description"), "severity": self._first(v.get("Severity"), "MEDIUM"), "status": "FAILED", "finding_type": "vulnerability", "resource": {"name": self._first(v.get("PkgName"), tgt, "unknown"), "path": tgt, "type": "package", "version": self._first(v.get("InstalledVersion"), "N/A")}, "references": [str(x) for x in (v.get("References") or []) if isinstance(x, str)], "fix_version": self._first(v.get("FixedVersion"), "N/A"), "metadata": {"scan_type": scan_type, "installed_version": self._first(v.get("InstalledVersion"), ""), "fixed_version": self._first(v.get("FixedVersion"), ""), "cvss": self._cvss(v.get("CVSS"))}})
-            for s in (r.get("Secrets", []) if isinstance(r.get("Secrets"), list) else []):
+                out.append(
+                    {
+                        "id": self._first(
+                            v.get("VulnerabilityID"), "TRIVY_VULN_UNKNOWN"
+                        ),
+                        "description": self._first(
+                            v.get("Title"), v.get("Description"), "No description"
+                        ),
+                        "severity": self._first(v.get("Severity"), "MEDIUM"),
+                        "status": "FAILED",
+                        "finding_type": "vulnerability",
+                        "resource": {
+                            "name": self._first(v.get("PkgName"), tgt, "unknown"),
+                            "path": tgt,
+                            "type": "package",
+                            "version": self._first(v.get("InstalledVersion"), "N/A"),
+                        },
+                        "references": [
+                            str(x)
+                            for x in (v.get("References") or [])
+                            if isinstance(x, str)
+                        ],
+                        "fix_version": self._first(v.get("FixedVersion"), "N/A"),
+                        "metadata": {
+                            "scan_type": scan_type,
+                            "installed_version": self._first(
+                                v.get("InstalledVersion"), ""
+                            ),
+                            "fixed_version": self._first(v.get("FixedVersion"), ""),
+                            "cvss": self._cvss(v.get("CVSS")),
+                        },
+                    }
+                )
+            for s in r.get("Secrets", []) if isinstance(r.get("Secrets"), list) else []:
                 if not isinstance(s, dict):
                     continue
                 st = self._to_int(s.get("StartLine"), 0)
                 en = self._to_int(s.get("EndLine"), st)
                 material = self._first(s.get("Match"), s.get("Code"), "") or ""
-                out.append({"id": self._first(s.get("RuleID"), "TRIVY_SECRET_UNKNOWN"), "description": self._first(s.get("Title"), "Secret detected"), "severity": self._first(s.get("Severity"), "HIGH"), "status": "FAILED", "finding_type": "secret", "resource": {"name": tgt, "path": tgt, "type": "asset"}, "start_line": st, "end_line": en, "references": [], "metadata": {"scan_type": scan_type, "secret_hash": self._sha256(material) if material else ""}})
-            for m in (r.get("Misconfigurations", []) if isinstance(r.get("Misconfigurations"), list) else []):
+                out.append(
+                    {
+                        "id": self._first(s.get("RuleID"), "TRIVY_SECRET_UNKNOWN"),
+                        "description": self._first(s.get("Title"), "Secret detected"),
+                        "severity": self._first(s.get("Severity"), "HIGH"),
+                        "status": "FAILED",
+                        "finding_type": "secret",
+                        "resource": {"name": tgt, "path": tgt, "type": "asset"},
+                        "start_line": st,
+                        "end_line": en,
+                        "references": [],
+                        "metadata": {
+                            "scan_type": scan_type,
+                            "secret_hash": self._sha256(material) if material else "",
+                        },
+                    }
+                )
+            for m in (
+                r.get("Misconfigurations", [])
+                if isinstance(r.get("Misconfigurations"), list)
+                else []
+            ):
                 if not isinstance(m, dict):
                     continue
-                st = "PASSED" if str(m.get("Status", "")).upper() == "PASS" else "FAILED"
-                out.append({"id": self._first(m.get("ID"), "TRIVY_MISCONFIG_UNKNOWN"), "description": self._first(m.get("Title"), m.get("Message"), "No description"), "severity": self._first(m.get("Severity"), "MEDIUM"), "status": st, "finding_type": "misconfig", "resource": {"name": tgt, "path": self._first((m.get("CauseMetadata") or {}).get("Resource"), tgt, "unknown"), "type": "configuration"}, "references": [str(x) for x in (m.get("References") or []) if isinstance(x, str)], "metadata": {"scan_type": scan_type}})
+                st = (
+                    "PASSED" if str(m.get("Status", "")).upper() == "PASS" else "FAILED"
+                )
+                out.append(
+                    {
+                        "id": self._first(m.get("ID"), "TRIVY_MISCONFIG_UNKNOWN"),
+                        "description": self._first(
+                            m.get("Title"), m.get("Message"), "No description"
+                        ),
+                        "severity": self._first(m.get("Severity"), "MEDIUM"),
+                        "status": st,
+                        "finding_type": "misconfig",
+                        "resource": {
+                            "name": tgt,
+                            "path": self._first(
+                                (m.get("CauseMetadata") or {}).get("Resource"),
+                                tgt,
+                                "unknown",
+                            ),
+                            "type": "configuration",
+                        },
+                        "references": [
+                            str(x)
+                            for x in (m.get("References") or [])
+                            if isinstance(x, str)
+                        ],
+                        "metadata": {"scan_type": scan_type},
+                    }
+                )
         return out
 
     def _parse_trivy(self, skip=False):
-        paths = {"fs": self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json", "config": self.root / "shift-left/trivy/reports/raw/trivy-config-raw.json"}
+        paths = {
+            "fs": self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json",
+            "config": self.root / "shift-left/trivy/reports/raw/trivy-config-raw.json",
+        }
         tr_path = str(self.root / "shift-left/trivy/reports/raw")
         if skip:
             return self._not_run("trivy", tr_path, "skipped_local_fast")
@@ -200,7 +415,11 @@ class NormalizerRawParsersMixin:
         # trivy-image-scan-* dans shift-left.yml. Mettre à jour si une image est ajoutée.
         TRIVY_IMAGE_MIN_REPORTS = int(os.environ.get("TRIVY_IMAGE_MIN_REPORTS", "3"))
         image_dir = self.root / "shift-left" / "trivy" / "reports" / "raw" / "image"
-        image_files = sorted(image_dir.glob("trivy-image-*-raw.json")) if image_dir.is_dir() else []
+        image_files = (
+            sorted(image_dir.glob("trivy-image-*-raw.json"))
+            if image_dir.is_dir()
+            else []
+        )
 
         if self.exec_mode == "ci":
             if len(image_files) < TRIVY_IMAGE_MIN_REPORTS:
@@ -222,7 +441,10 @@ class NormalizerRawParsersMixin:
                         continue
                     meta = img_doc.get("Trivy", {})
                     if isinstance(meta, dict):
-                        ver = self._first(meta.get("Version"), ver, "unknown") or "unknown"
+                        ver = (
+                            self._first(meta.get("Version"), ver, "unknown")
+                            or "unknown"
+                        )
                     findings.extend(self._trivy_from_doc(img_doc, "image"))
         else:
             # Mode local : 0 fichiers image acceptés sans erreur
@@ -236,6 +458,20 @@ class NormalizerRawParsersMixin:
                 findings.extend(self._trivy_from_doc(img_doc, "image"))
 
         status = "NOT_RUN" if not_run else "OK"
-        rep = {"tool": "trivy", "version": ver, "status": status, "findings": findings, "errors": errs}
-        tr = {"tool": "trivy", "path": tr_path, "present": present, "valid_json": valid, "status": self._trace_status(status, findings), "reason": ";".join(errs), "sha256": None}
+        rep = {
+            "tool": "trivy",
+            "version": ver,
+            "status": status,
+            "findings": findings,
+            "errors": errs,
+        }
+        tr = {
+            "tool": "trivy",
+            "path": tr_path,
+            "present": present,
+            "valid_json": valid,
+            "status": self._trace_status(status, findings),
+            "reason": ";".join(errs),
+            "sha256": None,
+        }
         return rep, tr

@@ -18,7 +18,10 @@ class NormalizerMappingMixin:
         out: Dict[str, Dict[str, str]] = {}
         for k, v in doc.items():
             if isinstance(v, dict):
-                out[str(k)] = {"category": str(v.get("category", "UNKNOWN")), "severity": str(v.get("severity", "MEDIUM")).upper()}
+                out[str(k)] = {
+                    "category": str(v.get("category", "UNKNOWN")),
+                    "severity": str(v.get("severity", "MEDIUM")).upper(),
+                }
         self._checkov_map = out
         return out
 
@@ -39,7 +42,19 @@ class NormalizerMappingMixin:
             sev = cur.get("severity", "").strip().upper()
             tags = cur.get("tags", "").lower()
             if not sev:
-                sev = "CRITICAL" if "critical" in tags else "HIGH" if "high" in tags else "MEDIUM" if "medium" in tags else "LOW" if "low" in tags else "INFO" if ("info" in tags or "informational" in tags) else "HIGH"
+                sev = (
+                    "CRITICAL"
+                    if "critical" in tags
+                    else "HIGH"
+                    if "high" in tags
+                    else "MEDIUM"
+                    if "medium" in tags
+                    else "LOW"
+                    if "low" in tags
+                    else "INFO"
+                    if ("info" in tags or "informational" in tags)
+                    else "HIGH"
+                )
             out[rid] = self.sev_lut.get(sev, "HIGH")
 
         for line in p.read_text(encoding="utf-8").splitlines():

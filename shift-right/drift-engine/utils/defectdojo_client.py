@@ -34,7 +34,9 @@ class DefectDojoClient:
             }
         )
 
-    def import_scan_generic_findings(self, findings: dict[str, Any], scan_date: str) -> dict[str, Any]:
+    def import_scan_generic_findings(
+        self, findings: dict[str, Any], scan_date: str
+    ) -> dict[str, Any]:
         """
         Import findings using DefectDojo `/api/v2/import-scan/` with `scan_type=Generic Findings Import`.
         """
@@ -47,14 +49,19 @@ class DefectDojoClient:
             "scan_date": scan_date,
             "test_title": self.config.test_title,
             "close_old_findings": "true" if self.config.close_old_findings else "false",
-            "deduplication_on_engagement": "true" if self.config.deduplication_on_engagement else "false",
+            "deduplication_on_engagement": "true"
+            if self.config.deduplication_on_engagement
+            else "false",
             "minimum_severity": self.config.minimum_severity,
         }
 
         content = json.dumps(findings, ensure_ascii=False).encode("utf-8")
-        files = {"file": ("cloudsentinel-drift-findings.json", content, "application/json")}
+        files = {
+            "file": ("cloudsentinel-drift-findings.json", content, "application/json")
+        }
 
-        response = self.session.post(url, data=data, files=files, timeout=self.config.timeout_s)
+        response = self.session.post(
+            url, data=data, files=files, timeout=self.config.timeout_s
+        )
         response.raise_for_status()
         return response.json()
-

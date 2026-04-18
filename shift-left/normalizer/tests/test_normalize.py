@@ -11,7 +11,9 @@ from pathlib import Path
 
 def _load_normalizer_class(repo_root: Path):
     module_path = repo_root / "shift-left" / "normalizer" / "normalize.py"
-    spec = importlib.util.spec_from_file_location("cloudsentinel_normalizer", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "cloudsentinel_normalizer", module_path
+    )
     module = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
     spec.loader.exec_module(module)
@@ -20,7 +22,11 @@ def _load_normalizer_class(repo_root: Path):
 
 class TestCloudSentinelNormalizer(unittest.TestCase):
     def setUp(self):
-        self.repo_root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
+        self.repo_root = Path(
+            subprocess.check_output(
+                ["git", "rev-parse", "--show-toplevel"], text=True
+            ).strip()
+        )
         self.cloud_dir = self.repo_root / ".cloudsentinel"
         self.trivy_raw_dir = self.repo_root / "shift-left" / "trivy" / "reports" / "raw"
         self.cloud_dir.mkdir(parents=True, exist_ok=True)
@@ -46,9 +52,13 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
                 self.existing[src] = False
 
         self.env_backup = {
-            "CLOUDSENTINEL_SCHEMA_STRICT": os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT"),
+            "CLOUDSENTINEL_SCHEMA_STRICT": os.environ.get(
+                "CLOUDSENTINEL_SCHEMA_STRICT"
+            ),
             "CLOUDSENTINEL_LOCAL_FAST": os.environ.get("CLOUDSENTINEL_LOCAL_FAST"),
-            "CLOUDSENTINEL_EXECUTION_MODE": os.environ.get("CLOUDSENTINEL_EXECUTION_MODE"),
+            "CLOUDSENTINEL_EXECUTION_MODE": os.environ.get(
+                "CLOUDSENTINEL_EXECUTION_MODE"
+            ),
             "ENVIRONMENT": os.environ.get("ENVIRONMENT"),
         }
         os.environ["CLOUDSENTINEL_SCHEMA_STRICT"] = "false"
@@ -69,7 +79,9 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
             else:
                 src.unlink(missing_ok=True)
         for name in ["scan-tools", "deploy-tools", "opa"]:
-            (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(missing_ok=True)
+            (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(
+                missing_ok=True
+            )
         shutil.rmtree(self.backup_dir, ignore_errors=True)
 
     def _write(self, path: Path, payload):
@@ -109,7 +121,9 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
             (self.trivy_raw_dir / "trivy-fs-raw.json").unlink(missing_ok=True)
             (self.trivy_raw_dir / "trivy-config-raw.json").unlink(missing_ok=True)
             for name in ["scan-tools", "deploy-tools", "opa"]:
-                (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(missing_ok=True)
+                (self.trivy_raw_dir / "image" / f"trivy-image-{name}-raw.json").unlink(
+                    missing_ok=True
+                )
 
     def _generate(self):
         self._seed_raw(include_trivy=True)
@@ -128,7 +142,9 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
     def test_quality_gate_present(self):
         report = self._generate()
         self.assertEqual(report["quality_gate"]["decision"], "NOT_EVALUATED")
-        self.assertEqual(report["quality_gate"]["reason"], "evaluation-performed-by-opa-only")
+        self.assertEqual(
+            report["quality_gate"]["reason"], "evaluation-performed-by-opa-only"
+        )
 
     def test_missing_trivy_emits_not_run(self):
         self._seed_raw(include_trivy=False)
@@ -140,7 +156,17 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
     def test_summary_non_negative(self):
         report = self._generate()
         stats = report["summary"]["global"]
-        for key in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "FAILED", "PASSED", "EXEMPTED"):
+        for key in (
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "LOW",
+            "INFO",
+            "TOTAL",
+            "FAILED",
+            "PASSED",
+            "EXEMPTED",
+        ):
             self.assertGreaterEqual(int(stats[key]), 0)
 
 

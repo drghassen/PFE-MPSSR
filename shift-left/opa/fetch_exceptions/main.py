@@ -51,11 +51,13 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
 
     repo_root = os.getcwd()
     output_file = os.environ.get(
-        "OPA_EXCEPTIONS_FILE", os.path.join(repo_root, ".cloudsentinel", "exceptions.json")
+        "OPA_EXCEPTIONS_FILE",
+        os.path.join(repo_root, ".cloudsentinel", "exceptions.json"),
     )
     dropped_file = os.path.join(repo_root, ".cloudsentinel", "dropped_exceptions.json")
     audit_log_file = os.environ.get(
-        "CLOUDSENTINEL_AUDIT_LOG", os.path.join(repo_root, ".cloudsentinel", "audit_events.jsonl")
+        "CLOUDSENTINEL_AUDIT_LOG",
+        os.path.join(repo_root, ".cloudsentinel", "audit_events.jsonl"),
     )
 
     return FetchContext(
@@ -71,9 +73,15 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
         severity_enum={"CRITICAL", "HIGH", "MEDIUM", "LOW"},
         allowed_tools={"checkov", "trivy", "gitleaks"},
         allowed_decisions={"accept", "mitigate", "fix", "transfer", "avoid"},
-        enforce_approver_allowlist=_parse_bool_env("CLOUDSENTINEL_ENFORCE_APPROVER_ALLOWLIST", "false"),
-        approver_allowlist=_parse_set_env("CLOUDSENTINEL_APPROVER_ALLOWLIST", "appsecteam,security-team"),
-        fuzzy_threshold=_parse_threshold(os.environ.get("CLOUDSENTINEL_FUZZY_MATCH_THRESHOLD", "0.85")),
+        enforce_approver_allowlist=_parse_bool_env(
+            "CLOUDSENTINEL_ENFORCE_APPROVER_ALLOWLIST", "false"
+        ),
+        approver_allowlist=_parse_set_env(
+            "CLOUDSENTINEL_APPROVER_ALLOWLIST", "appsecteam,security-team"
+        ),
+        fuzzy_threshold=_parse_threshold(
+            os.environ.get("CLOUDSENTINEL_FUZZY_MATCH_THRESHOLD", "0.85")
+        ),
     )
 
 
@@ -85,7 +93,9 @@ def execute(ctx: FetchContext) -> None:
         raise SystemExit(2)
 
     if not ctx.dojo_engagement_id:
-        ctx.logger.error("DOJO_ENGAGEMENT_ID is not configured. Missing engagement ID risks cross-engagement leakage.")
+        ctx.logger.error(
+            "DOJO_ENGAGEMENT_ID is not configured. Missing engagement ID risks cross-engagement leakage."
+        )
         raise SystemExit(2)
 
     ensure_dir(ctx.audit_log_file)
@@ -93,7 +103,9 @@ def execute(ctx: FetchContext) -> None:
         pass
 
     try:
-        raw_ras = fetch_risk_acceptances(ctx.dojo_url, ctx.dojo_api_key, ctx.dojo_engagement_id, ctx.logger)
+        raw_ras = fetch_risk_acceptances(
+            ctx.dojo_url, ctx.dojo_api_key, ctx.dojo_engagement_id, ctx.logger
+        )
     except DefectDojoFetchError as exc:
         ctx.logger.error(f"DefectDojo fetch failed: {exc}")
         raise SystemExit(2) from exc

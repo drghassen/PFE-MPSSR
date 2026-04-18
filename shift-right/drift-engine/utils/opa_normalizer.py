@@ -2,6 +2,7 @@
 Adaptateur Drift Findings → OPA Input Format
 Transforme les drift items normalisés en format OPA-compatible
 """
+
 from __future__ import annotations
 
 import os
@@ -16,7 +17,7 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
     """
     Transforme les drift items (produits par json_normalizer.normalize_terraform_plan)
     en format standardisé pour évaluation OPA.
-    
+
     Args:
         drift_items: Liste des items de drift avec structure :
             {
@@ -30,21 +31,23 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
                 "changed_paths": ["min_tls_version"],
                 "drifted": True
             }
-        
+
     Returns:
         Format OPA : {"findings": [...]}
     """
-    
+
     normalized = {
         "source": "drift-engine",
         "scan_type": "shift-right-drift",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         # environment is used by policies/opa/drift for scope-aware exception matching.
         # Falls back to "production" as the conservative default (strictest enforcement).
-        "environment": os.getenv("DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")),
-        "findings": []
+        "environment": os.getenv(
+            "DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")
+        ),
+        "findings": [],
     }
-    
+
     for item in drift_items:
         # Extraire uniquement les champs nécessaires pour OPA
         # (évite de passer des données sensibles inutiles)
@@ -64,13 +67,15 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
             "resource_id": item.get("address"),
             "changed_paths": item.get("changed_paths", []),
         }
-        
+
         normalized["findings"].append(finding)
-    
+
     logger.info(
         "drift_normalized_for_opa",
         finding_count=len(normalized["findings"]),
-        resource_types=list(set(f["type"] for f in normalized["findings"] if f.get("type")))
+        resource_types=list(
+            set(f["type"] for f in normalized["findings"] if f.get("type"))
+        ),
     )
-    
+
     return normalized

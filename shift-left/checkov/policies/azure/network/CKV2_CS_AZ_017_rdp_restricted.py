@@ -86,7 +86,9 @@ class CheckRDPRestricted(BaseResourceCheck):
 
     def scan_resource_conf(self, conf):  # noqa: ANN001
         rules_outer = conf.get("security_rule", [[]])
-        rules = rules_outer[0] if (isinstance(rules_outer, list) and rules_outer) else []
+        rules = (
+            rules_outer[0] if (isinstance(rules_outer, list) and rules_outer) else []
+        )
         if not isinstance(rules, list):
             rules = [rules]
 

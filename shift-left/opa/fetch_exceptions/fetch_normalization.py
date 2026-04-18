@@ -119,7 +119,7 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         return "checkov"
     if inferred_rule.startswith("CVE-"):
         return "trivy"
-    
+
     unique_id = sanitize_text(finding.get("unique_id_from_tool"))
     if unique_id.startswith("cloudsentinel-drift"):
         return "cloudsentinel-drift"
@@ -139,7 +139,10 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
         if "secret" in normalized_tags or "credential" in normalized_tags:
             return "gitleaks"
 
-    if sanitize_text(finding.get("title")).lower().startswith("secret detected in") or "hard coded" in sanitize_text(finding.get("title")).lower():
+    if (
+        sanitize_text(finding.get("title")).lower().startswith("secret detected in")
+        or "hard coded" in sanitize_text(finding.get("title")).lower()
+    ):
         return "gitleaks"
 
     if "**category:**" in sanitize_text(finding.get("description")).lower():
@@ -147,7 +150,9 @@ def _tool_from_finding(ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
     return ""
 
 
-def _severity_from_finding(ctx: FetchContext, ra: Dict[str, Any], finding: Dict[str, Any]) -> str:
+def _severity_from_finding(
+    ctx: FetchContext, ra: Dict[str, Any], finding: Dict[str, Any]
+) -> str:
     texts = _finding_texts(ra, finding)
     return parse_severity_from_text(ctx.severity_enum, finding.get("severity"), *texts)
 
@@ -210,7 +215,9 @@ def _is_deterministic(candidate: Dict[str, Any]) -> bool:
     )
 
 
-def normalize_finding_candidate(ctx: FetchContext, ra: Dict[str, Any], finding: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_finding_candidate(
+    ctx: FetchContext, ra: Dict[str, Any], finding: Dict[str, Any]
+) -> Dict[str, Any]:
     candidate = {
         "title": _finding_title(finding) or sanitize_text(ra.get("name")),
         "tool": _tool_from_finding(ra, finding),
@@ -223,10 +230,15 @@ def normalize_finding_candidate(ctx: FetchContext, ra: Dict[str, Any], finding: 
         return candidate
 
     detail_candidates = [
-        item for item in accepted_findings(ra) if isinstance(item, dict) and sanitize_text(item.get("title") or item.get("name"))
+        item
+        for item in accepted_findings(ra)
+        if isinstance(item, dict)
+        and sanitize_text(item.get("title") or item.get("name"))
     ]
     fuzzy_reference = candidate["title"] or sanitize_text(ra.get("name"))
-    best = find_best_fuzzy_match(fuzzy_reference, detail_candidates, ctx.fuzzy_threshold)
+    best = find_best_fuzzy_match(
+        fuzzy_reference, detail_candidates, ctx.fuzzy_threshold
+    )
     if not best:
         return candidate
 

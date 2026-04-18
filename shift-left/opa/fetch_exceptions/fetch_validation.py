@@ -120,20 +120,34 @@ def is_active_accepted(ra: Dict[str, Any]) -> bool:
     return is_active and status == "approved"
 
 
-def validate_normalized_exception(ctx: FetchContext, exception_obj: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[str]]:
+def validate_normalized_exception(
+    ctx: FetchContext, exception_obj: Dict[str, Any]
+) -> Tuple[bool, Optional[str], Optional[str]]:
     requested_by = sanitize_username(exception_obj.get("requested_by"))
     approved_by = sanitize_username(exception_obj.get("approved_by"))
 
     if not requested_by or not approved_by:
-        return False, "four_eyes_violation", "requested_by and approved_by are mandatory"
+        return (
+            False,
+            "four_eyes_violation",
+            "requested_by and approved_by are mandatory",
+        )
     if requested_by == approved_by:
         return False, "four_eyes_violation", "requested_by equals approved_by"
     if ctx.enforce_approver_allowlist and approved_by not in ctx.approver_allowlist:
-        return False, "four_eyes_violation", "approved_by is not in configured approver allowlist"
+        return (
+            False,
+            "four_eyes_violation",
+            "approved_by is not in configured approver allowlist",
+        )
 
     severity = normalize_severity(exception_obj.get("severity"), ctx.severity_enum)
     if not severity:
-        return False, "invalid_severity", "severity must be one of CRITICAL|HIGH|MEDIUM|LOW"
+        return (
+            False,
+            "invalid_severity",
+            "severity must be one of CRITICAL|HIGH|MEDIUM|LOW",
+        )
 
     occurrence = exception_obj.get("occurrence")
     if not isinstance(occurrence, dict):
@@ -152,21 +166,42 @@ def validate_normalized_exception(ctx: FetchContext, exception_obj: Dict[str, An
         return False, "missing_fields", "occurrence.line must be >= 0"
 
     occurrence_hash = sanitize_text(occurrence.get("hash_code")).lower()
-    if occurrence_hash and not (len(occurrence_hash) == 64 and all(ch in "0123456789abcdef" for ch in occurrence_hash)):
-        return False, "missing_fields", "occurrence.hash_code must be a 64-char lowercase hex string"
+    if occurrence_hash and not (
+        len(occurrence_hash) == 64
+        and all(ch in "0123456789abcdef" for ch in occurrence_hash)
+    ):
+        return (
+            False,
+            "missing_fields",
+            "occurrence.hash_code must be a 64-char lowercase hex string",
+        )
 
     missing_fields = [
         key
-        for key in ["tool", "rule_id", "resource", "approved_at", "expires_at", "decision"]
+        for key in [
+            "tool",
+            "rule_id",
+            "resource",
+            "approved_at",
+            "expires_at",
+            "decision",
+        ]
         if not sanitize_text(exception_obj.get(key))
     ]
     if missing_fields:
-        return False, "missing_fields", f"missing required fields: {','.join(missing_fields)}"
+        return (
+            False,
+            "missing_fields",
+            f"missing required fields: {','.join(missing_fields)}",
+        )
 
     if sanitize_text(exception_obj.get("tool")).lower() not in ctx.allowed_tools:
         return False, "missing_fields", "tool is invalid"
 
-    if sanitize_text(exception_obj.get("decision")).lower() not in ctx.allowed_decisions:
+    if (
+        sanitize_text(exception_obj.get("decision")).lower()
+        not in ctx.allowed_decisions
+    ):
         return False, "missing_fields", "decision is invalid"
 
     if sanitize_text(exception_obj.get("status")).lower() != "approved":

@@ -26,11 +26,13 @@ YAML replacement rationale:
 from checkov.common.models.enums import CheckCategories, CheckResult
 from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck
 
-_BLOCKED_ROLES = frozenset({
-    "Owner",
-    "Contributor",
-    "User Access Administrator",
-})
+_BLOCKED_ROLES = frozenset(
+    {
+        "Owner",
+        "Contributor",
+        "User Access Administrator",
+    }
+)
 
 
 def _unwrap(value, default=""):

@@ -16,7 +16,9 @@ class DefectDojoFetchError(RuntimeError):
     """Raised when DefectDojo cannot be queried reliably."""
 
 
-def _fetch_json(url: str, headers: Dict[str, str], timeout: int, logger: Logger) -> Dict[str, Any]:
+def _fetch_json(
+    url: str, headers: Dict[str, str], timeout: int, logger: Logger
+) -> Dict[str, Any]:
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -60,7 +62,9 @@ def _resolve_user_identity(
     except DefectDojoFetchError:
         return token
 
-    resolved = sanitize_text(user_payload.get("username") or user_payload.get("email") or token)
+    resolved = sanitize_text(
+        user_payload.get("username") or user_payload.get("email") or token
+    )
     user_cache[token] = resolved
     return resolved
 
@@ -86,7 +90,9 @@ def _enrich_with_accepted_findings(
     user_cache: Dict[str, str] = {}
 
     for ra in risk_acceptances:
-        ra["owner"] = _resolve_user_identity(dojo_url, headers, ra.get("owner"), user_cache, logger)
+        ra["owner"] = _resolve_user_identity(
+            dojo_url, headers, ra.get("owner"), user_cache, logger
+        )
         ra["accepted_by"] = _resolve_user_identity(
             dojo_url,
             headers,
@@ -118,7 +124,9 @@ def _enrich_with_accepted_findings(
             ra["accepted_finding_details"] = details
 
 
-def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, dojo_engagement_id: str, logger: Logger) -> List[Dict[str, Any]]:
+def fetch_risk_acceptances(
+    dojo_url: str, dojo_api_key: str, dojo_engagement_id: str, logger: Logger
+) -> List[Dict[str, Any]]:
     if not dojo_url or not dojo_api_key:
         raise DefectDojoFetchError("missing_credentials")
 
@@ -130,7 +138,7 @@ def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, dojo_engagement_id:
     start_url = f"{dojo_url}/api/v2/findings/?risk_accepted=true&limit=100"
     if dojo_engagement_id:
         start_url += f"&engagement={dojo_engagement_id}"
-    
+
     logger.info(f"[fetch-exceptions] Fetching risk accepted findings from {start_url}")
 
     results: List[Dict[str, Any]] = []
@@ -178,11 +186,17 @@ def fetch_risk_acceptances(dojo_url: str, dojo_api_key: str, dojo_engagement_id:
             if ra_id not in ra_map:
                 ra_map[ra_id] = dict(ra)
                 ra_map[ra_id]["accepted_finding_details"] = []
-                ra_map[ra_id]["owner"] = _resolve_user_identity(dojo_url, headers, ra.get("owner"), user_cache, logger)
-                ra_map[ra_id]["accepted_by"] = _resolve_user_identity(dojo_url, headers, ra.get("accepted_by"), user_cache, logger)
+                ra_map[ra_id]["owner"] = _resolve_user_identity(
+                    dojo_url, headers, ra.get("owner"), user_cache, logger
+                )
+                ra_map[ra_id]["accepted_by"] = _resolve_user_identity(
+                    dojo_url, headers, ra.get("accepted_by"), user_cache, logger
+                )
 
             ra_map[ra_id]["accepted_finding_details"].append(finding)
 
     final_ras = list(ra_map.values())
-    logger.info(f"[fetch-exceptions] Extracted {len(final_ras)} unique Risk Acceptance(s) from findings")
+    logger.info(
+        f"[fetch-exceptions] Extracted {len(final_ras)} unique Risk Acceptance(s) from findings"
+    )
     return final_ras

@@ -13,7 +13,9 @@ from typing import Any, Dict, Iterable, List, Optional
 
 
 RULE_ID_PATTERN = re.compile(r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+)\b", re.IGNORECASE)
-PATH_PATTERN = re.compile(r"(?:[A-Za-z]:[\\/]|[./~])?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+")
+PATH_PATTERN = re.compile(
+    r"(?:[A-Za-z]:[\\/]|[./~])?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+"
+)
 WILDCARD_PATH_PATTERN = re.compile(r"[A-Za-z0-9._/-]*[\*\?][A-Za-z0-9._/*?-]*")
 
 TRIVY_SECRET_RULE_ALIASES = {
@@ -291,13 +293,23 @@ def similarity(left: Any, right: Any) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def find_best_fuzzy_match(reference: str, candidates: List[Dict[str, Any]], threshold: float) -> Optional[Dict[str, Any]]:
+def find_best_fuzzy_match(
+    reference: str, candidates: List[Dict[str, Any]], threshold: float
+) -> Optional[Dict[str, Any]]:
     best: Optional[Dict[str, Any]] = None
     best_score = 0.0
     best_richness = -1
 
     def _richness(candidate: Dict[str, Any]) -> int:
-        keys = ["severity", "file_path", "path", "component_name", "tool", "scanner", "vuln_id_from_tool"]
+        keys = [
+            "severity",
+            "file_path",
+            "path",
+            "component_name",
+            "tool",
+            "scanner",
+            "vuln_id_from_tool",
+        ]
         return sum(1 for key in keys if sanitize_text(candidate.get(key)))
 
     for candidate in candidates:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CloudSentinel CI — Intent Contract Summary (post-normalize display)."""
+
 import json
 import sys
 

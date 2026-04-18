@@ -81,7 +81,9 @@ class FetchDriftExceptionsTests(unittest.TestCase):
             def json(self):
                 return {"results": [{"id": 1, "risk_accepted": True}], "next": None}
 
-        with patch.object(fetch_drift_exceptions.requests, "get", return_value=_FakeResponse()) as mocked_get:
+        with patch.object(
+            fetch_drift_exceptions.requests, "get", return_value=_FakeResponse()
+        ) as mocked_get:
             out = fetch_drift_exceptions.fetch_risk_acceptances(
                 base_url="http://dojo.local",
                 api_key="token",

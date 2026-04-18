@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 try:
-    from azure.identity import ClientSecretCredential, DefaultAzureCredential, ManagedIdentityCredential
+    from azure.identity import (
+        ClientSecretCredential,
+        DefaultAzureCredential,
+        ManagedIdentityCredential,
+    )
 except Exception as exc:  # pragma: no cover
     ClientSecretCredential = None  # type: ignore[assignment]
     DefaultAzureCredential = None  # type: ignore[assignment]
@@ -50,7 +54,9 @@ def load_azure_env() -> AzureEnv:
     tenant_id = _get_env("AZURE_TENANT_ID") or _get_env("ARM_TENANT_ID")
     client_id = _get_env("AZURE_CLIENT_ID") or _get_env("ARM_CLIENT_ID")
     client_secret = _get_env("AZURE_CLIENT_SECRET") or _get_env("ARM_CLIENT_SECRET")
-    subscription_id = _get_env("AZURE_SUBSCRIPTION_ID") or _get_env("ARM_SUBSCRIPTION_ID")
+    subscription_id = _get_env("AZURE_SUBSCRIPTION_ID") or _get_env(
+        "ARM_SUBSCRIPTION_ID"
+    )
     return AzureEnv(
         tenant_id=tenant_id,
         client_id=client_id,

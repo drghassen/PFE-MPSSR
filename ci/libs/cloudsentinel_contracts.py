@@ -15,7 +15,17 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 
-SEV_KEYS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "TOTAL", "EXEMPTED", "FAILED", "PASSED"]
+SEV_KEYS = [
+    "CRITICAL",
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+    "INFO",
+    "TOTAL",
+    "EXEMPTED",
+    "FAILED",
+    "PASSED",
+]
 BY_TYPE_KEYS = ["vulnerability", "secret", "misconfig"]
 BY_CAT_KEYS = ["INFRASTRUCTURE", "APPLICATION", "CONFIGURATION", "SECRET"]
 
@@ -38,11 +48,21 @@ def _empty_stats() -> Dict[str, Any]:
 
 def _load_trivy_report(path: Path) -> Dict[str, Any]:
     if not path.exists():
-        return {"status": "NOT_RUN", "errors": [f"missing_report:{path}"], "findings": [], "stats": {"TOTAL": 0}}
+        return {
+            "status": "NOT_RUN",
+            "errors": [f"missing_report:{path}"],
+            "findings": [],
+            "stats": {"TOTAL": 0},
+        }
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return {"status": "NOT_RUN", "errors": [f"invalid_json:{path}"], "findings": [], "stats": {"TOTAL": 0}}
+        return {
+            "status": "NOT_RUN",
+            "errors": [f"invalid_json:{path}"],
+            "findings": [],
+            "stats": {"TOTAL": 0},
+        }
 
 
 def merge_trivy_reports(
@@ -52,7 +72,7 @@ def merge_trivy_reports(
     image_path: Optional[Path] = None,  # optional: image scan removed from pipeline
 ) -> Dict[str, Any]:
     loaded: Dict[str, Any] = {
-        "fs":     _load_trivy_report(fs_path),
+        "fs": _load_trivy_report(fs_path),
         "config": _load_trivy_report(config_path),
     }
     if image_path is not None:
@@ -63,7 +83,9 @@ def merge_trivy_reports(
         pass
 
     required_scans = {k: v for k, v in loaded.items() if k in ("fs", "config")}
-    any_not_run = any(str(r.get("status", "")).upper() == "NOT_RUN" for r in required_scans.values())
+    any_not_run = any(
+        str(r.get("status", "")).upper() == "NOT_RUN" for r in required_scans.values()
+    )
     if any_not_run:
         errors: List[str] = []
         for name, report in loaded.items():
@@ -95,9 +117,13 @@ def merge_trivy_reports(
             for key in SEV_KEYS:
                 stats[key] += int(report_stats.get(key, 0) or 0)
             for key in BY_TYPE_KEYS:
-                by_type[key] += int(((report_stats.get("by_type", {}) or {}).get(key, 0)) or 0)
+                by_type[key] += int(
+                    ((report_stats.get("by_type", {}) or {}).get(key, 0)) or 0
+                )
             for key in BY_CAT_KEYS:
-                by_cat[key] += int(((report_stats.get("by_category", {}) or {}).get(key, 0)) or 0)
+                by_cat[key] += int(
+                    ((report_stats.get("by_category", {}) or {}).get(key, 0)) or 0
+                )
 
         stats["by_type"] = by_type
         stats["by_category"] = by_cat
@@ -141,10 +167,25 @@ def validate_scanner_contract(reports: Iterable[Path]) -> None:
 
 
 def _parse_merge_args(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--fs", required=True, type=Path, help="Path to trivy fs OPA wrapper report")
-    sub.add_argument("--config", required=True, type=Path, help="Path to trivy config OPA wrapper report")
-    sub.add_argument("--image", required=False, default=None, type=Path, help="Path to trivy image OPA wrapper report (optional: image scan removed from pipeline)")
-    sub.add_argument("--output", required=True, type=Path, help="Merged trivy OPA output path")
+    sub.add_argument(
+        "--fs", required=True, type=Path, help="Path to trivy fs OPA wrapper report"
+    )
+    sub.add_argument(
+        "--config",
+        required=True,
+        type=Path,
+        help="Path to trivy config OPA wrapper report",
+    )
+    sub.add_argument(
+        "--image",
+        required=False,
+        default=None,
+        type=Path,
+        help="Path to trivy image OPA wrapper report (optional: image scan removed from pipeline)",
+    )
+    sub.add_argument(
+        "--output", required=True, type=Path, help="Merged trivy OPA output path"
+    )
 
 
 def _parse_validate_schema_args(sub: argparse.ArgumentParser) -> None:
@@ -158,17 +199,29 @@ def _parse_validate_schema_args(sub: argparse.ArgumentParser) -> None:
 
 
 def _parse_validate_contract_args(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--report", action="append", required=True, type=Path, help="OPA wrapper report path")
+    sub.add_argument(
+        "--report",
+        action="append",
+        required=True,
+        type=Path,
+        help="OPA wrapper report path",
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="CloudSentinel shared contract utilities")
+    parser = argparse.ArgumentParser(
+        description="CloudSentinel shared contract utilities"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    merge_cmd = sub.add_parser("merge-trivy", help="Merge trivy fs/config/image OPA wrapper reports")
+    merge_cmd = sub.add_parser(
+        "merge-trivy", help="Merge trivy fs/config/image OPA wrapper reports"
+    )
     _parse_merge_args(merge_cmd)
 
-    schema_cmd = sub.add_parser("validate-schema", help="Validate a JSON document against a JSON schema")
+    schema_cmd = sub.add_parser(
+        "validate-schema", help="Validate a JSON document against a JSON schema"
+    )
     _parse_validate_schema_args(schema_cmd)
 
     contract_cmd = sub.add_parser(
@@ -184,10 +237,14 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "merge-trivy":
-        merged = merge_trivy_reports(args.fs, args.config, args.output, image_path=args.image)
+        merged = merge_trivy_reports(
+            args.fs, args.config, args.output, image_path=args.image
+        )
         status = merged.get("status", "unknown")
         total = int((merged.get("stats", {}) or {}).get("TOTAL", 0) or 0)
-        print(f"[normalize] merged trivy subscans -> {args.output} (status={status}, total={total})")
+        print(
+            f"[normalize] merged trivy subscans -> {args.output} (status={status}, total={total})"
+        )
         return 0
 
     if args.command == "validate-schema":

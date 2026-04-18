@@ -14,7 +14,9 @@ from typing import Any, Dict, List, Optional, Tuple
 class NormalizerUtilsMixin:
     def _run(self, cmd: List[str], fallback: str) -> str:
         try:
-            return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL).strip()
+            return subprocess.check_output(
+                cmd, text=True, stderr=subprocess.DEVNULL
+            ).strip()
         except Exception:
             return fallback
 
@@ -70,14 +72,40 @@ class NormalizerUtilsMixin:
         return s[2:] if s.startswith("./") else s
 
     def _empty_stats(self) -> Dict[str, int]:
-        return {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0, "TOTAL": 0, "EXEMPTED": 0, "FAILED": 0, "PASSED": 0}
+        return {
+            "CRITICAL": 0,
+            "HIGH": 0,
+            "MEDIUM": 0,
+            "LOW": 0,
+            "INFO": 0,
+            "TOTAL": 0,
+            "EXEMPTED": 0,
+            "FAILED": 0,
+            "PASSED": 0,
+        }
 
     def _trace_status(self, st: str, findings: List[Dict[str, Any]]) -> str:
         if st == "NOT_RUN":
             return "NOT_RUN"
         return "FAILED" if findings else "PASSED"
 
-    def _not_run(self, tool: str, path: str, reason: str, present=False, valid=False, sha=None):
-        rep = {"tool": tool, "version": "unknown", "status": "NOT_RUN", "findings": [], "errors": [reason]}
-        tr = {"tool": tool, "path": path, "present": present, "valid_json": valid, "status": "NOT_RUN", "reason": reason, "sha256": sha}
+    def _not_run(
+        self, tool: str, path: str, reason: str, present=False, valid=False, sha=None
+    ):
+        rep = {
+            "tool": tool,
+            "version": "unknown",
+            "status": "NOT_RUN",
+            "findings": [],
+            "errors": [reason],
+        }
+        tr = {
+            "tool": tool,
+            "path": path,
+            "present": present,
+            "valid_json": valid,
+            "status": "NOT_RUN",
+            "reason": reason,
+            "sha256": sha,
+        }
         return rep, tr

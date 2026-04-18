@@ -9,7 +9,12 @@ from typing import Any, Dict, List
 class NormalizerFindingMixin:
     def _category(self, f: Dict[str, Any], tool: str) -> str:
         raw = (self._first(f.get("category"), f.get("Category"), "") or "").upper()
-        st = (self._first(f.get("finding_type"), f.get("source", {}).get("scanner_type"), "") or "").lower()
+        st = (
+            self._first(
+                f.get("finding_type"), f.get("source", {}).get("scanner_type"), ""
+            )
+            or ""
+        ).lower()
         if tool == "gitleaks":
             return "SECRETS"
         if tool == "checkov":
@@ -18,23 +23,70 @@ class NormalizerFindingMixin:
             return "SECRETS"
         return "VULNERABILITIES"
 
-    def _fingerprint(self, tool: str, rid: str, rname: str, rpath: str, sl: int, el: int, secret_hash: str) -> str:
+    def _fingerprint(
+        self,
+        tool: str,
+        rid: str,
+        rname: str,
+        rpath: str,
+        sl: int,
+        el: int,
+        secret_hash: str,
+    ) -> str:
         ctx = "|".join([rpath.lower(), str(sl), str(el), secret_hash.strip().lower()])
-        return hashlib.sha256("|".join([tool.lower(), rid.strip().upper(), rname.lower(), ctx]).encode("utf-8")).hexdigest()
+        return hashlib.sha256(
+            "|".join([tool.lower(), rid.strip().upper(), rname.lower(), ctx]).encode(
+                "utf-8"
+            )
+        ).hexdigest()
 
-    def _normalize_finding(self, f: Dict[str, Any], tool: str, version: str, idx: int) -> Dict[str, Any]:
-        rid = self._first(f.get("id"), f.get("rule_id"), f.get("RuleID"), f.get("VulnerabilityID"), "UNKNOWN")
-        desc = self._first(f.get("description"), f.get("message"), f.get("title"), f.get("check_name"), "No description")
+    def _normalize_finding(
+        self, f: Dict[str, Any], tool: str, version: str, idx: int
+    ) -> Dict[str, Any]:
+        rid = self._first(
+            f.get("id"),
+            f.get("rule_id"),
+            f.get("RuleID"),
+            f.get("VulnerabilityID"),
+            "UNKNOWN",
+        )
+        desc = self._first(
+            f.get("description"),
+            f.get("message"),
+            f.get("title"),
+            f.get("check_name"),
+            "No description",
+        )
         cat = self._category(f, tool)
         rsrc = f.get("resource", {}) if isinstance(f.get("resource"), dict) else {}
-        rname = self._first(rsrc.get("name"), f.get("resource") if isinstance(f.get("resource"), str) else None, f.get("file"), f.get("target"), "unknown")
-        rpath = self._norm_path(self._first(rsrc.get("path"), f.get("file"), f.get("target"), "unknown"))
+        rname = self._first(
+            rsrc.get("name"),
+            f.get("resource") if isinstance(f.get("resource"), str) else None,
+            f.get("file"),
+            f.get("target"),
+            "unknown",
+        )
+        rpath = self._norm_path(
+            self._first(rsrc.get("path"), f.get("file"), f.get("target"), "unknown")
+        )
         meta = f.get("metadata", {}) if isinstance(f.get("metadata"), dict) else {}
         loc = rsrc.get("location", {}) if isinstance(rsrc.get("location"), dict) else {}
-        sl = self._to_int(loc.get("start_line") or f.get("start_line") or f.get("line") or meta.get("line"), 0)
-        el = self._to_int(loc.get("end_line") or f.get("end_line") or meta.get("end_line"), sl)
+        sl = self._to_int(
+            loc.get("start_line")
+            or f.get("start_line")
+            or f.get("line")
+            or meta.get("line"),
+            0,
+        )
+        el = self._to_int(
+            loc.get("end_line") or f.get("end_line") or meta.get("end_line"), sl
+        )
         sd = f.get("severity", {}) if isinstance(f.get("severity"), dict) else {}
-        raw_sev = f.get("severity") if isinstance(f.get("severity"), str) else (sd.get("level") or f.get("original_severity"))
+        raw_sev = (
+            f.get("severity")
+            if isinstance(f.get("severity"), str)
+            else (sd.get("level") or f.get("original_severity"))
+        )
         sev = self.sev_lut.get(str(raw_sev).upper(), "MEDIUM")
         # Status normalization: set once at normalization, immutable downstream.
         # DevSecOps rule: only PASSED (scanner explicit pass, e.g. Trivy misconfig)
@@ -59,22 +111,78 @@ class NormalizerFindingMixin:
         return {
             "id": fid,
             "confidence": confidence,
-            "source": {"tool": tool, "version": version or "unknown", "id": str(rid), "scanner_type": self._first(f.get("finding_type"), f.get("source", {}).get("scanner_type"), cat.lower(), "security")},
-            "resource": {"name": rname, "version": self._first(rsrc.get("version"), meta.get("installed_version"), "N/A"), "type": self._first(rsrc.get("type"), f.get("finding_type"), "asset"), "path": rpath, "location": {"file": rpath, "start_line": sl, "end_line": el}},
+            "source": {
+                "tool": tool,
+                "version": version or "unknown",
+                "id": str(rid),
+                "scanner_type": self._first(
+                    f.get("finding_type"),
+                    f.get("source", {}).get("scanner_type"),
+                    cat.lower(),
+                    "security",
+                ),
+            },
+            "resource": {
+                "name": rname,
+                "version": self._first(
+                    rsrc.get("version"), meta.get("installed_version"), "N/A"
+                ),
+                "type": self._first(rsrc.get("type"), f.get("finding_type"), "asset"),
+                "path": rpath,
+                "location": {"file": rpath, "start_line": sl, "end_line": el},
+            },
             "description": str(desc),
-            "severity": {"level": sev, "original_severity": self._first(sd.get("level"), raw_sev, "UNKNOWN"), "cvss_score": cvss},
+            "severity": {
+                "level": sev,
+                "original_severity": self._first(sd.get("level"), raw_sev, "UNKNOWN"),
+                "cvss_score": cvss,
+            },
             "category": cat,
             "status": st,
-            "remediation": {"sla_hours": self.sla.get(sev, 720), "fix_version": self._first(f.get("fix_version"), meta.get("fixed_version"), "N/A"), "references": [str(x) for x in refs]},
-            "context": {"git": {"author_email": self.git_author_email, "commit_date": self.git_commit_date}, "deduplication": {"fingerprint": fp, "is_duplicate": False, "duplicate_of": None}, "traceability": {"source_report": f"{tool}_raw.json", "source_index": idx, "normalized_at": self.ts}},
+            "remediation": {
+                "sla_hours": self.sla.get(sev, 720),
+                "fix_version": self._first(
+                    f.get("fix_version"), meta.get("fixed_version"), "N/A"
+                ),
+                "references": [str(x) for x in refs],
+            },
+            "context": {
+                "git": {
+                    "author_email": self.git_author_email,
+                    "commit_date": self.git_commit_date,
+                },
+                "deduplication": {
+                    "fingerprint": fp,
+                    "is_duplicate": False,
+                    "duplicate_of": None,
+                },
+                "traceability": {
+                    "source_report": f"{tool}_raw.json",
+                    "source_index": idx,
+                    "normalized_at": self.ts,
+                },
+            },
         }
 
     def _process_scanner(self, data: Dict[str, Any], name: str) -> Dict[str, Any]:
         v = str(data.get("version", "unknown"))
-        st = "NOT_RUN" if str(data.get("status", "NOT_RUN")).upper() == "NOT_RUN" else "OK"
+        st = (
+            "NOT_RUN"
+            if str(data.get("status", "NOT_RUN")).upper() == "NOT_RUN"
+            else "OK"
+        )
         raws = data.get("findings", [])
         raws = raws if isinstance(raws, list) else []
-        return {"tool": name, "version": v, "status": st, "errors": [str(x) for x in data.get("errors", [])], "stats": self._empty_stats(), "findings": [self._normalize_finding(f, name, v, i) for i, f in enumerate(raws)]}
+        return {
+            "tool": name,
+            "version": v,
+            "status": st,
+            "errors": [str(x) for x in data.get("errors", [])],
+            "stats": self._empty_stats(),
+            "findings": [
+                self._normalize_finding(f, name, v, i) for i, f in enumerate(raws)
+            ],
+        }
 
     def _dedup(self, findings: List[Dict[str, Any]]) -> None:
         """Metadata enrichment pass — marks duplicate findings via context.deduplication.
@@ -109,7 +217,9 @@ class NormalizerFindingMixin:
         for f in findings:
             # Deduplication signal: read from metadata, NOT from status.
             # status is immutable after _normalize_finding(); _dedup() only enriches metadata.
-            is_dup = bool(f.get("context", {}).get("deduplication", {}).get("is_duplicate", False))
+            is_dup = bool(
+                f.get("context", {}).get("deduplication", {}).get("is_duplicate", False)
+            )
             if is_dup:
                 s["EXEMPTED"] += 1
                 continue
@@ -122,5 +232,9 @@ class NormalizerFindingMixin:
             s["FAILED"] += 1
             s["TOTAL"] += 1
             sev = str(f.get("severity", {}).get("level", "MEDIUM")).upper()
-            s[sev if sev in {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"} else "MEDIUM"] += 1
+            s[
+                sev
+                if sev in {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}
+                else "MEDIUM"
+            ] += 1
         return s

@@ -73,7 +73,9 @@ class FetchExceptionsMappingTests(unittest.TestCase):
 
     def test_extract_v2_exception_rejects_invalid_severity(self):
         ra = self.base_ra()
-        ra["accepted_findings"] = ["CKV2_CS_AZ_001 infra/main.tf severity=UNKNOWN (Checkov Scan)"]
+        ra["accepted_findings"] = [
+            "CKV2_CS_AZ_001 infra/main.tf severity=UNKNOWN (Checkov Scan)"
+        ]
 
         ex, error = fetch_exceptions.extract_v2_exception(ra)
 
@@ -91,7 +93,9 @@ class FetchExceptionsMappingTests(unittest.TestCase):
 
     def test_extract_v2_exception_fuzzy_fallback_uses_detail_title(self):
         ra = self.base_ra()
-        ra["accepted_findings"] = ["CKV2_CS_AZ_001 Storage encryption missing (Checkov Scan)"]
+        ra["accepted_findings"] = [
+            "CKV2_CS_AZ_001 Storage encryption missing (Checkov Scan)"
+        ]
         ra["accepted_finding_details"] = [
             {
                 "title": "CKV2_CS_AZ_001 Storage encryption missing (Checkov Scan)",
@@ -139,7 +143,9 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["decision"], "accept")
         self.assertEqual(ex["tool"], "checkov")
         self.assertEqual(ex["rule_id"], "CKV_AZURE_10")
-        self.assertEqual(ex["resource"], "module.network.azurerm_network_security_group.public")
+        self.assertEqual(
+            ex["resource"], "module.network.azurerm_network_security_group.public"
+        )
         self.assertEqual(ex["severity"], "MEDIUM")
 
     def test_is_active_accepted_supports_status_alias_a(self):
@@ -219,7 +225,9 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(mapped, [])
         self.assertEqual(meta["total_valid_exceptions"], 0)
         self.assertGreaterEqual(meta["total_dropped"], 1)
-        self.assertTrue(any(x["reason"] == "parsing_error" for x in fetch_exceptions.DROPPED))
+        self.assertTrue(
+            any(x["reason"] == "parsing_error" for x in fetch_exceptions.DROPPED)
+        )
 
     def test_is_active_accepted_requires_active_and_approved_status(self):
         ra = self.base_ra()

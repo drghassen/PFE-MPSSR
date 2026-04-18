@@ -72,7 +72,9 @@ def _load_hcl_file(path: Path) -> Dict[str, Any]:
         return hcl2.load(handle)
 
 
-def _extract_resources(doc: Dict[str, Any]) -> Iterable[Tuple[str, str, Dict[str, Any]]]:
+def _extract_resources(
+    doc: Dict[str, Any],
+) -> Iterable[Tuple[str, str, Dict[str, Any]]]:
     for resource_block in doc.get("resource", []):
         if not isinstance(resource_block, dict):
             continue
@@ -137,7 +139,9 @@ def _decode_if_base64(field_name: str, raw: str) -> str:
         return raw
 
     try:
-        decoded = base64.b64decode(raw_stripped, validate=True).decode("utf-8", errors="ignore")
+        decoded = base64.b64decode(raw_stripped, validate=True).decode(
+            "utf-8", errors="ignore"
+        )
     except Exception:
         return raw
 
@@ -183,7 +187,9 @@ def _extract_yaml_packages(cloud_init_text: str) -> List[str]:
 
 def _detect_db_packages(cloud_init_text: str) -> List[str]:
     lower_text = cloud_init_text.lower()
-    detected = {kw for kw in DB_KEYWORDS if re.search(rf"\\b{re.escape(kw)}\\b", lower_text)}
+    detected = {
+        kw for kw in DB_KEYWORDS if re.search(rf"\\b{re.escape(kw)}\\b", lower_text)
+    }
 
     for package_name in _extract_yaml_packages(cloud_init_text):
         for kw in DB_KEYWORDS:
@@ -201,7 +207,9 @@ def _detect_remote_exec_patterns(cloud_init_text: str) -> List[str]:
     return matches
 
 
-def _build_violation(rule: str, severity: str, message: str, block: bool) -> Dict[str, Any]:
+def _build_violation(
+    rule: str, severity: str, message: str, block: bool
+) -> Dict[str, Any]:
     return {
         "rule": rule,
         "severity": severity,
@@ -227,7 +235,9 @@ def _analyze_resource(
     db_packages = _detect_db_packages(cloud_init_text)
     remote_exec_patterns = _detect_remote_exec_patterns(cloud_init_text)
 
-    role_spoofing_candidate = _as_lower_str(role_tag) == "web-server" and bool(db_packages)
+    role_spoofing_candidate = _as_lower_str(role_tag) == "web-server" and bool(
+        db_packages
+    )
     role_tag_missing = role_tag == ""
     remote_exec_detected = bool(remote_exec_patterns)
     blocking_env = env != "dev"
@@ -288,7 +298,9 @@ def _analyze_resource(
     }
 
 
-def analyze_terraform(terraform_dir: Path, repo_root: Path, default_env: str) -> Dict[str, Any]:
+def analyze_terraform(
+    terraform_dir: Path, repo_root: Path, default_env: str
+) -> Dict[str, Any]:
     resources: List[Dict[str, Any]] = []
     parse_errors: List[str] = []
 
@@ -369,10 +381,15 @@ def main(argv: List[str] | None = None) -> int:
     output_path = (repo_root / args.output).resolve()
 
     if not terraform_dir.exists() or not terraform_dir.is_dir():
-        print(f"[cloudinit-scan][ERROR] terraform dir not found: {terraform_dir}", file=sys.stderr)
+        print(
+            f"[cloudinit-scan][ERROR] terraform dir not found: {terraform_dir}",
+            file=sys.stderr,
+        )
         return 2
 
-    analysis = analyze_terraform(terraform_dir=terraform_dir, repo_root=repo_root, default_env=args.default_env)
+    analysis = analyze_terraform(
+        terraform_dir=terraform_dir, repo_root=repo_root, default_env=args.default_env
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:

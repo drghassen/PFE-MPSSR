@@ -7,8 +7,19 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from .fetch_normalization import accepted_findings, normalize_finding_candidate, risk_acceptance_id
-from .fetch_utils import ensure_dir, normalize_path, now_utc, sanitize_text, save_json, to_rfc3339
+from .fetch_normalization import (
+    accepted_findings,
+    normalize_finding_candidate,
+    risk_acceptance_id,
+)
+from .fetch_utils import (
+    ensure_dir,
+    normalize_path,
+    now_utc,
+    sanitize_text,
+    save_json,
+    to_rfc3339,
+)
 from .fetch_validation import (
     FetchContext,
     is_active_accepted,
@@ -40,9 +51,10 @@ def _build_ci_scope() -> dict:
         scope["branches"] = [branch]
 
     env = (
-        os.environ.get("CI_ENVIRONMENT_NAME", "")
-        or os.environ.get("ENVIRONMENT", "")
-    ).strip().lower()
+        (os.environ.get("CI_ENVIRONMENT_NAME", "") or os.environ.get("ENVIRONMENT", ""))
+        .strip()
+        .lower()
+    )
     valid_envs = {"dev", "test", "staging", "prod"}
     if env in valid_envs:
         scope["environments"] = [env]
@@ -73,7 +85,9 @@ def emit_audit_event(
         f.write(json.dumps(event, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-def json_payload(ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
+def json_payload(
+    ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict[str, Any]
+) -> Dict[str, Any]:
     return {
         "cloudsentinel": {
             "exceptions": {
@@ -86,7 +100,9 @@ def json_payload(ctx: FetchContext, exceptions: List[Dict[str, Any]], meta: Dict
     }
 
 
-def drop(ctx: FetchContext, ra_identifier: str, reason: str, detail: str, input_payload: Any) -> None:
+def drop(
+    ctx: FetchContext, ra_identifier: str, reason: str, detail: str, input_payload: Any
+) -> None:
     record = {
         "risk_acceptance_id": ra_identifier,
         "reason": reason,
@@ -150,7 +166,9 @@ def _draft_exception(
             occurrence_file_path,
             occurrence_line,
             occurrence_hash,
-        ) if tool and rule_id and resource else "",
+        )
+        if tool and rule_id and resource
+        else "",
         "tool": tool,
         "rule_id": rule_id,
         "resource": resource,
@@ -183,7 +201,9 @@ def _deduplicate_exceptions(exceptions: List[Dict[str, Any]]) -> List[Dict[str, 
     return [by_id[item_id][1] for item_id in ordered_ids]
 
 
-def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def map_risk_acceptances(
+    ctx: FetchContext, raw_ras: List[Dict[str, Any]]
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     accepted: List[Dict[str, Any]] = []
 
     for ra in raw_ras:
@@ -209,15 +229,29 @@ def map_risk_acceptances(ctx: FetchContext, raw_ras: List[Dict[str, Any]]) -> Tu
 
         valid_for_ra = 0
         for finding in findings:
-            finding_dict = finding if isinstance(finding, dict) else {"title": sanitize_text(finding)}
+            finding_dict = (
+                finding
+                if isinstance(finding, dict)
+                else {"title": sanitize_text(finding)}
+            )
             candidate = normalize_finding_candidate(ctx, ra, finding_dict)
             normalized_exception = _draft_exception(ctx, ra, candidate, finding_dict)
 
-            is_valid, reason, detail = validate_normalized_exception(ctx, normalized_exception)
+            is_valid, reason, detail = validate_normalized_exception(
+                ctx, normalized_exception
+            )
             if not is_valid:
                 reject_reason = reason or "parsing_error"
-                drop(ctx, ra_identifier, reject_reason, detail or "validation failed", finding_dict)
-                emit_audit_event(ctx, finding_dict, normalized_exception, "rejected", reject_reason)
+                drop(
+                    ctx,
+                    ra_identifier,
+                    reject_reason,
+                    detail or "validation failed",
+                    finding_dict,
+                )
+                emit_audit_event(
+                    ctx, finding_dict, normalized_exception, "rejected", reject_reason
+                )
                 continue
 
             accepted.append(normalized_exception)

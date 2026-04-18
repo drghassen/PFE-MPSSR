@@ -14,7 +14,9 @@ SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fetch_exceptions.fetch_defectdojo import fetch_risk_acceptances as _fetch_risk_acceptances  # noqa: E402
+from fetch_exceptions.fetch_defectdojo import (
+    fetch_risk_acceptances as _fetch_risk_acceptances,
+)  # noqa: E402
 from fetch_exceptions.fetch_mapping import (  # noqa: E402
     drop as _drop,
     emit_audit_event as _emit_audit_event,
@@ -22,7 +24,10 @@ from fetch_exceptions.fetch_mapping import (  # noqa: E402
     map_risk_acceptances as _map_risk_acceptances,
     save_outputs as _save_outputs,
 )
-from fetch_exceptions.fetch_normalization import accepted_findings, normalize_finding_candidate  # noqa: E402
+from fetch_exceptions.fetch_normalization import (
+    accepted_findings,
+    normalize_finding_candidate,
+)  # noqa: E402
 from fetch_exceptions.fetch_utils import (  # noqa: E402
     normalize_path,
     normalize_severity as _normalize_severity,
@@ -58,11 +63,18 @@ def normalize_severity(value: str) -> str:
     return _normalize_severity(value, SEVERITY_ENUM)
 
 
-def emit_audit_event(input_payload: Any, output_payload: Optional[Dict[str, Any]], status: str, reason: Optional[str] = None) -> None:
+def emit_audit_event(
+    input_payload: Any,
+    output_payload: Optional[Dict[str, Any]],
+    status: str,
+    reason: Optional[str] = None,
+) -> None:
     _emit_audit_event(CTX, input_payload, output_payload, status, reason)
 
 
-def json_payload(exceptions: List[Dict[str, Any]], meta: Dict[str, Any]) -> Dict[str, Any]:
+def json_payload(
+    exceptions: List[Dict[str, Any]], meta: Dict[str, Any]
+) -> Dict[str, Any]:
     return _json_payload(CTX, exceptions, meta)
 
 
@@ -75,10 +87,14 @@ def save_outputs(payload: Dict[str, Any]) -> None:
 
 
 def fetch_risk_acceptances() -> List[Dict[str, Any]]:
-    return _fetch_risk_acceptances(DOJO_URL, DOJO_API_KEY, CTX.dojo_engagement_id, logger)
+    return _fetch_risk_acceptances(
+        DOJO_URL, DOJO_API_KEY, CTX.dojo_engagement_id, logger
+    )
 
 
-def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any], finding_raw: Dict[str, Any]) -> Dict[str, Any]:
+def _draft_exception(
+    ra: Dict[str, Any], finding_candidate: Dict[str, Any], finding_raw: Dict[str, Any]
+) -> Dict[str, Any]:
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
     resource = normalize_path(finding_candidate.get("resource"))
@@ -117,7 +133,9 @@ def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any], find
             occurrence_file_path,
             occurrence_line,
             occurrence_hash,
-        ) if tool and rule_id and resource else "",
+        )
+        if tool and rule_id and resource
+        else "",
         "tool": tool,
         "rule_id": rule_id,
         "resource": resource,
@@ -133,7 +151,9 @@ def _draft_exception(ra: Dict[str, Any], finding_candidate: Dict[str, Any], find
     }
 
 
-def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+def extract_v2_exception(
+    ra: Dict[str, Any],
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     findings = accepted_findings(ra)
     if not findings:
         return None, "no accepted findings available"
@@ -141,11 +161,22 @@ def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
     def _finding_richness(item: Any) -> int:
         if not isinstance(item, dict):
             return 0
-        keys = ["title", "name", "description", "severity", "file_path", "path", "component_name"]
+        keys = [
+            "title",
+            "name",
+            "description",
+            "severity",
+            "file_path",
+            "path",
+            "component_name",
+        ]
         return sum(1 for key in keys if sanitize_text(item.get(key)))
 
     best_finding = max(
-        [item if isinstance(item, dict) else {"title": sanitize_text(item)} for item in findings],
+        [
+            item if isinstance(item, dict) else {"title": sanitize_text(item)}
+            for item in findings
+        ],
         key=_finding_richness,
     )
     candidate = normalize_finding_candidate(CTX, ra, best_finding)
@@ -158,7 +189,9 @@ def extract_v2_exception(ra: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
     return normalized, None
 
 
-def map_risk_acceptances(raw_ras: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def map_risk_acceptances(
+    raw_ras: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     return _map_risk_acceptances(CTX, raw_ras)
 
 

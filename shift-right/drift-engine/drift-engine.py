@@ -26,7 +26,11 @@ from pydantic import BaseModel, Field
 
 from utils.azure_client import AzureResourceClient, load_azure_env
 from utils.defectdojo_client import DefectDojoClient, DefectDojoConfig
-from utils.json_normalizer import classify_drift_severity, drift_items_to_defectdojo_generic_findings, normalize_terraform_plan
+from utils.json_normalizer import (
+    classify_drift_severity,
+    drift_items_to_defectdojo_generic_findings,
+    normalize_terraform_plan,
+)
 from utils.opa_client import OPAClient, OPAConfig
 from utils.opa_normalizer import normalize_drift_for_opa
 from utils.enrichment import enrich_drift_items_with_opa
@@ -86,15 +90,25 @@ class DefectDojoSection(BaseModel):
     minimum_severity: str = "Info"
 
 
-
 class OPASection(BaseModel):
     """OPA Policy Decision Point configuration for Shift-Right drift evaluation."""
+
     enabled: bool = Field(default=True, description="Enable OPA evaluation")
-    server_url: str = Field(default="http://localhost:8182", description="OPA server URL")
-    policy_path: str = Field(default="cloudsentinel.shiftright.drift", description="OPA policy path")
+    server_url: str = Field(
+        default="http://localhost:8182", description="OPA server URL"
+    )
+    policy_path: str = Field(
+        default="cloudsentinel.shiftright.drift", description="OPA policy path"
+    )
     timeout: int = Field(default=30, description="HTTP timeout in seconds")
-    fallback_on_error: bool = Field(default=True, description="Use fallback if OPA fails")
-    auth_token: str = Field(default="", description="Bearer token for OPA Zero Trust auth")
+    fallback_on_error: bool = Field(
+        default=True, description="Use fallback if OPA fails"
+    )
+    auth_token: str = Field(
+        default="", description="Bearer token for OPA Zero Trust auth"
+    )
+
+
 class AppConfig(BaseModel):
     engine: EngineConfig = Field(default_factory=EngineConfig)
     azure: AzureConfig = Field(default_factory=AzureConfig)
@@ -238,7 +252,9 @@ def _choose_tf_binary(tf_working_dir: Path) -> str:
     if lockfile_path.exists():
         try:
             content = lockfile_path.read_text(encoding="utf-8", errors="ignore")
-            if ("registry.opentofu.org" in content or "opentofu" in content) and shutil.which("tofu"):
+            if (
+                "registry.opentofu.org" in content or "opentofu" in content
+            ) and shutil.which("tofu"):
                 return "tofu"
         except Exception:
             pass
@@ -260,7 +276,13 @@ def _redact_sensitive(text: str) -> str:
     redacted = text
 
     # 1) Replace exact secret env values if they appear in output (strongest signal).
-    for key in ("ARM_CLIENT_SECRET", "DEFECTDOJO_API_KEY", "AZURE_CLIENT_SECRET", "ARM_ACCESS_KEY", "OPA_AUTH_TOKEN"):
+    for key in (
+        "ARM_CLIENT_SECRET",
+        "DEFECTDOJO_API_KEY",
+        "AZURE_CLIENT_SECRET",
+        "ARM_ACCESS_KEY",
+        "OPA_AUTH_TOKEN",
+    ):
         value = os.getenv(key)
         if value:
             redacted = redacted.replace(value, "***REDACTED***")
@@ -298,14 +320,15 @@ def build_report_context(
     # "Info" matches the severity value used throughout the drift engine
     # (OPA normalizer, enrichment, DefectDojo minimum_severity).
     _OCSF_ORDER = ["Info", "Low", "Medium", "High", "Critical"]
-    _OCSF_ID    = {"Info": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}
+    _OCSF_ID = {"Info": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}
 
     if not detected:
         severity = "Info"
     else:
         _item_severities = [
             # Use OPA-enriched severity if available, else classify statically
-            item.get("severity") if item.get("opa_evaluated")
+            item.get("severity")
+            if item.get("opa_evaluated")
             else classify_drift_severity(
                 str(item.get("type") or ""),
                 item.get("changed_paths") or [],
@@ -380,7 +403,9 @@ def build_report_context(
 
 def render_report(template_path: Path, context: dict[str, Any]) -> dict[str, Any]:
     """Renders the report Jinja2 template and returns a JSON dict."""
-    env = Environment(loader=FileSystemLoader(str(template_path.parent)), autoescape=False)
+    env = Environment(
+        loader=FileSystemLoader(str(template_path.parent)), autoescape=False
+    )
     template = env.get_template(template_path.name)
     rendered = template.render(**context)
     return json.loads(rendered)
@@ -389,16 +414,28 @@ def render_report(template_path: Path, context: dict[str, Any]) -> dict[str, Any
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     """Writes JSON output to disk (creates parent directories if needed)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def main(argv: list[str]) -> int:
     """Entrypoint. Returns process exit code (0 or 1)."""
-    parser = argparse.ArgumentParser(description="CloudSentinel Drift Engine (scheduled batch job)")
-    parser.add_argument("--config", default=os.getenv("DRIFT_CONFIG_PATH", "config/drift_config.yaml"))
-    parser.add_argument("--tf-dir", default=None, help="Override Terraform working directory")
-    parser.add_argument("--output", default=None, help="Override drift report output path")
-    parser.add_argument("--push-dojo", action="store_true", help="Force push findings to DefectDojo")
+    parser = argparse.ArgumentParser(
+        description="CloudSentinel Drift Engine (scheduled batch job)"
+    )
+    parser.add_argument(
+        "--config", default=os.getenv("DRIFT_CONFIG_PATH", "config/drift_config.yaml")
+    )
+    parser.add_argument(
+        "--tf-dir", default=None, help="Override Terraform working directory"
+    )
+    parser.add_argument(
+        "--output", default=None, help="Override drift report output path"
+    )
+    parser.add_argument(
+        "--push-dojo", action="store_true", help="Force push findings to DefectDojo"
+    )
     args = parser.parse_args(argv)
 
     logger = configure_logging()
@@ -411,7 +448,9 @@ def main(argv: list[str]) -> int:
 
     def write_minimal_error_report(message: str, remediation: str) -> None:
         finished_at = _utc_now()
-        out_path = Path(args.output or os.getenv("DRIFT_OUTPUT_PATH") or "output/drift-report.json").expanduser()
+        out_path = Path(
+            args.output or os.getenv("DRIFT_OUTPUT_PATH") or "output/drift-report.json"
+        ).expanduser()
         if not out_path.is_absolute():
             out_path = (engine_root / out_path).resolve()
 
@@ -441,11 +480,21 @@ def main(argv: list[str]) -> int:
             "drift": {
                 "detected": False,
                 "exit_code": 1,
-                "summary": {"resources_changed": 0, "resources_by_action": {}, "provider_names": []},
+                "summary": {
+                    "resources_changed": 0,
+                    "resources_by_action": {},
+                    "provider_names": [],
+                },
                 "items": [],
             },
             "terraform": {"version": None, "init": {}, "plan": {}},
-            "errors": [{"type": "ConfigLoadError", "message": message, "remediation": remediation}],
+            "errors": [
+                {
+                    "type": "ConfigLoadError",
+                    "message": message,
+                    "remediation": remediation,
+                }
+            ],
         }
         write_json(out_path, payload)
 
@@ -466,7 +515,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     if config.defectdojo.enabled:
-        if not (config.defectdojo.base_url and config.defectdojo.api_key and config.defectdojo.engagement_id):
+        if not (
+            config.defectdojo.base_url
+            and config.defectdojo.api_key
+            and config.defectdojo.engagement_id
+        ):
             logger.error("defectdojo_config_missing")
             write_minimal_error_report(
                 message="DefectDojo config incomplete (base_url/api_key/engagement_id).",
@@ -486,18 +539,31 @@ def main(argv: list[str]) -> int:
     out_path = _resolve_path_under(engine_root, config.report.output_path)
 
     tf_working_dir = Path(config.terraform.working_dir).expanduser().resolve()
-    drift_work_dir = Path(os.getenv("DRIFT_WORK_DIR", "/tmp/cloudsentinel-drift")).expanduser().resolve()
+    drift_work_dir = (
+        Path(os.getenv("DRIFT_WORK_DIR", "/tmp/cloudsentinel-drift"))
+        .expanduser()
+        .resolve()
+    )
     tf_plan_path = drift_work_dir / run_id / "tfplan"
     tf_bin = _choose_tf_binary(tf_working_dir)
     tf_runner = TerraformRunner(working_dir=tf_working_dir, terraform_bin=tf_bin)
 
-    logger.info("iac_cli_selected", run_id=run_id, binary=tf_bin, working_dir=str(tf_working_dir))
+    logger.info(
+        "iac_cli_selected",
+        run_id=run_id,
+        binary=tf_bin,
+        working_dir=str(tf_working_dir),
+    )
 
     tf_version: str | None = None
     init_result: dict[str, Any] = {}
     plan_result: dict[str, Any] = {}
     drift_items: list[dict[str, Any]] = []
-    drift_summary_obj: dict[str, Any] = {"resources_changed": 0, "resources_by_action": {}, "provider_names": []}
+    drift_summary_obj: dict[str, Any] = {
+        "resources_changed": 0,
+        "resources_by_action": {},
+        "provider_names": [],
+    }
 
     def emit_report(*, finished_at: datetime, exit_code: int, detected: bool) -> None:
         context = build_report_context(
@@ -531,7 +597,9 @@ def main(argv: list[str]) -> int:
         logger.error("run_failed", run_id=run_id, output_path=str(out_path))
         return 1
 
-    tf_files = sorted(list(tf_working_dir.glob("*.tf")) + list(tf_working_dir.glob("*.tf.json")))
+    tf_files = sorted(
+        list(tf_working_dir.glob("*.tf")) + list(tf_working_dir.glob("*.tf.json"))
+    )
     if not tf_files:
         errors.append(
             {
@@ -548,7 +616,6 @@ def main(argv: list[str]) -> int:
 
     # tf_version updated here after runner is available.
     tf_version = tf_runner.version()
-
 
     # Optional Azure validation/enrichment (does not block drift detection).
     if config.azure.validate_access:
@@ -611,13 +678,21 @@ def main(argv: list[str]) -> int:
             {
                 "type": "TerraformWorkspaceError",
                 "message": f"Failed to select/create workspace '{config.terraform.workspace}'",
-                "details": {"stderr": ws_res.stderr[-4000:], "stdout": ws_res.stdout[-4000:]},
+                "details": {
+                    "stderr": ws_res.stderr[-4000:],
+                    "stdout": ws_res.stdout[-4000:],
+                },
                 "remediation": "Check Terraform workspace settings and backend permissions.",
             }
         )
         finished_at = _utc_now()
         emit_report(finished_at=finished_at, exit_code=1, detected=False)
-        logger.error("run_failed", run_id=run_id, reason="workspace_error", output_path=str(out_path))
+        logger.error(
+            "run_failed",
+            run_id=run_id,
+            reason="workspace_error",
+            output_path=str(out_path),
+        )
         return 1
 
     plan_cmd = tf_runner.plan_refresh_only(
@@ -655,7 +730,11 @@ def main(argv: list[str]) -> int:
         logger.error("run_failed", run_id=run_id, output_path=str(out_path))
         return 1
 
-    plan_json = tf_runner.show_plan_json(tf_plan_path) if config.report.include_plan_json else None
+    plan_json = (
+        tf_runner.show_plan_json(tf_plan_path)
+        if config.report.include_plan_json
+        else None
+    )
     if plan_json:
         summary, items = normalize_terraform_plan(plan_json)
         drift_items = items
@@ -664,49 +743,65 @@ def main(argv: list[str]) -> int:
         # OPA EVALUATION (Shift-Right Decision Point)
         # ============================================================
         if config.opa.enabled and drift_items:
-            logger.info("opa_evaluation_start", run_id=run_id, drift_count=len(drift_items))
-            
+            logger.info(
+                "opa_evaluation_start", run_id=run_id, drift_count=len(drift_items)
+            )
+
             try:
                 # 1. Normaliser pour OPA
                 opa_input = normalize_drift_for_opa(drift_items)
-                
+
                 # 2. Appeler OPA Server
-                opa_client = OPAClient(OPAConfig(
-                    server_url=config.opa.server_url,
-                    policy_path=config.opa.policy_path,
-                    timeout=config.opa.timeout,
-                    fallback_on_error=config.opa.fallback_on_error,
-                    auth_token=config.opa.auth_token
-                ))
-                
+                opa_client = OPAClient(
+                    OPAConfig(
+                        server_url=config.opa.server_url,
+                        policy_path=config.opa.policy_path,
+                        timeout=config.opa.timeout,
+                        fallback_on_error=config.opa.fallback_on_error,
+                        auth_token=config.opa.auth_token,
+                    )
+                )
+
                 opa_decisions = opa_client.evaluate_drift(opa_input)
-                
+
                 # 3. Enrichir les drift items avec décisions OPA
                 drift_items = enrich_drift_items_with_opa(drift_items, opa_decisions)
-                
+
                 logger.info(
                     "opa_evaluation_complete",
                     run_id=run_id,
                     violations=len(opa_decisions.get("violations", [])),
-                    effective_violations=len(opa_decisions.get("effective_violations", [])),
-                    excepted_violations=len(opa_decisions.get("excepted_violations", [])),
+                    effective_violations=len(
+                        opa_decisions.get("effective_violations", [])
+                    ),
+                    excepted_violations=len(
+                        opa_decisions.get("excepted_violations", [])
+                    ),
                     compliant=len(opa_decisions.get("compliant", [])),
-                    drift_exception_summary=opa_decisions.get("drift_exception_summary", {}),
-                    fallback_mode=opa_decisions.get("metadata", {}).get("fallback_mode", False)
+                    drift_exception_summary=opa_decisions.get(
+                        "drift_exception_summary", {}
+                    ),
+                    fallback_mode=opa_decisions.get("metadata", {}).get(
+                        "fallback_mode", False
+                    ),
                 )
-                
+
             except Exception as exc:
                 logger.error("opa_evaluation_failed", run_id=run_id, error=str(exc))
-                
+
                 if not config.opa.fallback_on_error:
-                    errors.append({
-                        "type": "OPAEvaluationError",
-                        "message": f"OPA evaluation failed: {exc}",
-                        "remediation": "Check OPA server connectivity and policy validity."
-                    })
+                    errors.append(
+                        {
+                            "type": "OPAEvaluationError",
+                            "message": f"OPA evaluation failed: {exc}",
+                            "remediation": "Check OPA server connectivity and policy validity.",
+                        }
+                    )
                     # Continue sans OPA (drift_items non enrichis)
                 else:
-                    logger.warning("opa_fallback_drift_items_not_enriched", run_id=run_id)
+                    logger.warning(
+                        "opa_fallback_drift_items_not_enriched", run_id=run_id
+                    )
         else:
             if not config.opa.enabled:
                 logger.warning("opa_disabled_skipping_evaluation", run_id=run_id)
@@ -740,8 +835,14 @@ def main(argv: list[str]) -> int:
     if config.defectdojo.enabled:
         error_count_before = len(errors)
         try:
-            if not (config.defectdojo.base_url and config.defectdojo.api_key and config.defectdojo.engagement_id):
-                raise ValueError("DefectDojo config incomplete (base_url/api_key/engagement_id).")
+            if not (
+                config.defectdojo.base_url
+                and config.defectdojo.api_key
+                and config.defectdojo.engagement_id
+            ):
+                raise ValueError(
+                    "DefectDojo config incomplete (base_url/api_key/engagement_id)."
+                )
             dd_cfg = DefectDojoConfig(
                 base_url=config.defectdojo.base_url,
                 api_key=config.defectdojo.api_key,
@@ -753,7 +854,9 @@ def main(argv: list[str]) -> int:
             )
             dd = DefectDojoClient(dd_cfg)
             scan_date = finished_at.date().isoformat()
-            findings = drift_items_to_defectdojo_generic_findings(drift_items, scan_date=scan_date)
+            findings = drift_items_to_defectdojo_generic_findings(
+                drift_items, scan_date=scan_date
+            )
             response = dd.import_scan_generic_findings(findings, scan_date=scan_date)
             logger.info("defectdojo_import_success", run_id=run_id, response=response)
         except Exception as exc:
@@ -767,7 +870,9 @@ def main(argv: list[str]) -> int:
             logger.error("defectdojo_import_failed", run_id=run_id, error=str(exc))
         finally:
             if len(errors) != error_count_before:
-                emit_report(finished_at=_utc_now(), exit_code=exit_code, detected=detected)
+                emit_report(
+                    finished_at=_utc_now(), exit_code=exit_code, detected=detected
+                )
 
     if errors:
         return 1

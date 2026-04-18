@@ -74,8 +74,16 @@ class TerraformRunner:
             )
         except subprocess.TimeoutExpired as exc:
             duration_ms = int((time.time() - started) * 1000)
-            stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", "replace")
-            stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode("utf-8", "replace")
+            stdout = (
+                exc.stdout
+                if isinstance(exc.stdout, str)
+                else (exc.stdout or b"").decode("utf-8", "replace")
+            )
+            stderr = (
+                exc.stderr
+                if isinstance(exc.stderr, str)
+                else (exc.stderr or b"").decode("utf-8", "replace")
+            )
             return TerraformCommandResult(
                 cmd=cmd,
                 return_code=124,
@@ -103,7 +111,9 @@ class TerraformRunner:
         except Exception:
             return None
 
-    def init(self, upgrade: bool = False, reconfigure: bool = False, backend: bool = True) -> TerraformCommandResult:
+    def init(
+        self, upgrade: bool = False, reconfigure: bool = False, backend: bool = True
+    ) -> TerraformCommandResult:
         base_args = ["init", "-input=false", "-no-color"]
         if upgrade:
             base_args.append("-upgrade")
@@ -115,7 +125,9 @@ class TerraformRunner:
         # `.terraform.lock.hcl` lives in the Terraform working directory. When the IaC folder is mounted
         # read-only (recommended for drift detection), `terraform init` must not try to update the lockfile.
         # Users can override via `TF_LOCKFILE_MODE` (Terraform supports only "readonly" in newer versions).
-        explicit_lockfile_mode = (self.env.get("TF_LOCKFILE_MODE") or "").strip().lower()
+        explicit_lockfile_mode = (
+            (self.env.get("TF_LOCKFILE_MODE") or "").strip().lower()
+        )
 
         lockfile_mode = explicit_lockfile_mode
         if not lockfile_mode:
@@ -137,9 +149,21 @@ class TerraformRunner:
             if v:
                 backend_kv[k] = v
 
-        add("resource_group_name", self.env.get("TF_BACKEND_RESOURCE_GROUP_NAME") or self.env.get("TF_BACKEND_RG"))
-        add("storage_account_name", self.env.get("TF_BACKEND_STORAGE_ACCOUNT_NAME") or self.env.get("TF_BACKEND_SA"))
-        add("container_name", self.env.get("TF_BACKEND_CONTAINER_NAME") or self.env.get("TF_BACKEND_CONTAINER"))
+        add(
+            "resource_group_name",
+            self.env.get("TF_BACKEND_RESOURCE_GROUP_NAME")
+            or self.env.get("TF_BACKEND_RG"),
+        )
+        add(
+            "storage_account_name",
+            self.env.get("TF_BACKEND_STORAGE_ACCOUNT_NAME")
+            or self.env.get("TF_BACKEND_SA"),
+        )
+        add(
+            "container_name",
+            self.env.get("TF_BACKEND_CONTAINER_NAME")
+            or self.env.get("TF_BACKEND_CONTAINER"),
+        )
         add("key", self.env.get("TF_BACKEND_KEY"))
         add("use_azuread_auth", self.env.get("TF_BACKEND_USE_AZUREAD_AUTH"))
 
