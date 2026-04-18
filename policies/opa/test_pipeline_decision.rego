@@ -10,6 +10,7 @@ package cloudsentinel.gate
 import rego.v1
 
 base_input := {
+  "schema_version": "1.2.1",
   "metadata": {
     "environment": "dev"
   },

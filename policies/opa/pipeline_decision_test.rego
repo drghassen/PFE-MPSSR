@@ -18,6 +18,7 @@ _scanners_ok := {
 }
 
 _base := {
+	"schema_version": "1.2.1",
 	"metadata": {"environment": "dev"},
 	"quality_gate": {"thresholds": {"critical_max": 0, "high_max": 2}},
 	"scanners": _scanners_ok,
@@ -449,4 +450,85 @@ test_allow_when_trivy_image_scans_removed if {
 	count(result.deny) == 0
 	result.metrics.critical == 0
 	result.metrics.high == 0
+}
+
+# \u2500\u2500\u2500 TEST 18: Four-Eyes Principle \u2014 owner equals approved_by \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+test_four_eyes_violation_owner_equals_approver if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"intent_contract": {
+			"declared": {
+				"service_type": "web-server",
+				"exposure_level": "internet-facing",
+				"owner": "dev@company.com",
+				"approved_by": "dev@company.com",
+			},
+			"violation": null,
+		},
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-INTENT-FOUR-EYES-VIOLATION")
+}
+
+# \u2500\u2500\u2500 TEST 19: Four-Eyes Principle \u2014 valid different users \u2192 allow \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+test_four_eyes_valid_different_users if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"intent_contract": {
+			"declared": {
+				"service_type": "web-server",
+				"exposure_level": "internet-facing",
+				"owner": "dev@company.com",
+				"approved_by": "lead@company.com",
+			},
+			"violation": null,
+		},
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	every msg in result.deny { not contains(msg, "CS-INTENT-FOUR-EYES-VIOLATION") }
+}
+
+# \u2500\u2500\u2500 TEST 20: Database exposed to internet \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+test_db_internet_facing_forbidden if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"intent_contract": {
+			"declared": {
+				"service_type": "database",
+				"exposure_level": "internet-facing",
+				"owner": "dev@company.com",
+				"approved_by": "lead@company.com",
+			},
+			"violation": null,
+		},
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-INTENT-DB-INTERNET-FACING")
+}
+
+# \u2500\u2500\u2500 TEST 21: Unsupported schema version \u2192 deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+test_schema_version_missing_denied if {
+	invalid_base := object.remove(_base, {"schema_version"})
+	result := data.cloudsentinel.gate.decision with input as object.union(invalid_base, {
+		"intent_contract": _intent_web_server_spoofing,
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-SCHEMA-VERSION-UNSUPPORTED")
+}
+
+# \u2500\u2500\u2500 TEST 22: Correct schema version "1.2.1" \u2192 no schema deny \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+test_schema_version_1_2_1_accepted if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"intent_contract": _intent_web_server_spoofing,
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	every msg in result.deny { not contains(msg, "CS-SCHEMA-VERSION-UNSUPPORTED") }
 }
