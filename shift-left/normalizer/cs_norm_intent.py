@@ -71,11 +71,16 @@ class NormalizerIntentMixin:
             return _missing
 
         declared = {
-            "service_type":   str(value.get("service_type", "")),
-            "exposure_level": str(value.get("exposure_level", "")),
-            "owner":          str(value.get("owner", "")),
-            "approved_by":    str(value.get("approved_by", "")),
+            "service_type":   str(value.get("service_type", "")).strip(),
+            "exposure_level": str(value.get("exposure_level", "")).strip(),
+            "owner":          str(value.get("owner", "")).strip(),
+            "approved_by":    str(value.get("approved_by", "")).strip(),
         }
+        
+        if not all(declared.values()):
+            logger.error("[intent] \u274c champs vides dans intent_contract")
+            return {"declared": None, "violation": "EMPTY_INTENT_CONTRACT_FIELDS"}
+
         logger.info(
             "[intent] \u2705 Contrat extrait \u2014 service_type=%s exposure=%s",
             declared["service_type"],
