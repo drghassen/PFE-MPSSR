@@ -12,7 +12,6 @@ backend azurerm ou aux credentials Azure dans le stage scan.
 import argparse
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -90,43 +89,25 @@ def parse_resource_intent(tfvars_path: str) -> Optional[Dict[str, str]]:
     }
 
 
-def build_tfplan_stub(intent: Optional[Dict[str, str]]) -> Dict[str, Any]:
-    """Construit un stub JSON minimal compatible avec normalize.py.
-
-    ``extract_intent_contract()`` dans normalize.py attend la structure :
-
-    .. code-block:: json
-
-        {
-          "variables": {
-            "resource_intent": {
-              "value": { "service_type": "...", ... }
-            }
-          }
-        }
-
-    Si ``intent`` est ``None``, ``value`` est ``null`` — ce qui déclenche
-    ``MISSING_INTENT_CONTRACT`` dans normalize.py puis deny OPA CRITICAL.
-
-    Args:
-        intent: Dict des champs resource_intent, ou ``None`` si absent.
-
-    Returns:
-        Dict structuré comme un ``terraform show -json`` partiel.
-    """
-    return {
+def build_tfplan_stub(intent: Optional[Dict[str, str]], is_invalid: bool = False) -> Dict[str, Any]:
+    stub: Dict[str, Any] = {
         "variables": {
             "resource_intent": {
                 "value": intent,
             }
         }
     }
+    if is_invalid:
+        stub["_cloudsentinel_validation"] = {
+            "validated_by": "extract-intent-from-tfvars.py",
+            "violation": "INVALID_INTENT_CONTRACT"
+        }
+    return stub
 
 
 def main() -> None:
-    """Point d'entrée : parse les arguments, extrait le contrat, écrit le JSON."""
     parser = argparse.ArgumentParser(
-        description="CloudSentinel — Extrait resource_intent depuis .tfvars vers un stub JSON"
+        description="CloudSentinel \u2014 Extrait resource_intent depuis .tfvars vers un stub JSON"
     )
     parser.add_argument(
         "--tfvars",
@@ -141,13 +122,36 @@ def main() -> None:
     args = parser.parse_args()
 
     intent = parse_resource_intent(args.tfvars)
+    is_invalid = False
 
     if intent is None:
-        log("resource_intent absent — MISSING_INTENT_CONTRACT sera levé par normalize.py")
+        log("resource_intent absent \u2014 MISSING_INTENT_CONTRACT sera lev\u00e9 par normalize.py")
     else:
-        log("resource_intent extrait avec succès")
+        violations = []
+        st = intent.get("service_type", "").strip()
+        el = intent.get("exposure_level", "").strip()
+        ow = intent.get("owner", "").strip().lower()
+        ab = intent.get("approved_by", "").strip().lower()
 
-    stub = build_tfplan_stub(intent)
+        if st not in {"web-server", "database", "cache", "worker", "gateway"}:
+            violations.append(f"service_type invalide: {st}")
+        if el not in {"internet-facing", "internal-only", "isolated"}:
+            violations.append(f"exposure_level invalide: {el}")
+        if st == "database" and el == "internet-facing":
+            violations.append("database + internet-facing interdit")
+        if ow == ab:
+            violations.append("owner != approved_by requis (four-eyes)")
+
+        if violations:
+            log("Validation tfvars \u00e9chou\u00e9e:")
+            for v in violations:
+                log(f"  - {v}")
+            intent = None
+            is_invalid = True
+        else:
+            log("resource_intent extrait avec succ\u00e8s")
+
+    stub = build_tfplan_stub(intent, is_invalid)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
