@@ -97,8 +97,15 @@ class CloudSentinelNormalizer(
             "TERRAFORM_PLAN_JSON",
             str(self.root / "infra" / "azure" / "student-secure" / "tfplan.json"),
         )
-        intent_contract = self.extract_intent_contract(terraform_plan_path)
-        intent_mismatches = self.correlate_intent_vs_reality(intent_contract, findings)
+        try:
+            tf_path = Path(terraform_plan_path).resolve(strict=False)
+            tf_path.relative_to(self.root.resolve())
+            intent_contract = self.extract_intent_contract(terraform_plan_path)
+            intent_mismatches = self.correlate_intent_vs_reality(intent_contract, findings)
+        except (ValueError, OSError):
+            print(f"\033[31m[ERROR]\033[0m Intent contract path outside repo \u2014 rejected: {terraform_plan_path}", file=sys.stderr)
+            intent_contract = {"declared": None, "violation": "INVALID_INTENT_CONTRACT"}
+            intent_mismatches = []
         for nm, sc in scanners.items():
             sc["stats"] = self._stats(sc["findings"])
             src = {"gitleaks": g_data, "checkov": c_data, "trivy": t_data}[nm]
