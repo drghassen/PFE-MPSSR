@@ -49,4 +49,7 @@ DEFAULT_CONFIDENCE_MAP: Dict[str, str] = {
     "gitleaks": "HIGH",
     "checkov": "MEDIUM",
     "trivy": "HIGH",
+    # cloud-init scanner: static analysis of Terraform HCL + YAML cloud-init payloads.
+    # Confidence is HIGH: patterns are deterministic (regex + YAML parse), not heuristic.
+    "cloudinit": "HIGH",
 }

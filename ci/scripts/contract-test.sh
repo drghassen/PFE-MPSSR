@@ -39,6 +39,11 @@ check_json "shift-left/trivy/reports/raw/trivy-config-raw.json" \
   "has(\"SchemaVersion\")" \
   "trivy_config_raw"
 
+# Cloud-init analysis
+check_json ".cloudsentinel/cloudinit_analysis.json" \
+  "has(\"resources_analyzed\") and has(\"summary\")" \
+  "cloudinit_analysis"
+
 echo "[contract][SKIP] Image scan jobs removed from pipeline - monitoring via DefectDojo only"
 
 echo "[contract] All checks passed."

@@ -15,7 +15,7 @@ class NormalizerUtilsMixin:
     def _run(self, cmd: List[str], fallback: str) -> str:
         try:
             return subprocess.check_output(
-                cmd, text=True, stderr=subprocess.DEVNULL
+                cmd, text=True, stderr=subprocess.DEVNULL, timeout=15
             ).strip()
         except Exception:
             return fallback

@@ -14,7 +14,7 @@ services:
     command:
       - run
       - --server
-      - --addr=0.0.0.0:8181
+      - --addr=127.0.0.1:8181
       - --authentication=token
       - --authorization=basic
       - --log-level=info
@@ -26,7 +26,7 @@ services:
       - /app/data/exceptions.json
       - /app/auth/opa_config.json
     healthcheck:
-      test: ["CMD", "/opa", "eval", "1==1"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8181/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -56,7 +56,7 @@ services:
     command:
       - run
       - --server
-      - --addr=0.0.0.0:8182
+      - --addr=127.0.0.1:8182
       - --authentication=token
       - --authorization=basic
       - --log-level=info
@@ -68,7 +68,7 @@ services:
       - /app/data/drift_exceptions.json
       - /app/auth/opa_config.json
     healthcheck:
-      test: ["CMD", "/opa", "eval", "1==1"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8182/health"]
       interval: 10s
       timeout: 5s
       retries: 3

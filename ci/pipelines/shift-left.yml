@@ -257,6 +257,10 @@ upload-to-defectdojo:
       artifacts: true
     - job: trivy-config-scan
       artifacts: true
+    - job: cloudinit-scan
+      artifacts: true
+    - job: normalize-reports
+      artifacts: true
   script:
     - bash ci/scripts/upload-to-defectdojo.sh
   artifacts:

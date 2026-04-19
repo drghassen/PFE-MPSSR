@@ -135,22 +135,39 @@ class CloudSentinelNormalizer(
         g_data, g_trace = self._parse_gitleaks(skip=False)
         c_data, c_trace = self._parse_checkov(skip=skip)
         t_data, t_trace = self._parse_trivy(skip=skip)
+        # Cloud-init scanner: parsed as 4th first-class scanner.
+        # Violations enter the standard findings[] array so that:
+        #   (1) CRITICAL/HIGH counters in summary include cloud-init violations,
+        #   (2) thresholds CRITICAL_MAX / HIGH_MAX are enforced uniformly,
+        #   (3) DefectDojo upload covers cloud-init findings,
+        #   (4) deduplication SHA256 fingerprints are computed.
+        # resources_analyzed is PRESERVED in the report for OPA multi-signal
+        # correlation (gate_deny_intent.rego reads it directly via input.resources_analyzed).
+        ci_data, ci_trace = self._parse_cloudinit(skip=skip)
         resources_analyzed = self._load_cloudinit_resources()
 
         scanners = {
             "gitleaks": self._process_scanner(g_data, "gitleaks"),
             "checkov": self._process_scanner(c_data, "checkov"),
             "trivy": self._process_scanner(t_data, "trivy"),
+            "cloudinit": self._process_scanner(ci_data, "cloudinit"),
         }
         findings = (
             scanners["gitleaks"]["findings"]
             + scanners["checkov"]["findings"]
             + scanners["trivy"]["findings"]
+            + scanners["cloudinit"]["findings"]
         )
         self._dedup(findings)
+        src_map = {
+            "gitleaks": g_data,
+            "checkov": c_data,
+            "trivy": t_data,
+            "cloudinit": ci_data,
+        }
         for nm, sc in scanners.items():
             sc["stats"] = self._stats(sc["findings"])
-            src = {"gitleaks": g_data, "checkov": c_data, "trivy": t_data}[nm]
+            src = src_map[nm]
             if str(src.get("status", "OK")).upper() == "NOT_RUN":
                 sc["status"] = "NOT_RUN"
             elif sc["stats"]["TOTAL"] > 0:
@@ -197,6 +214,7 @@ class CloudSentinelNormalizer(
                         "gitleaks": g_trace,
                         "checkov": c_trace,
                         "trivy": t_trace,
+                        "cloudinit": ci_trace,
                     },
                 },
             },
@@ -215,6 +233,10 @@ class CloudSentinelNormalizer(
                     "not_run_scanners": not_run,
                 },
             },
+            # resources_analyzed: preserved for OPA multi-signal correlation.
+            # gate_deny_intent.rego reads input.resources_analyzed directly for
+            # CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 (requires 3 independent signals).
+            # This field is METADATA ONLY — enforcement is via findings[] + OPA.
             "resources_analyzed": resources_analyzed,
         }
         report["metadata"]["generation_duration_ms"] = int(

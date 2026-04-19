@@ -475,3 +475,136 @@ class NormalizerRawParsersMixin:
             "sha256": None,
         }
         return rep, tr
+
+    def _parse_cloudinit(self, skip: bool = False):
+        """Ingest cloud-init scanner output and convert violations to normalized findings.
+
+        Architectural contract:
+        - Cloud-init violations are FIRST-CLASS findings, identical in structure to
+          Gitleaks/Checkov/Trivy findings. They enter the standard findings[] array,
+          are counted in summary thresholds, and are pushed to DefectDojo.
+        - resources_analyzed is PRESERVED as metadata in the golden report for
+          OPA multi-signal correlation (gate_deny_intent.rego reads it directly).
+        - Non-waivable violations (SSH key injection, firewall disable, remote exec)
+          are marked in metadata.non_waivable=true for OPA governance enforcement.
+        """
+        import os as _os
+        from pathlib import Path as _Path
+
+        default_path = self.root / ".cloudsentinel" / "cloudinit_analysis.json"
+        cloudinit_path = _Path(
+            _os.environ.get("CLOUDINIT_ANALYSIS_JSON", str(default_path))
+        )
+        tool_path = str(cloudinit_path)
+
+        if skip:
+            return self._not_run("cloudinit", tool_path, "skipped_local_fast")
+
+        if not cloudinit_path.is_file():
+            # Non-blocking absence: cloud-init scanner only runs when VMs are present.
+            # Treat as NOT_RUN (advisory) rather than hard failure.
+            return self._not_run(
+                "cloudinit", tool_path, f"missing_report:{cloudinit_path}"
+            )
+
+        sha = self._hash_file(cloudinit_path)
+        doc, err = self._read_json(cloudinit_path)
+        if err:
+            return self._not_run(
+                "cloudinit",
+                tool_path,
+                f"invalid_json:{cloudinit_path}",
+                present=True,
+                sha=sha,
+            )
+
+        resources: List[Dict[str, Any]] = doc.get("resources_analyzed", [])
+        if not isinstance(resources, list):
+            return self._not_run(
+                "cloudinit",
+                tool_path,
+                "invalid_raw_structure:resources_analyzed_not_array",
+                present=True,
+                valid=True,
+                sha=sha,
+            )
+
+        # Non-waivable rule IDs — must be kept in sync with gate_deny_intent.rego
+        _NON_WAIVABLE = frozenset({
+            "CS-CLOUDINIT-REMOTE-EXEC",
+            "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2",
+            "CS-CLOUDINIT-SSH-KEY-INJECTION",
+            "CS-CLOUDINIT-FIREWALL-DISABLE",
+            "CS-CLOUDINIT-HARDCODED-CREDENTIALS",
+        })
+
+        findings: List[Dict[str, Any]] = []
+        for resource in resources:
+            if not isinstance(resource, dict):
+                continue
+            resource_addr = str(resource.get("resource_address", "unknown"))
+            resource_file = str(resource.get("file", "unknown"))
+            resource_line = int(resource.get("line", 0) or 0)
+            resource_env = str(resource.get("environment", "dev"))
+            cloud_init_field = str(resource.get("cloud_init_field") or "unknown")
+            signals = resource.get("signals", {})
+
+            for violation in resource.get("violations", []):
+                if not isinstance(violation, dict):
+                    continue
+
+                rule_id = str(violation.get("rule", "CS-CLOUDINIT-UNKNOWN"))
+                raw_sev = str(violation.get("severity", "HIGH")).upper()
+                sev = self.sev_lut.get(raw_sev, "HIGH")
+                description = str(
+                    violation.get("message", "Cloud-init security violation")
+                )
+                is_non_waivable = rule_id in _NON_WAIVABLE
+
+                findings.append({
+                    "id": rule_id,
+                    "description": description,
+                    "file": resource_file,
+                    "line": resource_line,
+                    "severity": sev,
+                    "status": "FAILED",
+                    "category": "INFRASTRUCTURE_AS_CODE",
+                    "finding_type": "cloud_init",
+                    "resource": {
+                        "name": resource_addr,
+                        "path": resource_file,
+                        "type": "vm_bootstrap",
+                        "location": {
+                            "start_line": resource_line,
+                            "end_line": resource_line,
+                        },
+                    },
+                    "references": [],
+                    "metadata": {
+                        "environment": resource_env,
+                        "cloud_init_field": cloud_init_field,
+                        "signals": signals,
+                        "non_waivable": is_non_waivable,
+                        "block": bool(violation.get("block", False)),
+                    },
+                })
+
+        scanner_version = str(doc.get("schema_version", "1.0.0"))
+        status = "OK" if resources else "NOT_RUN"
+        rep = {
+            "tool": "cloudinit",
+            "version": scanner_version,
+            "status": status,
+            "findings": findings,
+            "errors": [e for e in doc.get("summary", {}).get("parse_errors", []) if e],
+        }
+        tr = {
+            "tool": "cloudinit",
+            "path": tool_path,
+            "present": True,
+            "valid_json": True,
+            "status": self._trace_status(status, findings),
+            "reason": "",
+            "sha256": sha,
+        }
+        return rep, tr

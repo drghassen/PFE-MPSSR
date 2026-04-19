@@ -54,7 +54,65 @@ REMOTE_EXEC_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
         "subshell_curl_shell",
         re.compile(r"(?:bash|sh)\s+-c\s+[\"']?\$\(\s*curl", re.IGNORECASE),
     ),
+    (
+        "eval_remote_exec",
+        re.compile(r"\beval\s+\$\(", re.IGNORECASE),
+    ),
+    (
+        "process_substitution_remote",
+        re.compile(r"(?:bash|sh)\s+<\s*\(\s*(?:curl|wget)", re.IGNORECASE),
+    ),
+    (
+        "curl_download_exec",
+        re.compile(r"curl\s+[^\n]+\s+-o\s+[^\n]+&&\s*(?:bash|sh|chmod)", re.IGNORECASE),
+    ),
+    (
+        "wget_unverified_binary",
+        re.compile(r"wget\s+(?:--no-check-certificate|--no-verify)\s+[^\n]+", re.IGNORECASE),
+    ),
+    (
+        "python_remote_exec",
+        re.compile(r"python[23]?\s+-c\s+[\"'].*(?:urllib|requests|http).*exec", re.IGNORECASE),
+    ),
 )
+
+SECURITY_BYPASS_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
+    (
+        "ssh_key_injection",
+        re.compile(r"echo\s+[\"']?ssh-(?:rsa|ed25519|ecdsa)[^\n]+>>\s*[^\n]*authorized_keys", re.IGNORECASE),
+    ),
+    (
+        "firewall_disable",
+        re.compile(r"\b(?:ufw\s+disable|iptables\s+-F|systemctl\s+(?:stop|disable)\s+(?:firewalld|ufw|iptables))\b", re.IGNORECASE),
+    ),
+    (
+        "chmod_critical_path",
+        re.compile(r"chmod\s+(?:777|a\+[rwx]+)\s+(?:/etc|/usr|/bin|/sbin|/lib|/root)", re.IGNORECASE),
+    ),
+    (
+        "hardcoded_credentials",
+        re.compile(r"(?:password|passwd|secret|token|api_key)\s*=\s*[\"'][^\"']{6,}[\"']", re.IGNORECASE),
+    ),
+    (
+        "crontab_injection",
+        re.compile(r"(?:crontab\s+-[lu]|echo\s+[\"'][^\"']*\*[^\"']*[\"']\s*>+\s*/etc/cron)", re.IGNORECASE),
+    ),
+)
+
+
+def _strip_hcl_quotes(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        return value[1:-1]
+    return value
+
+
+def _strip_hcl_heredoc(value: str) -> str:
+    value = value.strip()
+    heredoc_re = re.match(r"^<<[-~]?\w+\n(.*?)\n\w+$", value, re.DOTALL)
+    if heredoc_re:
+        return heredoc_re.group(1)
+    return value
 
 
 def _utc_now() -> str:
@@ -79,13 +137,13 @@ def _extract_resources(
         if not isinstance(resource_block, dict):
             continue
         for resource_type, entries in resource_block.items():
-            if resource_type not in VM_RESOURCE_TYPES:
+            if _strip_hcl_quotes(resource_type) not in VM_RESOURCE_TYPES:
                 continue
             if not isinstance(entries, dict):
                 continue
             for resource_name, resource_body in entries.items():
                 if isinstance(resource_body, dict):
-                    yield resource_type, resource_name, resource_body
+                    yield _strip_hcl_quotes(resource_type), _strip_hcl_quotes(resource_name), resource_body
 
 
 def _as_lower_str(value: Any) -> str:
@@ -112,7 +170,7 @@ def _extract_tags(resource_body: Dict[str, Any]) -> Dict[str, str]:
     for key, value in tags.items():
         if not isinstance(key, str):
             continue
-        result[key.strip()] = str(value).strip()
+        result[_strip_hcl_quotes(key)] = _strip_hcl_quotes(str(value))
     return result
 
 
@@ -174,7 +232,8 @@ def _extract_cloud_init(resource_body: Dict[str, Any]) -> Tuple[str, str]:
     for field in CLOUD_INIT_FIELDS:
         raw_value = _unwrap_hcl_value(resource_body.get(field))
         if isinstance(raw_value, str) and raw_value.strip():
-            return field, _decode_if_base64(field, raw_value)
+            cleaned = _strip_hcl_heredoc(raw_value)
+            return field, _decode_if_base64(field, cleaned)
     return "", ""
 
 
@@ -208,7 +267,7 @@ def _extract_yaml_packages(cloud_init_text: str) -> List[str]:
 def _detect_db_packages(cloud_init_text: str) -> List[str]:
     lower_text = cloud_init_text.lower()
     detected = {
-        kw for kw in DB_KEYWORDS if re.search(rf"\\b{re.escape(kw)}\\b", lower_text)
+        kw for kw in DB_KEYWORDS if re.search(rf"\b{re.escape(kw)}\b", lower_text)
     }
 
     for package_name in _extract_yaml_packages(cloud_init_text):
@@ -222,6 +281,14 @@ def _detect_db_packages(cloud_init_text: str) -> List[str]:
 def _detect_remote_exec_patterns(cloud_init_text: str) -> List[str]:
     matches: List[str] = []
     for code, pattern in REMOTE_EXEC_PATTERNS:
+        if pattern.search(cloud_init_text):
+            matches.append(code)
+    return matches
+
+
+def _detect_security_bypass_patterns(cloud_init_text: str) -> List[str]:
+    matches: List[str] = []
+    for code, pattern in SECURITY_BYPASS_PATTERNS:
         if pattern.search(cloud_init_text):
             matches.append(code)
     return matches
@@ -254,12 +321,14 @@ def _analyze_resource(
     cloud_init_field, cloud_init_text = _extract_cloud_init(resource_body)
     db_packages = _detect_db_packages(cloud_init_text)
     remote_exec_patterns = _detect_remote_exec_patterns(cloud_init_text)
+    security_bypass_patterns = _detect_security_bypass_patterns(cloud_init_text)
 
     role_spoofing_candidate = _as_lower_str(role_tag) == "web-server" and bool(
         db_packages
     )
     role_tag_missing = role_tag == ""
     remote_exec_detected = bool(remote_exec_patterns)
+    security_bypass_detected = bool(security_bypass_patterns)
     blocking_env = env != "dev"
 
     violations: List[Dict[str, Any]] = []
@@ -293,6 +362,16 @@ def _analyze_resource(
             )
         )
 
+    if security_bypass_detected:
+        violations.append(
+            _build_violation(
+                "CS-CLOUDINIT-SECURITY-BYPASS",
+                "CRITICAL",
+                f"Security bypass pattern(s) detected in cloud-init: {', '.join(security_bypass_patterns)}",
+                block=blocking_env,
+            )
+        )
+
     try:
         rel_file = str(tf_file.resolve().relative_to(repo_root.resolve()))
     except Exception:
@@ -311,8 +390,10 @@ def _analyze_resource(
             "role_tag_missing": role_tag_missing,
             "role_spoofing_candidate": role_spoofing_candidate,
             "remote_exec_detected": remote_exec_detected,
+            "security_bypass_detected": security_bypass_detected,
             "db_packages_detected": db_packages,
             "remote_exec_patterns": remote_exec_patterns,
+            "security_bypass_patterns": security_bypass_patterns,
         },
         "violations": violations,
     }

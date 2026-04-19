@@ -70,8 +70,8 @@ jq -e 'type=="array"' "$REPORT_RAW_OUT" >/dev/null || { err "gitleaks raw output
 log "Raw report ready: $REPORT_RAW_OUT"
 
 # --- Scan range secondaire (enrichissement metadata — non-gating) ---
-# ENRICHISSEMENT UNIQUEMENT : gitleaks_range_raw.json n'alimente jamais OPA.
-# Signal OPA = gitleaks_raw.json (scan principal --no-git) uniquement.
+# Les findings du scan range sont fusionnés dans gitleaks_raw.json qui est évalué par OPA.
+# La déduplication est assurée par l'empreinte fingerprint du normalizer.
 if [[ -n "${CI:-}" ]]; then
   RANGE_OUT="$OUT_DIR/gitleaks_range_raw.json"
   LOG_OPTS=""

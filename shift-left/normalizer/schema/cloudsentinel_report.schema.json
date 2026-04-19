@@ -110,11 +110,12 @@
         "by_tool": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["gitleaks", "checkov", "trivy"],
+          "required": ["gitleaks", "checkov", "trivy", "cloudinit"],
           "properties": {
             "gitleaks": { "$ref": "#/definitions/tool_summary" },
             "checkov": { "$ref": "#/definitions/tool_summary" },
-            "trivy": { "$ref": "#/definitions/tool_summary" }
+            "trivy": { "$ref": "#/definitions/tool_summary" },
+            "cloudinit": { "$ref": "#/definitions/tool_summary" }
           }
         },
         "by_category": {
@@ -132,11 +133,12 @@
     "scanners": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["gitleaks", "checkov", "trivy"],
+      "required": ["gitleaks", "checkov", "trivy", "cloudinit"],
       "properties": {
         "gitleaks": { "$ref": "#/definitions/scanner" },
         "checkov": { "$ref": "#/definitions/scanner" },
-        "trivy": { "$ref": "#/definitions/scanner" }
+        "trivy": { "$ref": "#/definitions/scanner" },
+        "cloudinit": { "$ref": "#/definitions/scanner" }
       }
     },
     "findings": {

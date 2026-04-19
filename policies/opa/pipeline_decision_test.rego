@@ -441,3 +441,315 @@ test_schema_version_1_3_0_accepted if {
 
 	every msg in result.deny { not contains(msg, "CS-SCHEMA-VERSION-UNSUPPORTED") }
 }
+
+# ==============================================================================
+# TESTS 25-32 : Cloud-init extended coverage (added post-audit)
+# Covers: staging enforcement, SSH injection, firewall disable, hardcoded creds,
+#         new remote exec patterns (eval, process substitution, two-stage download).
+# ==============================================================================
+
+# ── Test fixtures for new violation types ──────────────────────────────────
+
+_cloudinit_staging_remote_exec := {
+	"resource_address": "azurerm_linux_virtual_machine.worker",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "worker",
+	"file": "infra/azure/student-secure/main.tf",
+	"line": 10,
+	"environment": "staging",
+	"role_tag": "worker",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": true,
+		"security_bypass_detected": false,
+		"db_packages_detected": [],
+		"remote_exec_patterns": ["eval_remote_exec"],
+		"security_bypass_patterns": [],
+	},
+	"violations": [
+		{
+			"rule": "CS-CLOUDINIT-REMOTE-EXEC",
+			"severity": "CRITICAL",
+			"message": "Remote execution pattern detected: eval_remote_exec",
+			"non_waivable_in_prod": true,
+			"block": true,
+		},
+	],
+}
+
+_cloudinit_prod_ssh_injection := {
+	"resource_address": "azurerm_linux_virtual_machine.bastion",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "bastion",
+	"file": "infra/azure/student-secure/main.tf",
+	"line": 42,
+	"environment": "prod",
+	"role_tag": "bastion",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"security_bypass_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+		"security_bypass_patterns": ["ssh_key_injection"],
+	},
+	"violations": [
+		{
+			"rule": "CS-CLOUDINIT-SSH-KEY-INJECTION",
+			"severity": "CRITICAL",
+			"message": "SSH authorized_keys injection detected",
+			"non_waivable_in_prod": true,
+			"block": true,
+		},
+	],
+}
+
+_cloudinit_prod_firewall_disable := {
+	"resource_address": "azurerm_linux_virtual_machine.app",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "app",
+	"file": "infra/azure/student-secure/main.tf",
+	"line": 78,
+	"environment": "prod",
+	"role_tag": "app-server",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"security_bypass_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+		"security_bypass_patterns": ["firewall_disable"],
+	},
+	"violations": [
+		{
+			"rule": "CS-CLOUDINIT-FIREWALL-DISABLE",
+			"severity": "CRITICAL",
+			"message": "Firewall disabled via cloud-init",
+			"non_waivable_in_prod": true,
+			"block": true,
+		},
+	],
+}
+
+_cloudinit_prod_hardcoded_creds := {
+	"resource_address": "azurerm_linux_virtual_machine.db",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "db",
+	"file": "infra/azure/student-secure/main.tf",
+	"line": 100,
+	"environment": "prod",
+	"role_tag": "db-server",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"security_bypass_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+		"security_bypass_patterns": ["hardcoded_credentials"],
+	},
+	"violations": [
+		{
+			"rule": "CS-CLOUDINIT-HARDCODED-CREDENTIALS",
+			"severity": "CRITICAL",
+			"message": "Hardcoded credentials detected in cloud-init runcmd",
+			"non_waivable_in_prod": true,
+			"block": true,
+		},
+	],
+}
+
+_cloudinit_staging_ssh_injection := {
+	"resource_address": "azurerm_linux_virtual_machine.staging-worker",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "staging-worker",
+	"file": "infra/azure/student-secure/staging.tf",
+	"line": 15,
+	"environment": "staging",
+	"role_tag": "worker",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"security_bypass_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+		"security_bypass_patterns": ["ssh_key_injection"],
+	},
+	"violations": [
+		{
+			"rule": "CS-CLOUDINIT-SSH-KEY-INJECTION",
+			"severity": "CRITICAL",
+			"message": "SSH authorized_keys injection detected in staging",
+			"non_waivable_in_prod": true,
+			"block": true,
+		},
+	],
+}
+
+# TEST 25: staging remote exec is NOW blocked (regression guard for audit fix)
+# Previously only prod was enforced — this test ensures staging enforcement.
+
+test_cloudinit_staging_remote_exec_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "staging"},
+		"resources_analyzed": [_cloudinit_staging_remote_exec],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-REMOTE-EXEC")
+	contains(msg, "staging")
+}
+
+# TEST 26: SSH key injection in prod is denied
+
+test_cloudinit_ssh_key_injection_prod_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_prod_ssh_injection],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-SSH-KEY-INJECTION")
+}
+
+# TEST 27: SSH key injection in staging is denied
+
+test_cloudinit_ssh_key_injection_staging_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "staging"},
+		"resources_analyzed": [_cloudinit_staging_ssh_injection],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-SSH-KEY-INJECTION")
+}
+
+# TEST 28: Firewall disable in prod is denied
+
+test_cloudinit_firewall_disable_prod_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_prod_firewall_disable],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-FIREWALL-DISABLE")
+}
+
+# TEST 29: Hardcoded credentials in prod are denied
+
+test_cloudinit_hardcoded_credentials_prod_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_prod_hardcoded_creds],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-HARDCODED-CREDENTIALS")
+}
+
+# TEST 30: Dev environment — SSH injection is advisory, not blocking
+# (block=false set by scanner for dev; OPA does not fire since resource_is_enforced requires prod|staging)
+
+_cloudinit_dev_ssh_injection := {
+	"resource_address": "azurerm_linux_virtual_machine.dev-vm",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "dev-vm",
+	"file": "infra/azure/student-secure/dev.tf",
+	"line": 5,
+	"environment": "dev",
+	"role_tag": "developer",
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": false,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"security_bypass_detected": true,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+		"security_bypass_patterns": ["ssh_key_injection"],
+	},
+	"violations": [],
+}
+
+test_cloudinit_dev_ssh_injection_not_blocking if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "dev"},
+		"resources_analyzed": [_cloudinit_dev_ssh_injection],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	every msg in result.deny {
+		not contains(msg, "CS-CLOUDINIT-SSH-KEY-INJECTION")
+		not contains(msg, "CS-CLOUDINIT-FIREWALL-DISABLE")
+		not contains(msg, "CS-CLOUDINIT-HARDCODED-CREDENTIALS")
+	}
+}
+
+# TEST 31: non_waivable_violations set includes all new cloud-init rules
+
+test_non_waivable_violations_complete if {
+	nwv := data.cloudsentinel.gate.non_waivable_violations
+	"CS-CLOUDINIT-REMOTE-EXEC" in nwv
+	"CS-CLOUDINIT-SSH-KEY-INJECTION" in nwv
+	"CS-CLOUDINIT-FIREWALL-DISABLE" in nwv
+	"CS-CLOUDINIT-HARDCODED-CREDENTIALS" in nwv
+	"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2" in nwv
+	"CS-CLOUDINIT-ROLE-TAG-MISSING" in nwv
+	"CS-SCHEMA-VERSION-UNSUPPORTED" in nwv
+}
+
+# TEST 32: Multiple violations on same resource — all are independently denied
+
+test_cloudinit_multiple_bypass_violations_all_denied if {
+	multi_violation_resource := {
+		"resource_address": "azurerm_linux_virtual_machine.compromised",
+		"resource_type": "azurerm_linux_virtual_machine",
+		"resource_name": "compromised",
+		"file": "infra/main.tf",
+		"line": 1,
+		"environment": "prod",
+		"role_tag": "worker",
+		"cloud_init_field": "custom_data",
+		"signals": {
+			"role_tag_missing": false,
+			"role_spoofing_candidate": false,
+			"remote_exec_detected": true,
+			"security_bypass_detected": true,
+			"db_packages_detected": [],
+			"remote_exec_patterns": ["curl_pipe_shell"],
+			"security_bypass_patterns": ["ssh_key_injection", "firewall_disable"],
+		},
+		"violations": [],
+	}
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [multi_violation_resource],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	# All three deny rules must fire independently
+	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-REMOTE-EXEC")]) >= 1
+	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-SSH-KEY-INJECTION")]) >= 1
+	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-FIREWALL-DISABLE")]) >= 1
+}

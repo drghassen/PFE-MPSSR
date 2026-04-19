@@ -6,8 +6,8 @@ import rego.v1
 
 scanners := object.get(input, "scanners", {})
 thresholds := object.get(object.get(input, "quality_gate", {}), "thresholds", {})
-required_scanners := ["gitleaks", "checkov", "trivy"]
-allowed_tools := {"gitleaks", "checkov", "trivy"}
+required_scanners := ["gitleaks", "checkov", "trivy", "cloudinit"]
+allowed_tools := {"gitleaks", "checkov", "trivy", "cloudinit"}
 allowed_decisions := {"accept", "mitigate", "fix", "transfer", "avoid"}
 
 # db_ports : ports associés aux moteurs de base de données courants.
