@@ -1,43 +1,55 @@
-# 🏗️ Infra — Infrastructure as Code (OpenTofu)
+# CloudSentinel OpenTofu Infrastructure (Azure)
 
-> **Cloud Resources Provisioning** : Code source Terraform configurant l'infrastructure CloudSentinel (Azure, Kubernetes, etc.) protégée et auditée par la pipeline DevOps.
+Enterprise-ready, modular OpenTofu/Terraform-compatible infrastructure for CloudSentinel pipeline validation.
 
-Ce répertoire contient l'IaC qui déploie l'environnement applicatif et opérationnel, sécurisé de manière préventive (Shift-Left par Checkov) et monitoré au runtime (Cloud Custodian).
-
----
-
-## 📁 Architecture
-
-L'infrastructure active est organisée autour d'un seul stack sécurisé :
+## Folder structure
 
 ```text
 infra/
-├── README.md
-└── azure/                 # Instanciations par environnement cloud
-    └── student-secure/    # Stack Azure sécurisé, modulaire et prêt CI
+├── modules/
+│   ├── vpc/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── compute/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── iam/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   └── security/
+│       ├── main.tf
+│       ├── variables.tf
+│       └── outputs.tf
+└── envs/
+    └── dev/
+        ├── backend.tf
+        ├── main.tf
+        ├── outputs.tf
+        ├── providers.tf
+        ├── terraform.tfvars.example
+        ├── variables.tf
+        ├── versions.tf
+        └── README.md
 ```
 
----
+## Design principles
 
-## 🔒 Intégration Sécurité (V5.0)
+- Least privilege by default (RBAC Reader only, scoped to RG)
+- Private-by-default compute (`assign_public_ip = false`)
+- Strict SSH ingress source filtering
+- Baseline observability (Log Analytics + diagnostics)
+- No hardcoded credentials or secrets
+- Clean module boundaries for network, security, identity, and compute
 
-1.  **Shift-Left : Scanner de Misconfigurations (Checkov)**
-    *   Tout le code `.tf` présent ici passe systématiquement par l'analyseur Checkov de CloudSentinel en CI.
-    *   Une misconfiguration (Ex: `publicNetworkAccess = true` sur un composant sensible) sera bloquée par l'OPA Quality Gate **avant même l'application du `tofu plan`**.
-
-2.  **Gestion des Exceptions Terraform**
-    *   Les exemptions de sécurité **ne doivent pas** être écrites dans ce code via `#checkov:skip`.
-    *   Elles doivent être actées dans DefectDojo puis synchronisées dans `.cloudsentinel/exceptions.json` via `fetch-exceptions.py`. Le code restera "vulnérable" mais sciemment toléré (et tracé).
-
----
-
-## 🚀 Déploiement CI/CD
-
-Le déploiement est orchestré par le job `tofu-deploy` dans `.gitlab-ci.yml`.
-L'infrastructure n'est appliquée (`tofu apply`) **que si, et seulement si**, le stage précédent de décision OPA (`opa-decision`) a émis un `ALLOW`.
+## Quick start
 
 ```bash
-cd infra/azure/student-secure
-tofu init
-tofu plan
+cd infra/envs/dev
+cp terraform.tfvars.example terraform.tfvars
+tofu init -backend-config="resource_group_name=<rg>" -backend-config="storage_account_name=<sa>" -backend-config="container_name=<container>" -backend-config="key=cloudsentinel-dev.tfstate"
+tofu plan -var-file="terraform.tfvars"
+tofu apply -var-file="terraform.tfvars"
 ```
