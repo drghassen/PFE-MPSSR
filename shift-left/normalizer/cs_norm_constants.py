@@ -5,9 +5,7 @@ from __future__ import annotations
 
 from typing import Dict
 
-# DB_PORTS : ports associés aux moteurs de base de données courants.
-# Utilisé par correlate_intent_vs_reality() pour détecter le pattern CS-INTENT-ROLE-SPOOFING.
-# DevSecOps contract : constante immuable, jamais surchargeable via env vars.
+
 DB_PORTS: frozenset = frozenset({3306, 5432, 27017, 1433, 6379, 5984, 9042, 2181})
 
 DEFAULT_SEV_LUT: Dict[str, str] = {
