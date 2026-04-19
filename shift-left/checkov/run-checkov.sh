@@ -32,15 +32,19 @@ checkov_cmd+=("--external-checks-dir" "$POLICIES_DIR")
 # Static analysis cannot evaluate the dynamic name — validated at runtime.
 checkov_cmd+=("--skip-check" "CKV_AZURE_43")
 
-# Locked skip paths: do not trust runtime environment overrides.
-readonly LOCKED_SKIP_PATHS="infra/azure/student-secure/tests,infra/azure/test/tests,tests/fixtures"
-IFS=',' read -r -a skip_paths <<< "$LOCKED_SKIP_PATHS"
-for skip_path in "${skip_paths[@]}"; do
-  skip_path="$(echo "$skip_path" | xargs)"
-  [[ -z "$skip_path" ]] && continue
-  checkov_cmd+=("--skip-path" "$skip_path")
-done
-log_info "Applied locked skip paths: $LOCKED_SKIP_PATHS"
+# Optional skip paths (comma-separated). Empty by default for full-repo scans.
+SKIP_PATHS_CSV="${CHECKOV_SKIP_PATHS:-}"
+if [[ -n "$SKIP_PATHS_CSV" ]]; then
+  IFS=',' read -r -a skip_paths <<< "$SKIP_PATHS_CSV"
+  for skip_path in "${skip_paths[@]}"; do
+    skip_path="$(echo "$skip_path" | xargs)"
+    [[ -z "$skip_path" ]] && continue
+    checkov_cmd+=("--skip-path" "$skip_path")
+  done
+  log_info "Applied skip paths from CHECKOV_SKIP_PATHS: $SKIP_PATHS_CSV"
+else
+  log_info "No skip paths configured (CHECKOV_SKIP_PATHS empty)."
+fi
 
 set +e
 "${checkov_cmd[@]}" > "$REPORT_RAW" 2> "$REPORT_LOG"

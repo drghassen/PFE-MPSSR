@@ -470,7 +470,7 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CloudSentinel cloud-init scanner")
     parser.add_argument(
         "--terraform-dir",
-        default="infra/azure/student-secure",
+        default=".",
         help="Terraform root directory to analyze",
     )
     parser.add_argument(

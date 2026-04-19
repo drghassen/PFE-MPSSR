@@ -9,9 +9,9 @@ trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
 chmod +x shift-left/trivy/scripts/run-trivy.sh
 
-# Hardcoded Trivy target
-readonly DEFAULT_TRIVY_TARGET="infra/azure/student-secure"
-TRIVY_TARGET_EFF="${DEFAULT_TRIVY_TARGET}"
+# Default target is repository root for full-repo Dockerfile/config coverage.
+readonly DEFAULT_TRIVY_TARGET="."
+TRIVY_TARGET_EFF="${TRIVY_CONFIG_TARGET:-${TRIVY_TARGET:-${DEFAULT_TRIVY_TARGET}}}"
 
 bash shift-left/trivy/scripts/run-trivy.sh "${TRIVY_TARGET_EFF}" "config"
 chmod -R a+r shift-left/trivy/reports/raw 2>/dev/null || true

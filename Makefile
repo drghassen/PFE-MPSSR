@@ -76,15 +76,19 @@ config: ## Créer le fichier .env depuis le template
 
 scan: ## Exécuter tous les scanners (Gitleaks, Checkov, Trivy)
 	@echo "$(GREEN)🔍 Exécution du pipeline Shift-Left...$(RESET)"
-	@bash scripts/verify-student-secure.sh infra/azure/student-secure alpine:3.21
+	@SCAN_MODE=local SCAN_TARGET=repo bash shift-left/gitleaks/run-gitleaks.sh
+	@bash shift-left/checkov/run-checkov.sh .
+	@bash shift-left/trivy/scripts/run-trivy.sh . fs
+	@bash shift-left/trivy/scripts/run-trivy.sh . config
 
 scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 	@echo "$(GREEN)🔐 Scan des secrets...$(RESET)"
-	@gitleaks detect --source=infra/azure/student-secure --report-path=reports/gitleaks.json --no-git --exit-code=0
+	@mkdir -p reports
+	@gitleaks detect --source=. --config=shift-left/gitleaks/gitleaks.toml --report-format=json --report-path=reports/gitleaks.json --no-git --exit-code=0 --redact
 
 scan-iac: ## Scanner uniquement l'IaC (Checkov)
 	@echo "$(GREEN)🏗️  Scan IaC...$(RESET)"
-	@bash shift-left/checkov/run-checkov.sh infra/azure/student-secure
+	@bash shift-left/checkov/run-checkov.sh .
 
 checkov-smoke: ## Smoke test des policies Checkov sur fixtures internes
 	@echo "$(GREEN)🧪 Smoke Checkov (fixtures)...$(RESET)"
@@ -117,7 +121,7 @@ gitleaks-update-baseline: ## Régénérer la baseline Gitleaks (faux positifs co
 
 scan-vulns: ## Scanner uniquement les vulnérabilités (Trivy)
 	@echo "$(GREEN)🐛 Scan vulnérabilités...$(RESET)"
-	@bash shift-left/trivy/scripts/run-trivy.sh infra/azure/student-secure config
+	@bash shift-left/trivy/scripts/run-trivy.sh . fs
 
 trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
 	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"

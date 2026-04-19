@@ -11,7 +11,7 @@ REPO_ROOT="$(cs_get_repo_root)"
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_ROOT/shift-left/gitleaks/gitleaks.toml}"
-SCAN_TARGET="${SCAN_TARGET:-staged}"
+SCAN_TARGET="${SCAN_TARGET:-repo}"
 MAX_SIZE_MB="${GITLEAKS_MAX_SIZE:-5}"
 
 if [[ -n "${CI:-}" ]]; then

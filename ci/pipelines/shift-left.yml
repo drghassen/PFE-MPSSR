@@ -142,7 +142,7 @@ cloudinit-scan:
   <<: *default_tools
   stage: scan
   script:
-    - python3 shift-left/cloudinit-scanner/cloudinit_scan.py --terraform-dir infra/azure/student-secure --output .cloudsentinel/cloudinit_analysis.json --default-env "${CI_ENVIRONMENT_NAME:-dev}"
+    - python3 shift-left/cloudinit-scanner/cloudinit_scan.py --terraform-dir . --output .cloudsentinel/cloudinit_analysis.json --default-env "${CI_ENVIRONMENT_NAME:-dev}"
   artifacts:
     when: always
     expire_in: 7 days
