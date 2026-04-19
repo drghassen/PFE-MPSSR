@@ -179,14 +179,18 @@
               "role_spoofing_candidate",
               "remote_exec_detected",
               "db_packages_detected",
-              "remote_exec_patterns"
+              "remote_exec_patterns",
+              "security_bypass_detected",
+              "security_bypass_patterns"
             ],
             "properties": {
               "role_tag_missing": { "type": "boolean" },
               "role_spoofing_candidate": { "type": "boolean" },
               "remote_exec_detected": { "type": "boolean" },
               "db_packages_detected": { "type": "array", "items": { "type": "string" } },
-              "remote_exec_patterns": { "type": "array", "items": { "type": "string" } }
+              "remote_exec_patterns": { "type": "array", "items": { "type": "string" } },
+              "security_bypass_detected": { "type": "boolean" },
+              "security_bypass_patterns": { "type": "array", "items": { "type": "string" } }
             }
           },
           "violations": {
