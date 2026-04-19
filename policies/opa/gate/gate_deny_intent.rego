@@ -24,10 +24,10 @@ resource_is_prod(resource) if {
 
 resource_role(resource) := lower(trim_space(object.get(resource, "role_tag", "")))
 
-# Missing mandatory cs:role tag on VM resources in prod.
+# Missing mandatory cs:role tag on VM resources (all environments).
+# Governance decision: tag contract is always required.
 deny[msg] if {
 	some resource in resources_analyzed
-	resource_is_prod(resource)
 	object.get(resource_signals(resource), "role_tag_missing", false)
 	msg := sprintf(
 		"CS-CLOUDINIT-ROLE-TAG-MISSING [CRITICAL|non_waivable]: cs:role is missing on VM resource %s",

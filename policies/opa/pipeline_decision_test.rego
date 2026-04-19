@@ -101,6 +101,24 @@ _cloudinit_prod_missing_tag := {
 	"violations": [],
 }
 
+_cloudinit_dev_missing_tag := {
+	"resource_address": "azurerm_linux_virtual_machine.web",
+	"resource_type": "azurerm_linux_virtual_machine",
+	"resource_name": "web",
+	"file": "infra/azure/student-secure/modules/compute/main.tf",
+	"environment": "dev",
+	"role_tag": null,
+	"cloud_init_field": "custom_data",
+	"signals": {
+		"role_tag_missing": true,
+		"role_spoofing_candidate": false,
+		"remote_exec_detected": false,
+		"db_packages_detected": [],
+		"remote_exec_patterns": [],
+	},
+	"violations": [],
+}
+
 _cloudinit_prod_remote_exec := {
 	"resource_address": "azurerm_linux_virtual_machine.web",
 	"resource_type": "azurerm_linux_virtual_machine",
@@ -344,6 +362,19 @@ test_cloudinit_role_tag_missing_prod_denied if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
 		"metadata": {"environment": "prod"},
 		"resources_analyzed": [_cloudinit_prod_missing_tag],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-CLOUDINIT-ROLE-TAG-MISSING")
+}
+
+# TEST 20b: missing cs:role in dev still denied
+test_cloudinit_role_tag_missing_dev_denied if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "dev"},
+		"resources_analyzed": [_cloudinit_dev_missing_tag],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 

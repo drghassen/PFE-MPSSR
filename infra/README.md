@@ -37,7 +37,6 @@ Le déploiement est orchestré par le job `tofu-deploy` dans `.gitlab-ci.yml`.
 L'infrastructure n'est appliquée (`tofu apply`) **que si, et seulement si**, le stage précédent de décision OPA (`opa-decision`) a émis un `ALLOW`.
 
 ```bash
-# Exemple standard d'initialisation locale (pour tests dry-run)
 cd infra/azure/student-secure
 tofu init
 tofu plan

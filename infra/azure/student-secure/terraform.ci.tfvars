@@ -1,6 +1,0 @@
-# CI-only variables file — committed to git, used for static analysis / CI checks.
-# Purpose: deterministic placeholder values for non-deployment validation.
-# Real deployment uses terraform.tfvars (gitignored, contains real SSH key and subscription).
-
-subscription_id      = "00000000-0000-0000-0000-000000000000"
-admin_ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholderciplanplaceholder ci-plan-placeholder"
