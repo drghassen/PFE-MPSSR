@@ -309,7 +309,7 @@
       "additionalProperties": false,
       "required": ["tool", "path", "present", "valid_json", "status", "reason", "sha256"],
       "properties": {
-        "tool": { "type": "string", "enum": ["gitleaks", "checkov", "trivy"] },
+        "tool": { "type": "string", "enum": ["gitleaks", "checkov", "trivy", "cloudinit"] },
         "path": { "type": "string" },
         "present": { "type": "boolean" },
         "valid_json": { "type": "boolean" },
