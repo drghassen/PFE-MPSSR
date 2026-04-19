@@ -19,9 +19,8 @@ paths = [
   '''(^|/)\.terraform/''',
   '''(^|/)\.terragrunt-cache/''',
   '''(^|/)\.git/''',
-  '''(^|/)tests?/fixtures/''',
-  '''(^|/)__tests__/fixtures/''',
-  '''(^|/)test/fixtures/''',
+  # Specific audited test directories — intentionally narrow, not whole tests?/fixtures/
+  # trees, because staging credentials have been found in generic fixture directories.
   '''(^|/)infra/azure/student-secure/tests/''',
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
@@ -39,7 +38,12 @@ files = [
   '''.*\.min\.(js|css)$''',
   '''.*\.(png|jpg|jpeg|gif|svg|ico|pdf)$''',
   '''.*\.map$''',
-  '''.*\.(test|spec)\.(js|ts|py|go)$'''
+  '''.*\.(test|spec)\.(js|ts|py|go)$''',
+  # Exclude files whose name carries an explicit mock/fixture/fake/stub marker as a
+  # dotted extension component (e.g. user.fixture.json, api.mock.ts, data.stub.yaml).
+  # Whole-directory exclusions (tests?/fixtures/) were removed: they are too broad
+  # and can silently swallow real staging credentials stored in generic fixture files.
+  '''(?i)(^|/)[^/]*\.(?:fixture|mock|fake|stub|dummy)\.[a-z][a-z0-9]*$'''
 ]
 
 regexes = [
@@ -244,7 +248,7 @@ tags = ["kubernetes", "k8s", "secret", "base64"]
 id = "database-connection-prod"
 description = "Database Connection String with credentials (Host reviewed by allowlist)"
 regex = '''(?i)\b(postgres|postgresql|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@[^/\s]+'''
-severity = "MEDIUM"
+severity = "HIGH"
 tags = ["database", "connection-string", "credential"]
 
 # Targets Azure API Management subscription key headers/variables.

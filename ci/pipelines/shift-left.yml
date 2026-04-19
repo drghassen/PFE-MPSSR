@@ -170,6 +170,7 @@ normalize-reports:
     expire_in: 30 days
     paths:
       - .cloudsentinel/golden_report.json
+      - .cloudsentinel/golden_report.json.hmac
       - .cloudsentinel/gitleaks_raw.json
       - .cloudsentinel/checkov_raw.json
       - .cloudsentinel/checkov_scan.log

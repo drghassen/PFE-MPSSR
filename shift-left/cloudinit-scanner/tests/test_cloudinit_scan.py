@@ -179,9 +179,6 @@ EOT
         self.assertTrue(all(v.get("block") is False for v in resource["violations"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     # ─────────────────────────────────────────────────────────────────
     # Extended remote exec patterns (audit correction R2)
     # ─────────────────────────────────────────────────────────────────
@@ -431,3 +428,7 @@ EOT
         self.assertEqual(len(resource["violations"]), 0)
         self.assertEqual(resource["signals"]["security_bypass_detected"], False)
         self.assertEqual(resource["signals"]["remote_exec_detected"], False)
+
+
+if __name__ == "__main__":
+    unittest.main()

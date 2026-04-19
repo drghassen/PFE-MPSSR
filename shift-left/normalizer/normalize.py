@@ -199,7 +199,6 @@ class CloudSentinelNormalizer(
                 "environment": self.env,
                 "execution": {"mode": self.exec_mode},
                 "git": {
-                    "repo": self.git_repo,
                     "repository": self.git_repo,
                     "branch": self.git_branch,
                     "commit": self.git_commit,
@@ -222,14 +221,11 @@ class CloudSentinelNormalizer(
             "findings": findings,
             "summary": summary,
             "quality_gate": {
-                "decision": "NOT_EVALUATED",
-                "reason": "evaluation-performed-by-opa-only",
                 "thresholds": {
                     "critical_max": self.critical_max,
                     "high_max": self.high_max,
                 },
                 "details": {
-                    "reasons": ["opa_is_single_enforcement_point"],
                     "not_run_scanners": not_run,
                 },
             },

@@ -302,6 +302,7 @@ ACTIVE_EXC_MEDIUM="$(jq -r '.result.metrics.governance.active_exceptions_by_seve
 ACTIVE_EXC_LOW="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.LOW // 0' "$DECISION_FILE")"
 ACTIVE_EXC_INFO="$(jq -r '.result.metrics.governance.active_exceptions_by_severity.INFO // 0' "$DECISION_FILE")"
 ACTIVE_EXC_TOTAL=$((ACTIVE_EXC_CRITICAL + ACTIVE_EXC_HIGH + ACTIVE_EXC_MEDIUM + ACTIVE_EXC_LOW + ACTIVE_EXC_INFO))
+WARN_COUNT="$(jq -r '.result.warn // [] | length' "$DECISION_FILE")"
 
 log_header "Decision Report"
 
@@ -348,6 +349,12 @@ else
   log_deny "DECISION → ${BOLD}${RED}DENY ✗${NC}  (${DENY_COUNT} reason(s))"
   echo ""
   jq -r '.result.deny // [] | to_entries[] | "  [" + (.key + 1 | tostring) + "] " + .value' "$DECISION_FILE"
+fi
+
+if [[ "$WARN_COUNT" -gt 0 ]]; then
+  echo ""
+  echo -e "${YELLOW}[OPA]${NC} ${BOLD}WARN${NC}  ADVISORY SIGNALS (${WARN_COUNT}) — pipeline not blocked"
+  jq -r '.result.warn // [] | to_entries[] | "  [WARN " + (.key + 1 | tostring) + "] " + .value' "$DECISION_FILE"
 fi
 
 echo ""

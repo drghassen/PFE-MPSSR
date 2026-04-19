@@ -12,15 +12,19 @@ allow if {
 
 deny_reasons := sort([msg | deny[msg]])
 
+warn_reasons := sort([msg | warn[msg]])
+
 decision := {
 	"allow": allow,
 	"deny": deny_reasons,
+	"warn": warn_reasons,
 	"metrics": {
 		"critical": effective_critical,
 		"high": effective_high,
 		"medium": effective_medium,
 		"low": effective_low,
 		"info": 0,
+		"warn_count": count(warn_reasons),
 		"failed": count(effective_failed_findings),
 		"failed_input": count(failed_findings),
 		"failed_effective": count(effective_failed_findings),
@@ -37,7 +41,6 @@ decision := {
 			},
 			"active_break_glass": active_break_glass_count,
 			"expired_enabled_exceptions": count(expired_enabled_exception_ids),
-			"avg_approval_time_hours": avg_approval_time_hours,
 		},
 	},
 	"thresholds": {

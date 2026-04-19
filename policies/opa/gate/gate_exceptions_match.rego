@@ -154,7 +154,6 @@ active_exceptions_low := count([ex |
 	exception_severity(ex) == "LOW"
 ])
 
-avg_approval_time_hours := 0
 active_break_glass_count := 0
 
 prod_critical_exception_violation[ex_id] if {

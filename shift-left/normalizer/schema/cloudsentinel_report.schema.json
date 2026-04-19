@@ -60,9 +60,8 @@
         "git": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["repo", "repository", "branch", "commit", "commit_date", "author_email", "pipeline_id"],
+          "required": ["repository", "branch", "commit", "commit_date", "author_email", "pipeline_id"],
           "properties": {
-            "repo": { "type": "string" },
             "repository": { "type": "string" },
             "branch": { "type": "string" },
             "commit": { "type": "string" },
@@ -211,15 +210,8 @@
     "quality_gate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["decision", "reason", "thresholds"],
+      "required": ["thresholds"],
       "properties": {
-        "decision": {
-          "type": "string",
-          "enum": ["PASSED", "FAILED", "NOT_EVALUATED"]
-        },
-        "reason": {
-          "type": "string"
-        },
         "thresholds": {
           "type": "object",
           "additionalProperties": false,
@@ -233,10 +225,6 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "reasons": {
-              "type": "array",
-              "items": { "type": "string" }
-            },
             "not_run_scanners": {
               "type": "array",
               "items": { "type": "string" }

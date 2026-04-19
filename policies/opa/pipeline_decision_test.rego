@@ -6,9 +6,10 @@ import rego.v1
 
 # Shared fixtures
 _scanners_ok := {
-	"gitleaks": {"status": "PASSED"},
-	"checkov": {"status": "PASSED"},
-	"trivy": {"status": "PASSED"},
+	"gitleaks":  {"status": "PASSED"},
+	"checkov":   {"status": "PASSED"},
+	"trivy":     {"status": "PASSED"},
+	"cloudinit": {"status": "PASSED"},
 }
 
 _base := {
@@ -752,4 +753,50 @@ test_cloudinit_multiple_bypass_violations_all_denied if {
 	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-REMOTE-EXEC")]) >= 1
 	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-SSH-KEY-INJECTION")]) >= 1
 	count([msg | some msg in result.deny; contains(msg, "CS-CLOUDINIT-FIREWALL-DISABLE")]) >= 1
+}
+
+# TEST 33: MEDIUM finding produces a warn signal — pipeline still allowed
+
+_medium_finding := {
+	"status": "FAILED",
+	"source": {"tool": "checkov", "id": "CKV_AZ_MEDIUM_001"},
+	"resource": {"name": "azurerm_storage_account.medium", "path": "azurerm_storage_account.medium", "location": {"file": "azurerm_storage_account.medium", "start_line": 0}},
+	"severity": {"level": "MEDIUM"},
+}
+
+test_medium_finding_warns_not_blocks if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"findings": [_medium_finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	count(result.deny) == 0
+	count(result.warn) == 1
+	result.metrics.warn_count == 1
+	some msg in result.warn
+	contains(msg, "MEDIUM findings (1)")
+}
+
+# TEST 34: LOW finding produces a warn signal — pipeline still allowed
+
+_low_finding := {
+	"status": "FAILED",
+	"source": {"tool": "trivy", "id": "CVE-LOW-001"},
+	"resource": {"name": "pkg-low", "path": "pkg-low", "location": {"file": "pkg-low", "start_line": 0}},
+	"severity": {"level": "LOW"},
+}
+
+test_low_finding_warns_not_blocks if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"findings": [_low_finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	count(result.deny) == 0
+	count(result.warn) == 1
+	result.metrics.warn_count == 1
+	some msg in result.warn
+	contains(msg, "LOW findings (1)")
 }

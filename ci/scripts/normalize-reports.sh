@@ -11,6 +11,20 @@ export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKE
 python3 shift-left/normalizer/normalize.py
 jq '.summary' .cloudsentinel/golden_report.json
 jq '.quality_gate' .cloudsentinel/golden_report.json
+
+# --- Artifact integrity: sign golden_report.json with HMAC-SHA256 ---
+# The .hmac sidecar is passed as an artifact and verified by opa-decision
+# before golden_report.json is fed to OPA — prevents artifact substitution
+# on a compromised runner.
+if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
+  python3 ci/scripts/artifact_hmac.py sign .cloudsentinel/golden_report.json
+elif [[ -n "${CI:-}" ]]; then
+  echo "[normalize-reports][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
+  echo "[normalize-reports][ERROR] Add it as a masked+protected variable in Settings → CI/CD → Variables." >&2
+  exit 1
+else
+  echo "[normalize-reports][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping HMAC signing (non-CI mode)."
+fi
 if ! timeout 30 python3 shift-left/opa/fetch-exceptions.py; then
   if [ "${CLOUDSENTINEL_FAIL_CLOSED:-true}" = "true" ]; then
     echo "[normalize-reports][ERROR] Exceptions fetch failed/timed out. CLOUDSENTINEL_FAIL_CLOSED=true. Halting." >&2

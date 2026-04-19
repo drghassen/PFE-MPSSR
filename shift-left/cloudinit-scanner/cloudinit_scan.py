@@ -44,7 +44,7 @@ DB_KEYWORDS = {
 REMOTE_EXEC_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     (
         "curl_pipe_shell",
-        re.compile(r"curl\s+[^\n|;]+\|\s*(?:bash|sh)\b", re.IGNORECASE),
+        re.compile(r"curl\s+[^\n|;]+\|\s*(?:sudo\s+)?(?:bash|sh)\b", re.IGNORECASE),
     ),
     (
         "wget_pipe_shell",
@@ -56,7 +56,7 @@ REMOTE_EXEC_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "eval_remote_exec",
-        re.compile(r"\beval\s+\$\(", re.IGNORECASE),
+        re.compile(r'\beval\s+["\']?\$\(', re.IGNORECASE),
     ),
     (
         "process_substitution_remote",
@@ -79,7 +79,13 @@ REMOTE_EXEC_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
 SECURITY_BYPASS_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     (
         "ssh_key_injection",
-        re.compile(r"echo\s+[\"']?ssh-(?:rsa|ed25519|ecdsa)[^\n]+>>\s*[^\n]*authorized_keys", re.IGNORECASE),
+        re.compile(
+            r"(?:"
+            r"echo\s+[\"']?ssh-(?:rsa|ed25519|ecdsa)[^\n]+>>\s*[^\n]*authorized_keys"
+            r"|ssh_authorized_keys\s*:"
+            r")",
+            re.IGNORECASE,
+        ),
     ),
     (
         "firewall_disable",
@@ -91,7 +97,7 @@ SECURITY_BYPASS_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "hardcoded_credentials",
-        re.compile(r"(?:password|passwd|secret|token|api_key)\s*=\s*[\"'][^\"']{6,}[\"']", re.IGNORECASE),
+        re.compile(r"(?:password|passwd|secret|token|api_key)\s*=\s*(?:[\"'][^\"']{6,}[\"']|[^\s\"']{6,})", re.IGNORECASE),
     ),
     (
         "crontab_injection",
@@ -362,12 +368,17 @@ def _analyze_resource(
             )
         )
 
-    if security_bypass_detected:
+    _BYPASS_RULE_IDS = {
+        "ssh_key_injection": "CS-CLOUDINIT-SSH-KEY-INJECTION",
+        "firewall_disable": "CS-CLOUDINIT-FIREWALL-DISABLE",
+        "hardcoded_credentials": "CS-CLOUDINIT-HARDCODED-CREDENTIALS",
+    }
+    for bp in security_bypass_patterns:
         violations.append(
             _build_violation(
-                "CS-CLOUDINIT-SECURITY-BYPASS",
+                _BYPASS_RULE_IDS.get(bp, "CS-CLOUDINIT-SECURITY-BYPASS"),
                 "CRITICAL",
-                f"Security bypass pattern(s) detected in cloud-init: {', '.join(security_bypass_patterns)}",
+                f"Security bypass pattern detected in cloud-init: {bp}",
                 block=blocking_env,
             )
         )

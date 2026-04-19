@@ -21,9 +21,10 @@ base_input := {
     }
   },
   "scanners": {
-    "gitleaks": {"status": "PASSED"},
-    "checkov": {"status": "PASSED"},
-    "trivy": {"status": "PASSED"}
+    "gitleaks":  {"status": "PASSED"},
+    "checkov":   {"status": "PASSED"},
+    "trivy":     {"status": "PASSED"},
+    "cloudinit": {"status": "PASSED"}
   }
 }
 
@@ -234,3 +235,50 @@ test_threshold_ceiling_caps_high_max_to_policy_floor if {
   result.allow
   result.thresholds.enforced_high_max == 5
 }
+
+# Test : MEDIUM finding produces a warn, pipeline still allowed.
+test_medium_finding_produces_warn_not_deny if {
+  medium_finding := {
+    "status": "FAILED",
+    "source": {"tool": "checkov", "id": "CKV_AZ_MEDIUM_001"},
+    "resource": {
+      "name": "azurerm_storage.medium",
+      "path": "azurerm_storage.medium",
+      "location": {"file": "azurerm_storage.medium", "start_line": 0}
+    },
+    "severity": {"level": "MEDIUM"}
+  }
+  result := decision
+    with input as object.union(base_input, {"findings": [medium_finding]})
+    with data.cloudsentinel.exceptions.exceptions as []
+
+  result.allow
+  count(result.deny) == 0
+  count(result.warn) == 1
+  result.metrics.warn_count == 1
+  result.warn[0] == "MEDIUM findings (1) — open a DefectDojo ticket or submit an exception request"
+}
+
+# Test : LOW finding produces a warn, pipeline still allowed.
+test_low_finding_produces_warn_not_deny if {
+  low_finding := {
+    "status": "FAILED",
+    "source": {"tool": "trivy", "id": "CVE-LOW-001"},
+    "resource": {
+      "name": "pkg-low",
+      "path": "pkg-low",
+      "location": {"file": "pkg-low", "start_line": 0}
+    },
+    "severity": {"level": "LOW"}
+  }
+  result := decision
+    with input as object.union(base_input, {"findings": [low_finding]})
+    with data.cloudsentinel.exceptions.exceptions as []
+
+  result.allow
+  count(result.deny) == 0
+  count(result.warn) == 1
+  result.metrics.warn_count == 1
+  result.warn[0] == "LOW findings (1) — add to backlog and review before next release"
+}
+

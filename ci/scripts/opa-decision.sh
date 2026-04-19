@@ -13,6 +13,19 @@ set -euo pipefail
 # The token is ephemeral — generated per CI job and discarded after.
 # ==============================================================================
 
+# --- Artifact integrity: verify golden_report.json before feeding it to OPA ---
+# Recomputes HMAC-SHA256 and compares against the sidecar signed by normalize-reports.
+# A mismatch means the artifact was replaced after signing — hard stop.
+if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
+  python3 ci/scripts/artifact_hmac.py verify .cloudsentinel/golden_report.json
+elif [[ -n "${CI:-}" ]]; then
+  echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
+  echo "[opa-decision][ERROR] Cannot verify artifact integrity — refusing to proceed." >&2
+  exit 1
+else
+  echo "[opa-decision][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping HMAC verification (non-CI mode)."
+fi
+
 # Generate ephemeral auth token for this CI run
 OPA_AUTH_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 export OPA_AUTH_TOKEN

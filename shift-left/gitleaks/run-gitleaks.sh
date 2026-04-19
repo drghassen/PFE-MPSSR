@@ -53,8 +53,10 @@ if [[ "$SCAN_MODE" == "local" ]]; then
     run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
   fi
 else
-  # CI must scan the full checked-out repository snapshot (no commit history).
-  run_cmd gitleaks detect --no-git --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+  # CI scans full git history (GIT_DEPTH=0 guarantees a complete clone).
+  # --no-git is intentionally absent: a secret removed in a prior commit
+  # stays visible in history and must not be silently dropped from the gate.
+  run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
 fi
 RC=$?
 set -e
