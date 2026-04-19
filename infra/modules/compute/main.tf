@@ -38,6 +38,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   patch_mode                      = "AutomaticByPlatform"
   secure_boot_enabled             = true
   vtpm_enabled                    = true
+  custom_data                     = var.cloud_init_content
   tags                            = var.tags
 
   network_interface_ids = [azurerm_network_interface.this.id]
