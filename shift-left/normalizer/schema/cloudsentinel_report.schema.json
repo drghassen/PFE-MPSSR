@@ -88,11 +88,12 @@
             "source_reports": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["gitleaks", "checkov", "trivy"],
+              "required": ["gitleaks", "checkov", "trivy", "cloudinit"],
               "properties": {
                 "gitleaks": { "$ref": "#/definitions/source_report_trace" },
                 "checkov": { "$ref": "#/definitions/source_report_trace" },
-                "trivy": { "$ref": "#/definitions/source_report_trace" }
+                "trivy": { "$ref": "#/definitions/source_report_trace" },
+                "cloudinit": { "$ref": "#/definitions/source_report_trace" }
               }
             }
           }
