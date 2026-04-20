@@ -18,77 +18,29 @@ readonly APPSEC_ALLOWED_USERS="${CLOUDSENTINEL_APPSEC_USERS}"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"
-TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${DEFAULT_BRANCH}}"
-FETCH_DEPTH="${IMMUTABILITY_FETCH_DEPTH:-200}"
-
-resolve_head_parent() {
-  git rev-parse "${HEAD_SHA}^" 2>/dev/null || true
-}
-
-resolve_merge_base() {
-  local branch_name="$1"
-  git merge-base "$HEAD_SHA" "origin/${branch_name}" 2>/dev/null || true
-}
 
 # Resolve base SHA deterministically.
-# Priority:
-# 1) CI_COMMIT_BEFORE_SHA (branch pipelines)
-# 2) parent commit of HEAD (fallback for shallow branch pipelines)
-# 3) MR target SHA / merge-base with target branch (MR pipelines)
-BASE_SHA="${CI_COMMIT_BEFORE_SHA:-}"
-[[ "$BASE_SHA" == "$ZERO_SHA" ]] && BASE_SHA=""
+BASE_SHA="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-${CI_COMMIT_BEFORE_SHA:-}}"
 
-if [[ -z "$BASE_SHA" ]]; then
-  BASE_SHA="$(resolve_head_parent)"
+if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
+  BASE_SHA="$(git merge-base "$HEAD_SHA" "origin/${DEFAULT_BRANCH}" 2>/dev/null || true)"
 fi
 
-MR_TARGET_SHA="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}"
-[[ "$MR_TARGET_SHA" == "$ZERO_SHA" ]] && MR_TARGET_SHA=""
-if [[ -z "$BASE_SHA" && -n "$MR_TARGET_SHA" ]]; then
-  BASE_SHA="$MR_TARGET_SHA"
-fi
-
-if [[ -z "$BASE_SHA" ]]; then
-  # Last resort before network fetch: merge-base against origin target branch.
-  BASE_SHA="$(resolve_merge_base "$TARGET_BRANCH")"
-fi
-
-# In shallow clones, BASE_SHA may exist in CI variables but not be fetched yet.
-# Strategy 1: deepen current history — enables HEAD^ resolution in branch pipelines.
-# Strategy 2: fetch target branch by ref — covers MR pipelines and the
-#   case where BASE_SHA is a merge-base diverged long ago.
-if [[ -z "$BASE_SHA" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-  log "Base SHA not present/resolvable in shallow clone. Deepening current branch..."
-  git fetch --no-tags --deepen="${FETCH_DEPTH}" origin 2>/dev/null || true
-
-  if [[ -z "$BASE_SHA" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-    BASE_SHA="$(resolve_head_parent)"
-  fi
-
-  if [[ -z "$BASE_SHA" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-    log "Still unresolved after deepen. Fetching target branch refs..."
-    git fetch --no-tags --depth="${FETCH_DEPTH}" origin \
-      "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" 2>/dev/null || true
-    if [[ "$TARGET_BRANCH" != "$DEFAULT_BRANCH" ]]; then
-      git fetch --no-tags --depth="${FETCH_DEPTH}" origin \
-        "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" 2>/dev/null || true
-    fi
-    if [[ -z "$BASE_SHA" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-      BASE_SHA="$(resolve_merge_base "$TARGET_BRANCH")"
-      if [[ -z "$BASE_SHA" ]] && [[ "$TARGET_BRANCH" != "$DEFAULT_BRANCH" ]]; then
-        BASE_SHA="$(resolve_merge_base "$DEFAULT_BRANCH")"
-      fi
-    fi
-  fi
-fi
-
-if [[ -z "$BASE_SHA" ]]; then
-  err "Unable to resolve BASE_SHA for immutability check after all fetch attempts."
+if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
+  err "Unable to resolve BASE_SHA for immutability check. Refusing to continue."
   exit 2
 fi
 
 if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-  err "BASE_SHA ${BASE_SHA} unavailable after all fetch attempts."
+  log "Base SHA not present in clone. Attempting secure fetch..."
+  if ! git fetch --no-tags --depth="${IMMUTABILITY_FETCH_DEPTH:-200}" origin "$BASE_SHA" "${DEFAULT_BRANCH}" >/dev/null 2>&1; then
+    err "Unable to fetch BASE_SHA=${BASE_SHA}. Refusing to bypass immutability check."
+    exit 2
+  fi
+fi
+
+if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+  err "BASE_SHA still unavailable after fetch: ${BASE_SHA}"
   exit 2
 fi
 
