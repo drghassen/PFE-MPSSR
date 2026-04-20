@@ -18,10 +18,15 @@ variable "admin_login" {
   type        = string
 }
 
-variable "admin_password" {
-  description = "PostgreSQL administrator password."
+variable "key_vault_id" {
+  description = "Azure Key Vault ID that holds the DB administrator password secret."
   type        = string
-  sensitive   = true
+}
+
+variable "db_password_secret_name" {
+  description = "Name of the Key Vault secret that contains the DB administrator password."
+  type        = string
+  default     = "db-admin-password"
 }
 
 variable "sku_name" {

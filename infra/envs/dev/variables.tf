@@ -76,9 +76,9 @@ variable "create_ci_identity" {
 }
 
 variable "log_retention_days" {
-  description = "Log Analytics retention period in days."
+  description = "Log Analytics retention period in days. CIS 5.1 requires >= 90 days."
   type        = number
-  default     = 30
+  default     = 90
 }
 
 variable "allow_http_inbound" {
@@ -93,10 +93,10 @@ variable "db_admin_login" {
   default     = "csadmin"
 }
 
-variable "db_admin_password" {
-  description = "PostgreSQL administrator password (use CI/CD masked variable)."
+variable "db_password_secret_name" {
+  description = "Name of the Azure Key Vault secret holding the DB admin password. Pre-seed with: az keyvault secret set --vault-name <kv-name> --name <value> --value <password>"
   type        = string
-  sensitive   = true
+  default     = "db-admin-password"
 }
 
 variable "db_sku_name" {

@@ -42,3 +42,8 @@ RUN gitleaks version \
  && trivy --version \
  && jq --version \
  && python3 -c "from importlib.metadata import version; print(version('jsonschema'))"
+
+RUN groupadd --gid 65532 nonroot \
+ && useradd --uid 65532 --gid 65532 --no-create-home nonroot
+
+USER 65532:65532

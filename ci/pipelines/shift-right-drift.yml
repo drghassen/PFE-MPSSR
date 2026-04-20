@@ -86,7 +86,7 @@ opa-drift-decision:
     - when: never
   script:
     - set -euo pipefail
-    - bash ci/scripts/opa-drift-decision.sh
+    - bash ci/scripts/shift-right/opa-drift-decision.sh
   artifacts:
     when: always
     expire_in: 30 days
@@ -111,7 +111,7 @@ upload-drift-to-defectdojo:
     - when: never
   script:
     - set -euo pipefail
-    - bash ci/scripts/upload-drift-to-defectdojo.sh
+    - bash ci/scripts/shift-right/upload-drift-to-defectdojo.sh
   artifacts:
     when: always
     expire_in: 30 days

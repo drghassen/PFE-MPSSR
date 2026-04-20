@@ -234,13 +234,14 @@ def _decode_if_base64(field_name: str, raw: str) -> str:
     return raw
 
 
-def _extract_cloud_init(resource_body: Dict[str, Any]) -> Tuple[str, str]:
+def _extract_cloud_init(resource_body: Dict[str, Any]) -> Tuple[str, str, bool]:
     for field in CLOUD_INIT_FIELDS:
         raw_value = _unwrap_hcl_value(resource_body.get(field))
         if isinstance(raw_value, str) and raw_value.strip():
             cleaned = _strip_hcl_heredoc(raw_value)
-            return field, _decode_if_base64(field, cleaned)
-    return "", ""
+            unresolvable = "${" in cleaned.strip()
+            return field, _decode_if_base64(field, cleaned), unresolvable
+    return "", "", False
 
 
 def _extract_yaml_packages(cloud_init_text: str) -> List[str]:
@@ -324,13 +325,14 @@ def _analyze_resource(
     role_tag = _extract_role_tag(tags)
     env = _extract_environment(tags, default_env)
 
-    cloud_init_field, cloud_init_text = _extract_cloud_init(resource_body)
+    cloud_init_field, cloud_init_text, cloud_init_unresolvable = _extract_cloud_init(resource_body)
     db_packages = _detect_db_packages(cloud_init_text)
     remote_exec_patterns = _detect_remote_exec_patterns(cloud_init_text)
     security_bypass_patterns = _detect_security_bypass_patterns(cloud_init_text)
 
-    role_spoofing_candidate = _as_lower_str(role_tag) == "web-server" and bool(
-        db_packages
+    role_spoofing_candidate = (
+        _as_lower_str(role_tag) not in {"", "db-server"}
+        and bool(db_packages)
     )
     role_tag_missing = role_tag == ""
     remote_exec_detected = bool(remote_exec_patterns)
@@ -405,6 +407,7 @@ def _analyze_resource(
             "db_packages_detected": db_packages,
             "remote_exec_patterns": remote_exec_patterns,
             "security_bypass_patterns": security_bypass_patterns,
+            "cloud_init_unresolvable": cloud_init_unresolvable,
         },
         "violations": violations,
     }

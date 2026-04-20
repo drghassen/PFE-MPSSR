@@ -8,4 +8,7 @@
 /shift-left/opa/ @appsec-team @drghassen
 /shift-left/normalizer/ @appsec-team @drghassen
 /shift-left/ci/ @appsec-team @drghassen
+/ci/scripts/ @appsec-team @drghassen
+/ci/scripts/shift-left/ @appsec-team @drghassen
+/ci/scripts/shift-right/ @appsec-team @drghassen
 /.gitlab-ci.yml @appsec-team @drghassen

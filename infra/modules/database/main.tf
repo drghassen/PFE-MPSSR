@@ -1,16 +1,23 @@
+data "azurerm_key_vault_secret" "db_password" {
+  name         = var.db_password_secret_name
+  key_vault_id = var.key_vault_id
+}
+
 resource "azurerm_postgresql_flexible_server" "this" {
-  name                         = "${var.name_prefix}-pgfs"
-  resource_group_name          = var.resource_group_name
-  location                     = var.location
-  version                      = "15"
-  administrator_login          = var.admin_login
-  administrator_password       = var.admin_password
-  sku_name                     = var.sku_name
-  storage_mb                   = 32768
-  backup_retention_days        = 7
-  geo_redundant_backup_enabled = false
-  zone                         = "1"
-  tags                         = var.tags
+  name                              = "${var.name_prefix}-pgfs"
+  resource_group_name               = var.resource_group_name
+  location                          = var.location
+  version                           = "15"
+  administrator_login               = var.admin_login
+  administrator_password            = data.azurerm_key_vault_secret.db_password.value
+  sku_name                          = var.sku_name
+  storage_mb                        = 32768
+  backup_retention_days             = 7
+  geo_redundant_backup_enabled      = false
+  ssl_minimal_tls_version_enforced  = "TLS1_2"
+  public_network_access_enabled     = false
+  zone                              = "1"
+  tags                              = var.tags
 }
 
 # Special Azure flag: 0.0.0.0/0.0.0.0 = allow Azure-internal services only

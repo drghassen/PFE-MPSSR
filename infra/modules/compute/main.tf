@@ -35,6 +35,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   admin_username                  = var.admin_username
   disable_password_authentication = true
   encryption_at_host_enabled      = true
+  allow_extension_operations      = false
   patch_mode                      = "AutomaticByPlatform"
   secure_boot_enabled             = true
   vtpm_enabled                    = true
@@ -66,7 +67,7 @@ resource "azurerm_linux_virtual_machine" "this" {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
     sku       = "22_04-lts-gen2"
-    version   = "latest"
+    version   = "22.04.202404010"
   }
 
   boot_diagnostics {}

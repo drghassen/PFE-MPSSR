@@ -72,13 +72,14 @@ module "compute" {
 module "database" {
   source = "../../modules/database"
 
-  name_prefix         = var.name_prefix
-  resource_group_name = azurerm_resource_group.this.name
-  location            = var.location
-  admin_login         = var.db_admin_login
-  admin_password      = var.db_admin_password
-  sku_name            = var.db_sku_name
-  db_name             = var.db_name
-  allowed_ips         = var.db_allowed_ips
-  tags                = local.common_tags
+  name_prefix             = var.name_prefix
+  resource_group_name     = azurerm_resource_group.this.name
+  location                = var.location
+  admin_login             = var.db_admin_login
+  key_vault_id            = module.security.key_vault_id
+  db_password_secret_name = var.db_password_secret_name
+  sku_name                = var.db_sku_name
+  db_name                 = var.db_name
+  allowed_ips             = var.db_allowed_ips
+  tags                    = local.common_tags
 }

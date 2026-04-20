@@ -32,6 +32,8 @@
   "CKV2_CS_AZ_033": { "category": "DATABASE",   "severity": "HIGH" },
   "CKV2_CS_AZ_034": { "category": "DATABASE",   "severity": "HIGH" },
   "CKV2_CS_AZ_035": { "category": "IDENTITY",   "severity": "HIGH" },
+  "CKV2_CS_AZ_036": { "category": "DATABASE",   "severity": "HIGH" },
+  "CKV2_CS_AZ_037": { "category": "DATABASE",   "severity": "HIGH" },
 
   "CKV_AZURE_1":  { "category": "DATABASE",   "severity": "HIGH" },
   "CKV_AZURE_2":  { "category": "LOGGING",    "severity": "MEDIUM" },

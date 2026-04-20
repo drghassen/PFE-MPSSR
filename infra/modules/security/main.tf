@@ -1,3 +1,27 @@
+data "azurerm_client_config" "current" {}
+
+# Key Vault: secrets never stored in Terraform state nor in CI/CD variables.
+# The DB password must be pre-seeded by the security team before the first apply:
+#   az keyvault secret set --vault-name <name> --name db-admin-password --value <password>
+resource "azurerm_key_vault" "this" {
+  name                       = "${var.name_prefix}-kv"
+  location                   = var.location
+  resource_group_name        = var.resource_group_name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  soft_delete_retention_days = 7
+  purge_protection_enabled   = false
+  enable_rbac_authorization  = true
+  tags                       = var.tags
+}
+
+# Grant the deployer identity (Service Principal) read access to secrets.
+resource "azurerm_role_assignment" "kv_deployer_secrets" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_log_analytics_workspace" "this" {
   name                = "${var.name_prefix}-law"
   location            = var.location

@@ -17,7 +17,7 @@ jq '.quality_gate' .cloudsentinel/golden_report.json
 # before golden_report.json is fed to OPA — prevents artifact substitution
 # on a compromised runner.
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  python3 ci/scripts/artifact_hmac.py sign .cloudsentinel/golden_report.json
+  python3 ci/scripts/shift-left/artifact_hmac.py sign .cloudsentinel/golden_report.json
 elif [[ -n "${CI:-}" ]]; then
   echo "[normalize-reports][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
   echo "[normalize-reports][ERROR] Add it as a masked+protected variable in Settings → CI/CD → Variables." >&2

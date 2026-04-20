@@ -51,7 +51,7 @@ fi
 
 # .gitlab-ci-image-factory.yml: protected because it controls CI image rebuilds.
 # Unauthorized modification could introduce malicious images into the supply chain.
-PROTECTED_REGEX='^(policies/opa/.*\.rego|ci/scripts/.*\.sh|ci/libs/cloudsentinel_contracts\.py|shift-left/normalizer/.*|shift-left/opa/.*|shift-left/.*/run-.*\.sh|shift-left/opa/schema/exceptions_v2\.schema\.json|shift-left/normalizer/schema/cloudsentinel_report\.schema\.json|shift-left/gitleaks/gitleaks\.toml|shift-left/checkov/\.checkov\.yml|shift-left/checkov/policies/mapping\.json|shift-left/trivy/configs/trivy\.yaml|shift-left/trivy/configs/trivy-ci\.yaml|shift-left/trivy/configs/severity-mapping\.json|\.gitlab-ci\.yml|\.gitlab-ci-image-factory\.yml)$'
+PROTECTED_REGEX='^(policies/opa/.*\.rego|ci/scripts/shift-left/.*\.sh|ci/scripts/shift-left/.*\.py|ci/scripts/shift-right/.*\.sh|ci/scripts/.*\.sh|ci/libs/cloudsentinel_contracts\.py|shift-left/normalizer/.*|shift-left/opa/.*|shift-left/.*/run-.*\.sh|shift-left/opa/schema/exceptions_v2\.schema\.json|shift-left/normalizer/schema/cloudsentinel_report\.schema\.json|shift-left/gitleaks/gitleaks\.toml|shift-left/checkov/\.checkov\.yml|shift-left/checkov/policies/mapping\.json|shift-left/trivy/configs/trivy\.yaml|shift-left/trivy/configs/trivy-ci\.yaml|shift-left/trivy/configs/severity-mapping\.json|\.gitlab-ci\.yml|\.gitlab-ci-image-factory\.yml)$'
 
 CHANGED_PROTECTED_FILES="$({
   git diff --name-only "$BASE_SHA" "$HEAD_SHA"
@@ -65,7 +65,20 @@ fi
 ACTOR_LOGIN="${GITLAB_USER_LOGIN:-unknown}"
 ACTOR_EMAIL="${GITLAB_USER_EMAIL:-unknown}"
 
-if echo ",${APPSEC_ALLOWED_USERS}," | grep -qi ",${ACTOR_LOGIN},"; then
+# Exact case-sensitive match — iterate CSV tokens one by one.
+# grep -qi was previously used here and allowed case-bypass attacks:
+# e.g. actor "AppsecAdmin" passed if "appsecadmin" was in the allowlist.
+_authorized=false
+IFS=',' read -ra _allowed_tokens <<< "${APPSEC_ALLOWED_USERS}"
+for _tok in "${_allowed_tokens[@]}"; do
+  _tok="${_tok// /}"  # strip surrounding spaces from each token
+  if [[ -n "$_tok" && "$_tok" == "${ACTOR_LOGIN}" ]]; then
+    _authorized=true
+    break
+  fi
+done
+
+if [[ "$_authorized" == "true" ]]; then
   log "Authorized AppSec change by ${ACTOR_LOGIN}."
   log "Changed protected files:"
   echo "$CHANGED_PROTECTED_FILES" | sed 's/^/  - /'

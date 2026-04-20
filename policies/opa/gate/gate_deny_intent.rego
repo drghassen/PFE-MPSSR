@@ -34,23 +34,26 @@ resource_is_prod(resource) if {
 
 resource_role(resource) := lower(trim_space(object.get(resource, "role_tag", "")))
 
+# Heuristic 1 (priority): exact resource address match.
+# "azurerm_linux_virtual_machine.this" == finding resource name.
+# Most precise — no false positives between VMs in the same file.
 _same_resource(vm_address, vm_file, finding_resource, finding_file) if {
-	vm_addr := lower(trim_space(vm_address))
-	vm_parts := split(vm_addr, ".")
+	lower(trim_space(vm_address)) == lower(trim_space(finding_resource))
+}
+
+# Heuristic 2: VM logical name is contained in the finding resource identifier.
+# Handles cases where checkov reports the resource as just "this" or "module.compute.this".
+_same_resource(vm_address, vm_file, finding_resource, finding_file) if {
+	vm_parts := split(lower(trim_space(vm_address)), ".")
 	count(vm_parts) > 1
-	vm_name := trim_space(vm_parts[1])
+	vm_name := trim_space(vm_parts[count(vm_parts) - 1])
 	vm_name != ""
 	contains(lower(trim_space(finding_resource)), vm_name)
 }
 
-_same_resource(vm_address, vm_file, finding_resource, finding_file) if {
-	vm_tf_file := normalize_path(vm_file)
-	finding_tf_file := normalize_path(finding_file)
-	vm_tf_file != ""
-	finding_tf_file != ""
-	lower(vm_tf_file) == lower(finding_tf_file)
-	endswith(lower(vm_tf_file), ".tf")
-}
+# NOTE: file-based heuristic deliberately removed.
+# Matching on .tf file path alone caused inter-VM pollution: a Checkov finding
+# on VM-B in the same file would trigger the role-spoofing deny for VM-A.
 
 # Missing mandatory cs:role tag on VM resources (all environments).
 # Governance decision: tag contract is always required.
@@ -121,11 +124,34 @@ deny[msg] if {
 	)
 }
 
-# Multi-signal role spoofing detection (3 independent signals):
-#   signal_1: IaC tag cs:role=web-server
-#   signal_2: cloud-init behavior indicates database workload on same VM
-#   signal_3: failed checkov HIGH/CRITICAL finding present in raw findings
-# Enforced only in prod and non-waivable.
+# Multi-signal role spoofing detection.
+#
+# Signals:
+#   signal_1: IaC tag cs:role=web-server       — static governance contract
+#   signal_2: cloud-init installs DB packages  — behavioral evidence of mismatch
+#   signal_3: corroborating Checkov finding    — independent scanner confirmation
+#
+# ARCHITECTURE: signals 1+2 are SUFFICIENT to block (intent vs behaviour mismatch).
+# Signal 3 is an independent aggravant that adds a second deny message when present
+# but is NOT a mandatory gate condition — clean IaC must NOT bypass detection.
+# Enforced in prod only. Non-waivable.
+
+# Rule A — 2-signal block (signals 1+2 alone).
+# Fires whenever cs:role=web-server AND cloud-init db workload coexist on the same VM.
+deny[msg] if {
+	some resource in resources_analyzed
+	resource_is_prod(resource)
+	resource_role(resource) == "web-server"
+	object.get(resource_signals(resource), "role_spoofing_candidate", false)
+	msg := sprintf(
+		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable]: role spoofing on %s — tag:web-server conflicts with cloud-init DB workload (env=%s)",
+		[object.get(resource, "resource_address", "unknown"), resource_env(resource)],
+	)
+}
+
+# Rule B — 3-signal corroboration aggravant.
+# Fires additionally when a Checkov HIGH/CRITICAL finding is present on the same resource.
+# Produces a distinct, richer audit message — does not replace Rule A.
 deny[msg] if {
 	some resource in resources_analyzed
 	resource_is_prod(resource)
@@ -143,11 +169,12 @@ deny[msg] if {
 	)
 
 	msg := sprintf(
-		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable]: role spoofing detected on %s (signals=tag:web-server, cloud-init:db-workload, finding:%s|%s)",
+		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable|3-signal-corroborated]: role spoofing on %s — tag:web-server + cloud-init:db-workload + checkov:%s/%s (env=%s)",
 		[
 			object.get(resource, "resource_address", "unknown"),
 			finding_tool(finding),
 			finding_severity_level(finding),
+			resource_env(resource),
 		],
 	)
 }

@@ -28,28 +28,41 @@ _drift_exception_has_wildcard(ex) if {
 }
 
 # ── Scope environment matching helpers ──
+#
+# SECURITY: unscoped exceptions (absent or empty environments list) are REJECTED.
+# An exception with no environment scope would silently match prod, staging and dev,
+# granting a blanket waiver across the entire fleet — this is a governance violation.
+# Every drift exception MUST declare at least one target environment explicitly.
 
 valid_env_scope(ex) if {
-	not ex.environments
-} else if {
-	count(ex.environments) == 0
-} else if {
-	input.environment in ex.environments
+	envs := object.get(ex, "environments", [])
+	count(envs) > 0
+	input.environment in envs
+}
+
+# Repos and branches remain optional-scope (absent = matches all repos/branches).
+# Only environment scope is mandatory because environment determines blast radius.
+valid_repo_scope(ex) if {
+	not ex.repos
 }
 
 valid_repo_scope(ex) if {
-	not ex.repos
-} else if {
 	count(ex.repos) == 0
-} else if {
+}
+
+valid_repo_scope(ex) if {
 	input.repo in ex.repos
 }
 
 valid_branch_scope(ex) if {
 	not ex.branches
-} else if {
+}
+
+valid_branch_scope(ex) if {
 	count(ex.branches) == 0
-} else if {
+}
+
+valid_branch_scope(ex) if {
 	input.branch in ex.branches
 }
 

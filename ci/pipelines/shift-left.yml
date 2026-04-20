@@ -66,14 +66,14 @@ retry-guard:
   <<: *default_tools
   stage: guard
   script:
-    - bash ci/scripts/retry-guard.sh
+    - bash ci/scripts/shift-left/retry-guard.sh
   allow_failure: false
 
 policies-immutability:
   <<: *default_tools
   stage: guard
   script:
-    - bash ci/scripts/policies-immutability.sh
+    - bash ci/scripts/shift-left/policies-immutability.sh
   allow_failure: false
 
 trivy-db-warm:
@@ -85,7 +85,7 @@ trivy-db-warm:
     paths:
       - .trivy-cache
   script:
-    - bash ci/scripts/trivy-db-warm.sh
+    - bash ci/scripts/shift-left/trivy-db-warm.sh
   allow_failure: false
 
 
@@ -95,7 +95,7 @@ gitleaks-scan:
   variables:
     GIT_DEPTH: "0"
   script:
-    - bash ci/scripts/gitleaks-scan.sh
+    - bash ci/scripts/shift-left/gitleaks-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -107,7 +107,7 @@ checkov-scan:
   <<: *default_tools
   stage: scan
   script:
-    - bash ci/scripts/checkov-scan.sh
+    - bash ci/scripts/shift-left/checkov-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -119,7 +119,7 @@ trivy-fs-scan:
   <<: [*default_tools, *trivy_cache_pull_push]
   stage: scan
   script:
-    - bash ci/scripts/trivy-fs-scan.sh
+    - bash ci/scripts/shift-left/trivy-fs-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -131,7 +131,7 @@ trivy-config-scan:
   <<: [*default_tools, *trivy_cache_pull]
   stage: scan
   script:
-    - bash ci/scripts/trivy-config-scan.sh
+    - bash ci/scripts/shift-left/trivy-config-scan.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -164,7 +164,7 @@ normalize-reports:
     - job: cloudinit-scan
       artifacts: true
   script:
-    - bash ci/scripts/normalize-reports.sh
+    - bash ci/scripts/shift-left/normalize-reports.sh
   artifacts:
     when: always
     expire_in: 30 days
@@ -188,7 +188,7 @@ contract-test:
     - job: normalize-reports
       artifacts: true
   script:
-    - bash ci/scripts/contract-test.sh
+    - bash ci/scripts/shift-left/contract-test.sh
 
 opa-image-smoke:
   image:
@@ -199,7 +199,7 @@ opa-image-smoke:
     - job: normalize-reports
       artifacts: true
   script:
-    - bash ci/scripts/opa-image-smoke.sh
+    - bash ci/scripts/shift-left/opa-image-smoke.sh
   artifacts:
     when: on_failure
     expire_in: 7 days
@@ -216,9 +216,9 @@ opa-unit-tests:
       artifacts: true
   script:
     - echo "[opa-unit-tests] Policy integrity — DB_PORTS vs db_ports (Python/Rego drift guard)"
-    - bash ci/scripts/verify-db-ports-sync.sh
+    - bash ci/scripts/shift-left/verify-db-ports-sync.sh
     - echo "[opa-unit-tests] opa check + gate/drift/system split tests + cross-ref guard"
-    - bash ci/scripts/verify-opa-architecture.sh
+    - bash ci/scripts/shift-left/verify-opa-architecture.sh
     - echo "[opa-unit-tests] All tests passed"
   allow_failure: false
 
@@ -234,7 +234,7 @@ opa-decision:
     - job: opa-image-smoke
     - job: opa-unit-tests
   script:
-    - bash ci/scripts/opa-decision.sh
+    - bash ci/scripts/shift-left/opa-decision.sh
   artifacts:
     when: always
     expire_in: 30 days
@@ -246,6 +246,7 @@ opa-decision:
 upload-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:650fd078db93f2cf235231cf2c27be91f57ac02aa8b0193d5b6d9f5c9ce85c8f"
+  timeout: 5 minutes
   retry: 2
   allow_failure: true
   variables:
@@ -264,7 +265,7 @@ upload-to-defectdojo:
     - job: normalize-reports
       artifacts: true
   script:
-    - bash ci/scripts/upload-to-defectdojo.sh
+    - bash ci/scripts/shift-left/upload-to-defectdojo.sh
   artifacts:
     when: always
     expire_in: 7 days
@@ -282,7 +283,7 @@ deploy-infrastructure:
     - job: opa-decision
       artifacts: true
   script:
-    - bash ci/scripts/deploy-infrastructure.sh
+    - bash ci/scripts/shift-left/deploy-infrastructure.sh
   artifacts:
     when: always
     expire_in: 30 days
