@@ -17,7 +17,34 @@ readonly TRIVY_DB_REPOSITORIES_EFF="${TRIVY_DB_REPOSITORIES:-ghcr.io/aquasecurit
 readonly TRIVY_DB_ATTEMPTS_PER_REPO_EFF="${TRIVY_DB_ATTEMPTS_PER_REPO:-2}"
 readonly TRIVY_DB_RETRY_BACKOFF_SEC_EFF="${TRIVY_DB_RETRY_BACKOFF_SEC:-5}"
 
-mkdir -p "$TRIVY_CACHE_DIR_EFF"
+ensure_cache_writable() {
+  local cache_dir="$1"
+  local probe_file="${cache_dir}/.cs_rw_probe"
+
+  mkdir -p "$cache_dir" 2>/dev/null || true
+  if ( : > "$probe_file" ) 2>/dev/null; then
+    rm -f "$probe_file" 2>/dev/null || true
+    return 0
+  fi
+
+  warn "Cache directory is not writable (${cache_dir}). Attempting reset..."
+  rm -rf "$cache_dir" 2>/dev/null || true
+  mkdir -p "$cache_dir" 2>/dev/null || true
+
+  if ( : > "$probe_file" ) 2>/dev/null; then
+    rm -f "$probe_file" 2>/dev/null || true
+    log "Cache directory reset succeeded (${cache_dir})."
+    return 0
+  fi
+
+  return 1
+}
+
+if ! ensure_cache_writable "$TRIVY_CACHE_DIR_EFF"; then
+  err "Cache directory remains non-writable after reset: ${TRIVY_CACHE_DIR_EFF}"
+  err "Fix GitLab cache ownership/permissions or clear cache key for this pipeline."
+  exit 2
+fi
 
 IFS=',' read -r -a RAW_REPOS <<< "$TRIVY_DB_REPOSITORIES_EFF"
 DB_REPOS=()
