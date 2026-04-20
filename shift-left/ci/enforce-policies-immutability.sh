@@ -16,6 +16,16 @@ if [[ -z "${CLOUDSENTINEL_APPSEC_USERS:-}" ]]; then
 fi
 readonly APPSEC_ALLOWED_USERS="${CLOUDSENTINEL_APPSEC_USERS}"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
+
+# Temporary debug — remove after root cause is identified
+log "DEBUG: CI_COMMIT_SHA=${CI_COMMIT_SHA:-<unset>}"
+log "DEBUG: CI_COMMIT_BEFORE_SHA=${CI_COMMIT_BEFORE_SHA:-<unset>}"
+log "DEBUG: CI_MERGE_REQUEST_TARGET_BRANCH_SHA=${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-<unset>}"
+log "DEBUG: CI_DEFAULT_BRANCH=${CI_DEFAULT_BRANCH:-<unset>}"
+log "DEBUG: CI_MERGE_REQUEST_TARGET_BRANCH_NAME=${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-<unset>}"
+log "DEBUG: git log --oneline -3 = $(git log --oneline -3 2>/dev/null || echo FAILED)"
+log "DEBUG: git rev-parse HEAD^ = $(git rev-parse HEAD^ 2>/dev/null || echo FAILED)"
+log "DEBUG: git show-ref --heads = $(git show-ref --heads 2>/dev/null | head -5 || echo NONE)"
 ZERO_SHA="0000000000000000000000000000000000000000"
 DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"
 TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${DEFAULT_BRANCH}}"
