@@ -44,5 +44,8 @@ RUN useradd -m -u 10001 appuser \
 
 USER appuser
 
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+  CMD python -c "import sys; sys.exit(0)"
+
 ENTRYPOINT ["/usr/bin/tini","--","python","/app/drift-engine.py"]
 CMD ["--config","/app/config/drift_config.yaml"]

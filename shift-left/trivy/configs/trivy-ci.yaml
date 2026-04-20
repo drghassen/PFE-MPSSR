@@ -9,6 +9,10 @@ scan:
     - vuln
     - misconfig
     - secret
+  # Exclude intentional bad-fixture Dockerfiles (Dockerfile.critical, Dockerfile.high)
+  # that are test inputs for the Trivy scanner itself — they must not count toward OPA thresholds.
+  skip-dirs:
+    - shift-left/trivy/tests
 
 severity:
   - CRITICAL
