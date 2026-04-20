@@ -23,6 +23,10 @@ paths = [
   # trees, because staging credentials have been found in generic fixture directories.
   '''(^|/)infra/azure/student-secure/tests/''',
   '''(^|/)infra/azure/dev/tests/gitleaks/fixtures/''',
+  # E2E and pre-commit smoke tests embed intentional fake AWS creds (AKIA1234567890ABCDEF)
+  # as scanner-detection fixtures — not real credentials.
+  '''(^|/)infra/azure/dev/tests/e2e/''',
+  '''(^|/)infra/azure/dev/tests/pre-commit/''',
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
   '''(^|/)shift-left/trivy/tests/fixtures/''',
@@ -36,6 +40,9 @@ files = [
   # Scan output files — contain reproduced secret-shaped strings from prior findings, not live secrets.
   '''(?:^|/)gitleaks-report\.json$''',
   '''(?:^|/)golden_report\.json$''',
+  # Credential replacement mapping file used with git filter-repo --replace-text.
+  # Contains old secret values as sed sources — not live credentials.
+  '''(?:^|/)replacements\.txt$''',
   '''.*\.lock$''',
   '''package-lock\.json$''',
   '''yarn\.lock$''',

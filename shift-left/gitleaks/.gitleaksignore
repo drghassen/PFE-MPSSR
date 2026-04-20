@@ -11,4 +11,8 @@
 # abc123def456abc123def456abc123def456abc123def456abc123def456abc123:DOJO-846:2026-12-31:Test credential in fixture, not exploitable
 #
 # ── Active suppressions ──────────────────────────────────────────────────────
-# (none — all secrets must be addressed at source or accepted via DefectDojo)
+# infra/azure/student-secure/modules/compute/main.tf line 22:
+#   admin_password = "ghp_xxXXXX..." — deliberate fake GitHub PAT added in commit 9ff6503
+#   ("chore(sec-test): ajout d'un secret en clair (faux token GitHub) pour bloquer OPA")
+#   to validate OPA role-spoofing detection. File deleted in commit 4c46b6c.
+2334859b6ab69c821e63d06f9c7171f2bc227ad6fe98ce41005ea6cb5a312513:SECTEST-OPA-001:2026-12-31:Intentional fake GitHub PAT in historical OPA pipeline test commit 9ff6503 — deleted in 4c46b6c
