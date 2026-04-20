@@ -20,4 +20,7 @@ RUN /usr/local/bin/opa version >/dev/null
 RUN groupadd -r opa && useradd -r -g opa -u 10001 opa
 USER 10001
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["/usr/local/bin/opa", "version"]
+
 ENV OPA_VERSION=${OPA_VERSION}

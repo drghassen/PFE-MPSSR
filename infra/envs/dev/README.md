@@ -8,7 +8,7 @@ This environment deploys a secure-by-default Azure baseline used to validate Clo
 - Virtual Network with one public and one private subnet
 - NAT Gateway for private subnet egress (optional, enabled by default)
 - Network Security Group with least-privilege inbound and outbound rules
-- Log Analytics Workspace + diagnostics for NSG and VM metrics
+- Log Analytics Workspace + diagnostics for NSG and VM logs/metrics
 - One hardened Linux VM in private subnet
 - User-assigned managed identity for VM with read-only RBAC
 - Optional dedicated CI/CD managed identity with read-only RBAC

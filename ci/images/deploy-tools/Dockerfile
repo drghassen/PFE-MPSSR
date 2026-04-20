@@ -89,7 +89,9 @@ RUN groupadd --gid 65532 nonroot \
 
 USER 65532:65532
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["/usr/local/bin/tofu", "version"]
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 

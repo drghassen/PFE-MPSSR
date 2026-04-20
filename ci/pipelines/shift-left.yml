@@ -45,7 +45,7 @@ stages:
   - maintenance
 
 .default_tools: &default_tools
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:650fd078db93f2cf235231cf2c27be91f57ac02aa8b0193d5b6d9f5c9ce85c8f"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
 
 .trivy_cache_pull: &trivy_cache_pull
@@ -192,7 +192,7 @@ contract-test:
 
 opa-image-smoke:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
     entrypoint: [""]
   stage: contract
   needs:
@@ -208,7 +208,7 @@ opa-image-smoke:
 
 opa-unit-tests:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
     entrypoint: [""]
   stage: contract
   needs:
@@ -224,7 +224,7 @@ opa-unit-tests:
 
 opa-decision:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
     entrypoint: [""]
   stage: decide
   needs:
@@ -245,7 +245,7 @@ opa-decision:
 
 upload-to-defectdojo:
   stage: report
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:650fd078db93f2cf235231cf2c27be91f57ac02aa8b0193d5b6d9f5c9ce85c8f"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   timeout: 5 minutes
   retry: 2
   allow_failure: true
@@ -276,7 +276,7 @@ upload-to-defectdojo:
 deploy-infrastructure:
   # Digest pinned to current production build. Update after each rebuild via:
   # docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:3a5a7b53028fa1c8bdfbaa7052d627414d5c1348b8aaa8b8fe4488a7ba5a8025"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:dc56369d20c03f05a46ad8b8b8b4f1f65e07d0ab491231a4b2244bdd9eb547a2"
   before_script: []
   stage: deploy
   needs:

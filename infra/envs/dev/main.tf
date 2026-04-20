@@ -25,6 +25,8 @@ module "vpc" {
   vnet_cidr           = var.vnet_cidr
   public_subnet_cidr  = var.public_subnet_cidr
   private_subnet_cidr = var.private_subnet_cidr
+  public_subnet_nsg_id  = module.security.nsg_id
+  private_subnet_nsg_id = module.security.nsg_id
   create_nat_gateway  = var.create_nat_gateway
   tags                = local.common_tags
 }

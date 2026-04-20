@@ -12,6 +12,7 @@ OUT_DIR="$REPO_ROOT/.cloudsentinel"
 mkdir -p "$OUT_DIR"
 
 POLICIES_DIR="${SCRIPT_DIR}/policies"
+CUSTOM_CHECKS_DIR="${POLICIES_DIR}/azure"
 CONFIG_FILE="${SCRIPT_DIR}/.checkov.yml"
 
 REPORT_RAW="$OUT_DIR/checkov_raw.json"
@@ -21,16 +22,17 @@ command -v checkov >/dev/null 2>&1 || { log_err "checkov binary missing"; exit 2
 command -v jq >/dev/null 2>&1 || { log_err "jq binary missing"; exit 2; }
 [[ -f "$CONFIG_FILE" ]] || { log_err "config file missing: $CONFIG_FILE"; exit 2; }
 [[ -d "$POLICIES_DIR" ]] || { log_err "policies dir missing: $POLICIES_DIR"; exit 2; }
+[[ -d "$CUSTOM_CHECKS_DIR" ]] || { log_err "custom checks dir missing: $CUSTOM_CHECKS_DIR"; exit 2; }
 
 SCAN_TARGET="${1:-$REPO_ROOT}"
 log_info "Starting raw scan on: $SCAN_TARGET"
 
 checkov_cmd=(checkov --directory "$SCAN_TARGET")
 checkov_cmd+=("--config-file" "$CONFIG_FILE")
-checkov_cmd+=("--external-checks-dir" "$POLICIES_DIR")
-# CKV_AZURE_43: Storage name uses substr() for the Azure 24-char limit.
-# Static analysis cannot evaluate the dynamic name — validated at runtime.
-checkov_cmd+=("--skip-check" "CKV_AZURE_43")
+checkov_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
+# NOTE: All skip-check entries are in .checkov.yml.
+# Do NOT add --skip-check here — CLI --skip-check replaces the config-file list
+# instead of merging with it, silently ignoring all entries in .checkov.yml.
 
 # Optional skip paths (comma-separated). Empty by default for full-repo scans.
 SKIP_PATHS_CSV="${CHECKOV_SKIP_PATHS:-}"

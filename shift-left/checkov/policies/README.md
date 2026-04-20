@@ -4,17 +4,16 @@ This directory contains enterprise-specific security policies tailored for the P
 
 ## Directory Structure
 
-- `azure/`: Security checks for Azure resources (Storage, KeyVault, SQL).
-- `aks/`: Security checks for Kubernetes manifests and Helm charts.
-- `terraform/`: General IaC security checks.
+- `azure/`: CloudSentinel Azure custom checks (`.yaml` + `.py`) loaded by Checkov.
+- `mapping.json`: Severity/category mapping consumed by the normalizer (not a Checkov policy file).
 
 ## How to use
 
-Checkov automatically loads these policies because they are referenced in `.checkov.yml`:
+Checkov loads the Azure custom checks via the wrapper `run-checkov.sh`:
 
 ```yaml
 external-checks-dir:
-  - shift-left/checkov/policies
+  - shift-left/checkov/policies/azure
 ```
 
 ## Adding a new policy

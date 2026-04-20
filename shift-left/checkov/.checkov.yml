@@ -6,7 +6,7 @@
 # - Keep IaC scope only (Docker checks skipped)
 # Final allowlist filtering (CKV2_CS_AZ_*, CKV_AZURE_*, CKV_K8S_*) is enforced
 # in run-checkov.sh for OPA-ready normalization.
-# Policies are loaded from shift-left/checkov/policies
+# Policies are loaded from shift-left/checkov/policies/azure
 #
 # NOTE:
 # - We use Terraform/Kubernetes frameworks for IaC parsing.
@@ -23,26 +23,42 @@ compact: true
 download-external-modules: false
 soft-fail: true
 
+# IMPORTANT: Do NOT add --skip-check to the checkov CLI invocation (run-checkov.sh).
+# Checkov treats a CLI --skip-check as a replacement for the config-file list, not a
+# merge. All skip-check entries must live here so the full list is applied atomically.
+
 # Avoid overlap with Trivy (Docker) and keep scope IaC/K8s only.
 skip-check:
   - CKV_DOCKER_*
+  # Storage account name uses substr() to comply with Azure's 24-char limit.
+  # Checkov's static analysis cannot evaluate the dynamic expression — false positive.
+  - CKV_AZURE_43
   # Student/low-budget environments may not provision DES+CMK (Key Vault + Disk Encryption Set).
   # Encryption-at-host remains enabled in IaC; CMK adoption is tracked separately.
   - CKV2_CS_AZ_010
   # PostgreSQL geo-redundant backups require paired regions. Azure student subscriptions
   # do not support geo-redundant storage; single-zone backup is enforced instead.
   - CKV_AZURE_136
-  # Key Vault network firewall (CKV_AZURE_109) and public network access (CKV_AZURE_189):
-  # private endpoints require a VNet-integrated runner or Express Route, neither available
-  # in a student subscription. The CI service principal accesses the vault via public
-  # endpoint with RBAC; network isolation is tracked as a prod hardening item.
+  # Key Vault network firewall / public access / private endpoint (CKV_AZURE_109,
+  # CKV_AZURE_189, CKV2_AZURE_32): private endpoints require a VNet-integrated runner or
+  # Express Route, neither available in a student subscription. The CI service principal
+  # accesses the vault via public endpoint with RBAC; network isolation is tracked as a
+  # prod hardening item.
   - CKV_AZURE_109
   - CKV_AZURE_189
+  - CKV2_AZURE_32
   # NIC public IP check (CKV_AZURE_119): false positive from Checkov graph analysis.
   # public_ip_address_id is conditionally null when assign_public_ip = false (default).
   - CKV_AZURE_119
   # HTTP port 80 check (CKV_AZURE_160): false positive. The dynamic security_rule for
   # port 80 is only created when allow_http_inbound = true (default: false).
   - CKV_AZURE_160
+  # PostgreSQL overly permissive network (CKV2_AZURE_26): false positive.
+  # The firewall rule 0.0.0.0/0.0.0.0 is Azure's special notation meaning
+  # "allow Azure-internal services only" — it does NOT open the server to the internet.
+  - CKV2_AZURE_26
+  # PostgreSQL Flexible Server private endpoint (CKV2_AZURE_57): same constraint as
+  # Key Vault above — no private endpoint available in student subscription.
+  - CKV2_AZURE_57
 
 # Allow everything else; policy-level filtering happens in run-checkov.sh

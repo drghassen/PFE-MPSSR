@@ -28,6 +28,18 @@ variable "private_subnet_cidr" {
   type        = string
 }
 
+variable "public_subnet_nsg_id" {
+  description = "Network Security Group ID to associate with the public subnet."
+  type        = string
+  default     = null
+}
+
+variable "private_subnet_nsg_id" {
+  description = "Network Security Group ID to associate with the private subnet."
+  type        = string
+  default     = null
+}
+
 variable "create_nat_gateway" {
   description = "Create a NAT gateway for private subnet outbound internet access."
   type        = bool

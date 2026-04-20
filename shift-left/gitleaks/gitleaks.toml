@@ -12,13 +12,39 @@ useDefault = true
 
 [allowlist]
 description = "Non-exploitable patterns - PFE optimized (Azure samples/dev placeholders)"
+
+# Commit 9ff650333002d61bd7a402a5b4985b201b809b2e:
+#   "chore(sec-test): ajout d'un secret en clair (faux token GitHub) pour bloquer OPA"
+# Entire commit was a deliberate OPA gate test; credential deleted in 4c46b6c.
+commits = [
+  "9ff650333002d61bd7a402a5b4985b201b809b2e"
+]
+
+# NOTE: gitleaks v8 dropped the 'files' key — all path/file patterns must go in 'paths'.
+# 'paths' is matched against the full file path (relative to repo root).
 paths = [
+  # Dependency/build artifacts — no user-authored secrets possible.
   '''(^|/)vendor/''',
   '''(^|/)node_modules/''',
   '''(^|/)\.pnpm-store/''',
   '''(^|/)\.terraform/''',
   '''(^|/)\.terragrunt-cache/''',
   '''(^|/)\.git/''',
+  # Lock files and compiled/binary assets.
+  '''.*\.lock$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)go\.sum$''',
+  '''.*\.min\.(js|css)$''',
+  '''.*\.(png|jpg|jpeg|gif|svg|ico|pdf)$''',
+  '''.*\.map$''',
+  # Scan output files — contain reproduced secret-shaped strings from prior scan
+  # results. Not live credentials; would cause infinite self-scan loops otherwise.
+  '''(^|/)gitleaks-report\.json$''',
+  '''(^|/)golden_report\.json$''',
+  # git filter-repo replacement mapping (sed source → replacement). The "old secret"
+  # values are present as search targets, not as live credentials.
+  '''(^|/)replacements\.txt$''',
   # Specific audited test directories — intentionally narrow, not whole tests?/fixtures/
   # trees, because staging credentials have been found in generic fixture directories.
   '''(^|/)infra/azure/student-secure/tests/''',
@@ -27,34 +53,18 @@ paths = [
   # as scanner-detection fixtures — not real credentials.
   '''(^|/)infra/azure/dev/tests/e2e/''',
   '''(^|/)infra/azure/dev/tests/pre-commit/''',
+  # Historical repo layout: same test dirs before the infra/azure/dev/ prefix was added.
+  '''(^|/)tests/gitleaks/fixtures/''',
+  '''(^|/)tests/pre-commit/''',
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
   '''(^|/)shift-left/trivy/tests/fixtures/''',
   '''(^|/)shift-right/drift-engine/tests/''',
   '''(^|/)(?:infra|terraform|iac)/.*(?:examples?|samples?)/''',
   '''(^|/)docs/(?:examples?|samples?|learn)/''',
-  '''(^|/)gitleaks\.toml$'''
-]
-
-files = [
-  # Scan output files — contain reproduced secret-shaped strings from prior findings, not live secrets.
-  '''(?:^|/)gitleaks-report\.json$''',
-  '''(?:^|/)golden_report\.json$''',
-  # Credential replacement mapping file used with git filter-repo --replace-text.
-  # Contains old secret values as sed sources — not live credentials.
-  '''(?:^|/)replacements\.txt$''',
-  '''.*\.lock$''',
-  '''package-lock\.json$''',
-  '''yarn\.lock$''',
-  '''go\.sum$''',
-  '''.*\.min\.(js|css)$''',
-  '''.*\.(png|jpg|jpeg|gif|svg|ico|pdf)$''',
-  '''.*\.map$''',
-  '''.*\.(test|spec)\.(js|ts|py|go)$''',
-  # Exclude files whose name carries an explicit mock/fixture/fake/stub marker as a
-  # dotted extension component (e.g. user.fixture.json, api.mock.ts, data.stub.yaml).
-  # Whole-directory exclusions (tests?/fixtures/) were removed: they are too broad
-  # and can silently swallow real staging credentials stored in generic fixture files.
+  '''(^|/)gitleaks\.toml$''',
+  # Files whose name carries an explicit mock/fixture/fake/stub marker (e.g.
+  # user.fixture.json, api.mock.ts). Whole-dir exclusions were removed as too broad.
   '''(?i)(^|/)[^/]*\.(?:fixture|mock|fake|stub|dummy)\.[a-z][a-z0-9]*$'''
 ]
 

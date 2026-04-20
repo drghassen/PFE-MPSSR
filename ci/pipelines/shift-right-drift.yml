@@ -74,7 +74,7 @@ drift-detect:
 opa-drift-decision:
   stage: decide
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
     entrypoint: [""]
   before_script: []
   needs:
@@ -100,7 +100,7 @@ opa-drift-decision:
 
 upload-drift-to-defectdojo:
   stage: report
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:650fd078db93f2cf235231cf2c27be91f57ac02aa8b0193d5b6d9f5c9ce85c8f"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
     - job: drift-detect

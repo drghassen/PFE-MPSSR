@@ -11,6 +11,7 @@ REPO_ROOT="$(cs_get_repo_root)"
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_ROOT/shift-left/gitleaks/gitleaks.toml}"
+IGNORE_PATH="${IGNORE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaksignore}"
 SCAN_TARGET="${SCAN_TARGET:-repo}"
 MAX_SIZE_MB="${GITLEAKS_MAX_SIZE:-5}"
 
@@ -45,18 +46,21 @@ fi
 
 log "Starting raw scan (mode=$SCAN_MODE, max_size=${MAX_SIZE_MB}MB)..."
 
+IGNORE_ARGS=()
+[[ -f "$IGNORE_PATH" ]] && IGNORE_ARGS=(--gitleaks-ignore-path "$IGNORE_PATH")
+
 set +e
 if [[ "$SCAN_MODE" == "local" ]]; then
   if [[ "$SCAN_TARGET" == "repo" ]]; then
-    run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+    run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
   else
-    run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+    run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
   fi
 else
   # CI scans full git history (GIT_DEPTH=0 guarantees a complete clone).
   # --no-git is intentionally absent: a secret removed in a prior commit
   # stays visible in history and must not be silently dropped from the gate.
-  run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+  run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
 fi
 RC=$?
 set -e
@@ -96,6 +100,7 @@ if [[ -n "${CI:-}" ]]; then
     --log-opts "$LOG_OPTS" \
     --redact \
     --config "$CONFIG_PATH" \
+    "${IGNORE_ARGS[@]}" \
     --report-format json \
     --report-path "$RANGE_OUT" \
     --max-target-megabytes "$MAX_SIZE_MB"

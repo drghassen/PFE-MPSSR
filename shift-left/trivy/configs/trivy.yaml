@@ -10,6 +10,10 @@ scan:
     - vuln       # OS packages + language libraries
     - misconfig  # Dockerfile configuration (Checkov handles Terraform)
     - secret     # Secrets embedded in container image layers
+  # Exclude intentional Trivy test fixtures in local/advisory mode as well,
+  # to keep findings aligned with production artifacts.
+  skip-dirs:
+    - shift-left/trivy/tests
 
 severity:
   - CRITICAL
