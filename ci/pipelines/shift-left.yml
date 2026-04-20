@@ -72,6 +72,8 @@ retry-guard:
 policies-immutability:
   <<: *default_tools
   stage: guard
+  variables:
+    GIT_DEPTH: "0"
   script:
     - bash ci/scripts/shift-left/policies-immutability.sh
   allow_failure: false
