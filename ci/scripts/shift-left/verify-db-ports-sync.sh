@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PY_FILE="${REPO_ROOT}/shift-left/normalizer/cs_norm_constants.py"
 REGO_FILE="${REPO_ROOT}/policies/opa/gate/gate_context.rego"
 
