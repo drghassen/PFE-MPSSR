@@ -220,8 +220,8 @@ invoke_opa_cli() {
     --format json \
     --input "$GOLDEN_REPORT" \
     --data "$EXCEPTIONS_FILE" \
+    --data "$GATE_POLICY_DIR" \
     "$OPA_QUERY" \
-    "${GATE_REGO_FILES[@]}" \
     > "$tmp_raw" 2> "$tmp_err"; then
     log_err "OPA CLI eval failed. Check policy compatibility and OPA version."
     if [[ -s "$tmp_err" ]]; then
