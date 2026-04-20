@@ -192,7 +192,7 @@ contract-test:
 
 opa-image-smoke:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
     entrypoint: [""]
   stage: contract
   needs:
@@ -208,7 +208,7 @@ opa-image-smoke:
 
 opa-unit-tests:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
     entrypoint: [""]
   stage: contract
   needs:
@@ -224,7 +224,7 @@ opa-unit-tests:
 
 opa-decision:
   image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:9ed276b90b3b04e394655b0fd1c82d0525964c9dc7c90b16569720ee163cd882"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:68282a766452b0dde566572dabe9e80577e3c63e6392fd78fb2c2621f4fbb8d6"
     entrypoint: [""]
   stage: decide
   needs:

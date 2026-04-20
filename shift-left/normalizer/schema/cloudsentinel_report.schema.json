@@ -429,10 +429,14 @@
             "git": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["author_email", "commit_date"],
+              "required": ["author_email", "commit_date", "in_latest_push"],
               "properties": {
                 "author_email": { "type": "string", "format": "email" },
-                "commit_date": { "type": "string", "format": "date-time" }
+                "commit_date": { "type": "string", "format": "date-time" },
+                "in_latest_push": {
+                  "type": "boolean",
+                  "description": "True for all non-gitleaks findings. For gitleaks: true = introduced in the current push (blocks pipeline), false = historical finding (advisory only, never blocks)."
+                }
               }
             },
             "deduplication": {

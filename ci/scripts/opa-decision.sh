@@ -17,7 +17,20 @@ set -euo pipefail
 # Recomputes HMAC-SHA256 and compares against the sidecar signed by normalize-reports.
 # A mismatch means the artifact was replaced after signing — hard stop.
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  python3 ci/scripts/artifact_hmac.py verify .cloudsentinel/golden_report.json
+  artifact=".cloudsentinel/golden_report.json"
+  sidecar="${artifact}.hmac"
+  if [[ ! -f "${sidecar}" ]]; then
+    echo "[opa-decision][ERROR] HMAC sidecar missing: ${sidecar}" >&2
+    echo "[opa-decision][ERROR] Artifact may have been tampered or signing step did not run." >&2
+    exit 1
+  fi
+  computed=$(openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${artifact}" | awk '{print $NF}')
+  stored=$(tr -d '[:space:]' < "${sidecar}")
+  if [[ "${computed}" != "${stored}" ]]; then
+    echo "[opa-decision][ERROR] HMAC mismatch — ${artifact} integrity check FAILED" >&2
+    exit 1
+  fi
+  echo "[opa-decision] HMAC-SHA256 verified: ${artifact}"
 elif [[ -n "${CI:-}" ]]; then
   echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
   echo "[opa-decision][ERROR] Cannot verify artifact integrity — refusing to proceed." >&2

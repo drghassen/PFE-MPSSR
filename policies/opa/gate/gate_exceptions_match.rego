@@ -100,9 +100,22 @@ is_excepted_finding(f) if {
 	exception_matches_finding(ex, f)
 }
 
+# Gitleaks findings from prior commits (in_latest_push=false) are advisory only.
+# They are visible in DefectDojo but never counted toward blocking thresholds.
+# All other tools always produce current-state findings — always blocking.
+is_blocking_finding(f) if {
+	finding_tool(f) != "gitleaks"
+}
+
+is_blocking_finding(f) if {
+	finding_tool(f) == "gitleaks"
+	object.get(object.get(object.get(f, "context", {}), "git", {}), "in_latest_push", true) == true
+}
+
 effective_failed_findings := [f |
 	f := failed_findings[_]
 	not is_excepted_finding(f)
+	is_blocking_finding(f)
 ]
 
 excepted_failed_findings := [f |

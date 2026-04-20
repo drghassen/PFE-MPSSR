@@ -96,7 +96,13 @@ class NormalizerRawParsersMixin:
                 }
             )
         # Enrichissement depuis le scan range (best-effort)
+        # Si le range file est absent, in_latest_push = True par défaut (conservatif — on bloque)
         range_p = self.out_dir / "gitleaks_range_raw.json"
+        if not range_p.is_file():
+            for f in findings:
+                meta = f.get("metadata")
+                if isinstance(meta, dict):
+                    meta.setdefault("in_latest_push", True)
         if range_p.is_file():
             range_doc, range_err = self._read_json(range_p)
             if not range_err and isinstance(range_doc, list):
@@ -127,18 +133,22 @@ class NormalizerRawParsersMixin:
                     if key not in range_index:
                         range_index[key] = r_item
 
-                # Injecter les metadata dans les findings du principal
+                # Injecter les metadata + marquer in_latest_push dans les findings du principal
                 for f in findings:
                     f_rid = str(f.get("id") or "").upper().strip()
                     f_file = self._norm_path(f.get("file") or "")
                     f_start = self._to_int(f.get("start_line"), 0)
                     f_end = self._to_int(f.get("end_line"), f_start)
                     key = (f_rid, f_file, f_start, f_end)
+                    meta = f.get("metadata")
+                    if isinstance(meta, dict):
+                        # True = finding introduced in the current push → pipeline blocks on it
+                        # False = historical finding from prior commits → advisory only, never blocks
+                        meta["in_latest_push"] = key in range_index
                     match = range_index.get(key)
                     if match:
                         r_email = str(match.get("Email") or "").strip()
                         if "@" in r_email:  # email minimal valide
-                            meta = f.get("metadata")
                             if isinstance(meta, dict):
                                 meta["commit"] = str(match.get("Commit") or "").strip()
                                 meta["author"] = r_email

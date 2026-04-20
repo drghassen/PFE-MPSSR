@@ -7,7 +7,7 @@ ARG OPA_VERSION=1.13.1
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends \
-      bash curl jq git ca-certificates \
+      bash curl jq git ca-certificates openssl \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

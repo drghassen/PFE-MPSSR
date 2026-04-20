@@ -15,9 +15,11 @@ variables:
   CHECKOV_VERSION: "3.2.502"
   TRIVY_VERSION: "0.69.3"
   JSONSCHEMA_VERSION: "4.25.1"
+  OPA_VERSION: "1.13.1"
 
   SCAN_TOOLS_BUILD_TAG: "1.0.0"
   DEPLOY_TOOLS_BUILD_TAG: "1.0.0"
+  OPA_BUILD_TAG: "1.0.1"
 
 stages:
   - build
@@ -50,6 +52,20 @@ build-deploy-tools-image:
       allow_failure: false
     - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
       when: on_success
+      allow_failure: false
+    - when: never
+
+build-opa-image:
+  stage: build
+  timeout: 30m
+  image:
+    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
+    entrypoint: [""]
+  script:
+    - /busybox/sh ci/scripts/build-opa-image.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+      when: manual
       allow_failure: false
     - when: never
 
