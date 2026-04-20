@@ -284,7 +284,9 @@ test_unknown_type_has_null_custodian_policy if {
 # Groupe 6 — Environment scope matching (B4)
 # ──────────────────────────────────────────────────────────────────────────────
 
-# B4: exception with empty environments list matches any environment
+# B4: exception with empty environments list is rejected — unscoped exceptions
+# grant a blanket waiver across all environments, which is a governance violation.
+# Every exception must declare at least one explicit target environment.
 test_exception_with_empty_environments_is_universal if {
 	ex := {
 		"source": "defectdojo",
@@ -297,7 +299,7 @@ test_exception_with_empty_environments_is_universal if {
 		"expires_at": "2099-12-31T23:59:59Z",
 		"environments": [],
 	}
-	valid_drift_exception(ex) with input as {"environment": "production"}
+	not valid_drift_exception(ex) with input as {"environment": "production"}
 }
 
 # B4: exception with matching environment is valid
@@ -364,7 +366,7 @@ test_exception_correct_temporal_order_is_accepted if {
 		"resource_id": "azurerm_storage_account.example",
 		"approved_at": "2020-01-01T00:00:00Z",
 		"expires_at": "2099-12-31T23:59:59Z",
-		"environments": [],
+		"environments": ["production"],
 	}
 	valid_drift_exception(ex) with input as {"environment": "production"}
 }
@@ -432,7 +434,7 @@ test_exception_no_wildcard_is_accepted if {
 		"resource_id": "azurerm_storage_account.example",
 		"approved_at": "2020-01-01T00:00:00Z",
 		"expires_at": "2099-12-31T23:59:59Z",
-		"environments": [],
+		"environments": ["production"],
 	}
 	valid_drift_exception(ex) with input as {"environment": "production"}
 }
