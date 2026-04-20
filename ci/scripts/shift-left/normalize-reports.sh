@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-chmod +x shift-left/normalizer/normalize.py
 export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
 export CLOUDSENTINEL_EXECUTION_MODE="ci"
 export CLOUDSENTINEL_SCHEMA_STRICT="true"

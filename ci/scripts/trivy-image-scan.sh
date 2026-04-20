@@ -7,7 +7,6 @@ set -euo pipefail
 
 trivy --version
 mkdir -p .cloudsentinel
-chmod +x shift-left/trivy/scripts/run-trivy.sh
 
 # 1. Resolve effective image target
 if [[ -n "${CI:-}" ]]; then

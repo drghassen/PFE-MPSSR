@@ -7,7 +7,6 @@ set -euo pipefail
 
 trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
-chmod +x shift-left/trivy/scripts/run-trivy.sh
 
 # Default target is repository root for full-repo Dockerfile/config coverage.
 readonly DEFAULT_TRIVY_TARGET="."

@@ -7,7 +7,6 @@ set -euo pipefail
 
 checkov --version
 mkdir -p .cloudsentinel
-chmod +x shift-left/checkov/run-checkov.sh
 
 # Default target is repository root for full-repo IaC coverage.
 # Override with CHECKOV_SCAN_TARGET=<path> only for an explicit targeted run.

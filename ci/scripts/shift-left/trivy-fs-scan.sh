@@ -7,7 +7,6 @@ set -euo pipefail
 
 trivy --version
 mkdir -p shift-left/trivy/reports/raw .cloudsentinel
-chmod +x shift-left/trivy/scripts/run-trivy.sh
 
 readonly DEFAULT_TRIVY_TARGET="."
 TRIVY_TARGET_EFF="${TRIVY_FS_TARGET:-${TRIVY_TARGET:-${DEFAULT_TRIVY_TARGET}}}"
