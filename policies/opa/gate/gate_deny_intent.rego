@@ -11,6 +11,7 @@ non_waivable_violations := {
 	"CS-CLOUDINIT-SSH-KEY-INJECTION",
 	"CS-CLOUDINIT-FIREWALL-DISABLE",
 	"CS-CLOUDINIT-HARDCODED-CREDENTIALS",
+	"CS-ROLE-SPOOFING-INTENT",
 	"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2",
 	"CS-SCHEMA-VERSION-UNSUPPORTED",
 }
@@ -124,37 +125,56 @@ deny[msg] if {
 	)
 }
 
-# Multi-signal role spoofing detection.
+# Multi-signal role spoofing detection — two severity levels.
 #
 # Signals:
 #   signal_1: IaC tag cs:role=web-server       — static governance contract
 #   signal_2: cloud-init installs DB packages  — behavioral evidence of mismatch
 #   signal_3: corroborating Checkov finding    — independent scanner confirmation
 #
-# ARCHITECTURE: signals 1+2 are SUFFICIENT to block (intent vs behaviour mismatch).
-# Signal 3 is an independent aggravant that adds a second deny message when present
-# but is NOT a mandatory gate condition — clean IaC must NOT bypass detection.
-# Enforced in prod only. Non-waivable.
+# LEVEL 1 (CS-ROLE-SPOOFING-INTENT): signals 1+2 alone.
+#   Blocks in prod. Advisory warn in dev/staging.
+#   Catches the "clean IaC + malicious cloud-init" evasion: a dev who writes
+#   a perfectly Checkov-compliant IaC (encrypted disks, tight NSG, managed
+#   identity) but installs a DB in cloud-init would bypass a 3-signal gate.
+#   Signals 1+2 are sufficient evidence of intent mismatch in prod.
+#
+# LEVEL 2 (CS-MULTI-SIGNAL-ROLE-SPOOFING-V2): signals 1+2+3.
+#   Blocks in all environments including dev — Checkov independently
+#   confirms a misconfiguration on the same resource, elevating confidence.
+#   Non-waivable everywhere.
 
-# Rule A — 2-signal block (signals 1+2 alone).
-# Fires whenever cs:role=web-server AND cloud-init db workload coexist on the same VM.
+# Level 1 — prod blocking (signals 1+2 sufficient).
 deny[msg] if {
 	some resource in resources_analyzed
 	resource_is_prod(resource)
 	resource_role(resource) == "web-server"
 	object.get(resource_signals(resource), "role_spoofing_candidate", false)
+	db_pkgs := object.get(resource_signals(resource), "db_packages_detected", [])
 	msg := sprintf(
-		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable]: role spoofing on %s — tag:web-server conflicts with cloud-init DB workload (env=%s)",
-		[object.get(resource, "resource_address", "unknown"), resource_env(resource)],
+		"CS-ROLE-SPOOFING-INTENT [CRITICAL|non_waivable]: tag:web-server conflicts with cloud-init DB workload on %s (packages=%v, env=%s)",
+		[object.get(resource, "resource_address", "unknown"), db_pkgs, resource_env(resource)],
 	)
 }
 
-# Rule B — 3-signal corroboration aggravant.
-# Fires additionally when a Checkov HIGH/CRITICAL finding is present on the same resource.
-# Produces a distinct, richer audit message — does not replace Rule A.
+# Level 1 — dev/staging advisory warn (signals 1+2, non-prod).
+warn[msg] if {
+	some resource in resources_analyzed
+	not resource_is_prod(resource)
+	resource_role(resource) == "web-server"
+	object.get(resource_signals(resource), "role_spoofing_candidate", false)
+	db_pkgs := object.get(resource_signals(resource), "db_packages_detected", [])
+	msg := sprintf(
+		"CS-ROLE-SPOOFING-INTENT [WARNING|advisory]: tag:web-server conflicts with cloud-init DB workload on %s (packages=%v, env=%s) — will block in prod",
+		[object.get(resource, "resource_address", "unknown"), db_pkgs, resource_env(resource)],
+	)
+}
+
+# Level 2 — 3-signal corroboration, all environments including dev.
+# Fires when Checkov independently confirms a HIGH/CRITICAL misconfiguration
+# on the same VM resource, corroborating the intent mismatch.
 deny[msg] if {
 	some resource in resources_analyzed
-	resource_is_prod(resource)
 	resource_role(resource) == "web-server"
 	object.get(resource_signals(resource), "role_spoofing_candidate", false)
 

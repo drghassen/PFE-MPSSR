@@ -780,9 +780,58 @@ test_non_waivable_violations_complete if {
 	"CS-CLOUDINIT-SSH-KEY-INJECTION" in nwv
 	"CS-CLOUDINIT-FIREWALL-DISABLE" in nwv
 	"CS-CLOUDINIT-HARDCODED-CREDENTIALS" in nwv
+	"CS-ROLE-SPOOFING-INTENT" in nwv
 	"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2" in nwv
 	"CS-CLOUDINIT-ROLE-TAG-MISSING" in nwv
 	"CS-SCHEMA-VERSION-UNSUPPORTED" in nwv
+}
+
+# TEST 31b: Level 1 — signals 1+2 alone block in prod (no Checkov needed)
+test_role_spoofing_intent_prod_blocks_without_checkov if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_web_prod_spoofing],
+		"findings": [],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-ROLE-SPOOFING-INTENT")
+	contains(msg, "non_waivable")
+}
+
+# TEST 31c: Level 1 — signals 1+2 produce advisory warn in dev (not deny)
+test_role_spoofing_intent_dev_warns_not_blocks if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "dev"},
+		"resources_analyzed": [_cloudinit_web_dev_spoofing],
+		"findings": [],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	some msg in result.warn
+	contains(msg, "CS-ROLE-SPOOFING-INTENT")
+	every msg in result.deny {
+		not contains(msg, "CS-ROLE-SPOOFING-INTENT")
+		not contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+	}
+}
+
+# TEST 31d: Level 2 — 3-signal fires in dev when Checkov finding on same VM
+test_role_spoofing_v2_dev_three_signals_deny if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "dev"},
+		"resources_analyzed": [_cloudinit_web_dev_spoofing],
+		"findings": [_high_finding_same_vm],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+	contains(msg, "non_waivable")
 }
 
 # TEST 32: Multiple violations on same resource — all are independently denied
