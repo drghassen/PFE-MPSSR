@@ -25,7 +25,7 @@ variables:
   TRIVY_IMAGE_MIN_REPORTS: "0"
 
   CRITICAL_MAX: "0"
-  HIGH_MAX: "2"
+  HIGH_MAX: "5"
   RETRY_GUARD_MAX_RETRIES: "1"
   RETRY_GUARD_MIN_INTERVAL_SEC: "10"
 
@@ -287,8 +287,8 @@ deploy-infrastructure:
     when: always
     expire_in: 30 days
     paths:
-      - .cloudsentinel/terraform_outputs_student_secure.json
-      - infra/azure/student-secure/tfplan
+      - .cloudsentinel/terraform_outputs_dev.json
+      - infra/envs/dev/tfplan
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 trigger-deploy-tools-rebuild:

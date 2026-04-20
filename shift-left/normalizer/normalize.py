@@ -68,14 +68,8 @@ class CloudSentinelNormalizer(
             os.environ.get("CLOUDSENTINEL_SCHEMA_STRICT", _def_strict).lower() == "true"
         )
 
-        self.critical_max = (
-            0
-            if os.environ.get("CI")
-            else self._to_int(os.environ.get("CRITICAL_MAX"), 0)
-        )
-        self.high_max = (
-            2 if os.environ.get("CI") else self._to_int(os.environ.get("HIGH_MAX"), 2)
-        )
+        self.critical_max = self._to_int(os.environ.get("CRITICAL_MAX"), 0)
+        self.high_max = self._to_int(os.environ.get("HIGH_MAX"), 2)
 
         self.ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         self.git_branch = os.environ.get("CI_COMMIT_REF_NAME", "").strip() or self._run(

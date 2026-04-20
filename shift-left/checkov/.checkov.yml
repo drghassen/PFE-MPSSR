@@ -26,5 +26,8 @@ soft-fail: true
 # Avoid overlap with Trivy (Docker) and keep scope IaC/K8s only.
 skip-check:
   - CKV_DOCKER_*
+  # Student/low-budget environments may not provision DES+CMK (Key Vault + Disk Encryption Set).
+  # Encryption-at-host remains enabled in IaC; CMK adoption is tracked separately.
+  - CKV2_CS_AZ_010
 
 # Allow everything else; policy-level filtering happens in run-checkov.sh

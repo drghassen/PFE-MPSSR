@@ -73,7 +73,7 @@ if [[ -z "${TFSTATE_KEY_SAFE}" || "${TFSTATE_KEY_SAFE}" == ".tfstate" ]]; then
   exit 2
 fi
 
-tofu -chdir=infra/azure/student-secure init -input=false \
+tofu -chdir=infra/envs/dev init -input=false \
   -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
   -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
   -backend-config="container_name=${TFSTATE_CONTAINER}" \
@@ -82,15 +82,13 @@ tofu -chdir=infra/azure/student-secure init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
-export TF_VAR_enable_vm_encryption_at_host="${TF_VAR_enable_vm_encryption_at_host:-false}"
-echo "[deploy] TF_VAR_enable_vm_encryption_at_host=${TF_VAR_enable_vm_encryption_at_host}"
-tofu -chdir=infra/azure/student-secure plan -input=false -out=tfplan
-tofu -chdir=infra/azure/student-secure apply -input=false -auto-approve tfplan
-tofu -chdir=infra/azure/student-secure output -json \
+tofu -chdir=infra/envs/dev plan -input=false -out=tfplan
+tofu -chdir=infra/envs/dev apply -input=false -auto-approve tfplan
+tofu -chdir=infra/envs/dev output -json \
   | jq 'to_entries
         | map(if .value.sensitive == true
               then .value.value = "REDACTED"
               else .
               end)
         | from_entries' \
-  > .cloudsentinel/terraform_outputs_student_secure.json
+  > .cloudsentinel/terraform_outputs_dev.json

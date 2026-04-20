@@ -56,13 +56,6 @@ variable "log_analytics_workspace_id" {
   type        = string
 }
 
-variable "cloud_init_content" {
-  description = "Base64-encoded cloud-init user-data. Scanned by CloudSentinel cloudinit-scanner — DB packages or security bypass patterns will trigger violations."
-  type        = string
-  default     = null
-  sensitive   = false
-}
-
 variable "tags" {
   description = "Tags applied to resources."
   type        = map(string)

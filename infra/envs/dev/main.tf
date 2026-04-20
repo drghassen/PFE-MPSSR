@@ -64,7 +64,6 @@ module "compute" {
   admin_ssh_public_key       = var.admin_ssh_public_key
   vm_size                    = var.vm_size
   assign_public_ip           = var.assign_public_ip
-  cloud_init_content         = var.cloud_init_content
   user_assigned_identity_id  = module.iam.vm_identity_id
   log_analytics_workspace_id = module.security.log_analytics_workspace_id
   tags                       = local.common_tags

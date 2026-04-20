@@ -38,8 +38,10 @@ resource "azurerm_linux_virtual_machine" "this" {
   patch_mode                      = "AutomaticByPlatform"
   secure_boot_enabled             = true
   vtpm_enabled                    = true
-  custom_data                     = var.cloud_init_content
-  tags                            = var.tags
+  # Keep cloud-init as a literal base64 value so the static cloudinit-scanner
+  # can decode and inspect intent directly from IaC (no unresolved ${var...}).
+  custom_data = "I2Nsb3VkLWNvbmZpZwpwYWNrYWdlczoKICAtIG5naW54Cg=="
+  tags        = merge(var.tags, { "cs:role" = "app-server" })
 
   network_interface_ids = [azurerm_network_interface.this.id]
 

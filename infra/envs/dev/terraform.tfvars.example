@@ -8,36 +8,26 @@ private_subnet_cidr  = "10.42.2.0/24"
 # Disabled: saves ~$35/month on student account
 create_nat_gateway   = false
 
-# VM in public subnet with public IP for easy dev access
-assign_public_ip     = true
-allow_http_inbound   = true
+# Keep VM private by default (recommended)
+assign_public_ip     = false
+allow_http_inbound   = false
 
 # Student-friendly VM size (1 vCPU, 2GB RAM)
 vm_size              = "Standard_B1s"
 
-ssh_allowed_cidr     = "0.0.0.0/0"
+ssh_allowed_cidr     = "203.0.113.10/32"
 admin_username       = "cloudsentinel"
-admin_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIReplaceWithYourPublicKey cloudsentinel"
+admin_ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQReplaceWithYourPublicKey cloudsentinel"
 
 create_ci_identity   = true
 log_retention_days   = 30
 
-# Cloud-init for the VM (base64-encoded). Leave commented for no provisioning.
-# The CloudSentinel cloudinit-scanner WILL flag DB packages on a VM tagged as web-server (role spoofing).
-# Example: install nginx only (legit)
-# cloud_init_content = "I2Nsb3VkLWNvbmZpZwpwYWNrYWdlczoKICAtIG5naW54"
-# Example that WILL be blocked by pipeline (postgresql on web-server):
-# cloud_init_content = "I2Nsb3VkLWNvbmZpZwpwYWNrYWdlczoKICAtIHBvc3RncmVzcWw="
-# cloud_init_content = null
-
 # Database — PostgreSQL Flexible Server Burstable B1ms (~$13/month)
 db_admin_login    = "csadmin"
-db_admin_password = "ReplaceWithStrongPassword123!"
+db_admin_password = "REPLACE_IN_CI_MASKED_VARIABLE"
 db_sku_name       = "B_Standard_B1ms"
 db_name           = "cloudsentinel"
-# Step 1: apply with empty list
-# Step 2: add VM public IP (from output vm_public_ip) + your own IP
-db_allowed_ips    = ["YOUR_VM_PUBLIC_IP", "YOUR_OWN_IP"]
+db_allowed_ips    = []
 
 # Optional extra tags
 # tags = {

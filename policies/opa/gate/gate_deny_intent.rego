@@ -34,6 +34,24 @@ resource_is_prod(resource) if {
 
 resource_role(resource) := lower(trim_space(object.get(resource, "role_tag", "")))
 
+_same_resource(vm_address, vm_file, finding_resource, finding_file) if {
+	vm_addr := lower(trim_space(vm_address))
+	vm_parts := split(vm_addr, ".")
+	count(vm_parts) > 1
+	vm_name := trim_space(vm_parts[1])
+	vm_name != ""
+	contains(lower(trim_space(finding_resource)), vm_name)
+}
+
+_same_resource(vm_address, vm_file, finding_resource, finding_file) if {
+	vm_tf_file := normalize_path(vm_file)
+	finding_tf_file := normalize_path(finding_file)
+	vm_tf_file != ""
+	finding_tf_file != ""
+	lower(vm_tf_file) == lower(finding_tf_file)
+	endswith(lower(vm_tf_file), ".tf")
+}
+
 # Missing mandatory cs:role tag on VM resources (all environments).
 # Governance decision: tag contract is always required.
 deny[msg] if {
@@ -117,6 +135,12 @@ deny[msg] if {
 	some finding in object.get(input, "findings", [])
 	finding_tool(finding) == "checkov"
 	finding_severity_level(finding) in {"HIGH", "CRITICAL"}
+	_same_resource(
+		object.get(resource, "resource_address", ""),
+		object.get(resource, "file", ""),
+		finding_resource_id(finding),
+		finding_occurrence_file(finding),
+	)
 
 	msg := sprintf(
 		"CS-MULTI-SIGNAL-ROLE-SPOOFING-V2 [CRITICAL|non_waivable]: role spoofing detected on %s (signals=tag:web-server, cloud-init:db-workload, finding:%s|%s)",

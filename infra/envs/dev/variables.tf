@@ -81,16 +81,10 @@ variable "log_retention_days" {
   default     = 30
 }
 
-variable "cloud_init_content" {
-  description = "Base64-encoded cloud-init for the VM. Leave null for no provisioning. CloudSentinel scanner will flag DB packages or security bypasses."
-  type        = string
-  default     = null
-}
-
 variable "allow_http_inbound" {
   description = "Allow HTTP inbound on port 80 (enable for public-facing VM)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "db_admin_login" {

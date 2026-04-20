@@ -34,6 +34,34 @@ _high_finding := {
 	"severity": {"level": "HIGH"},
 }
 
+_high_finding_same_vm := {
+	"status": "FAILED",
+	"source": {"tool": "checkov", "id": "CKV_AZ_001"},
+	"resource": {
+		"name": "azurerm_linux_virtual_machine.web",
+		"path": "azurerm_linux_virtual_machine.web",
+		"location": {
+			"file": "infra/azure/student-secure/modules/compute/main.tf",
+			"start_line": 24,
+		},
+	},
+	"severity": {"level": "HIGH"},
+}
+
+_critical_storage_finding := {
+	"status": "FAILED",
+	"source": {"tool": "checkov", "id": "CKV_AZ_999"},
+	"resource": {
+		"name": "azurerm_storage_account.logs",
+		"path": "azurerm_storage_account.logs",
+		"location": {
+			"file": "infra/azure/student-secure/modules/storage/main.tf",
+			"start_line": 42,
+		},
+	},
+	"severity": {"level": "CRITICAL"},
+}
+
 _valid_exception := {
 	"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	"tool": "trivy",
@@ -64,6 +92,26 @@ _valid_checkov_exception := {
 	"source": "defectdojo",
 	"status": "approved",
 	"occurrence": {"file_path": "azurerm_storage_account.example", "line": 0, "hash_code": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+}
+
+_valid_checkov_exception_same_vm := {
+	"id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	"tool": "checkov",
+	"rule_id": "CKV_AZ_001",
+	"resource": "azurerm_linux_virtual_machine.web",
+	"severity": "HIGH",
+	"requested_by": "dev-team",
+	"approved_by": "security-team",
+	"approved_at": "2026-01-01T00:00:00Z",
+	"expires_at": "2099-01-01T00:00:00Z",
+	"decision": "accept",
+	"source": "defectdojo",
+	"status": "approved",
+	"occurrence": {
+		"file_path": "infra/azure/student-secure/modules/compute/main.tf",
+		"line": 24,
+		"hash_code": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	},
 }
 
 _cloudinit_web_prod_spoofing := {
@@ -331,7 +379,7 @@ test_role_spoofing_v2_prod_three_signals_deny if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
 		"metadata": {"environment": "prod"},
 		"resources_analyzed": [_cloudinit_web_prod_spoofing],
-		"findings": [_high_finding],
+		"findings": [_high_finding_same_vm],
 	})
 		with data.cloudsentinel.exceptions.exceptions as []
 
@@ -347,14 +395,32 @@ test_role_spoofing_v2_exception_refused_in_prod if {
 	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
 		"metadata": {"environment": "prod"},
 		"resources_analyzed": [_cloudinit_web_prod_spoofing],
-		"findings": [_high_finding],
+		"findings": [_high_finding_same_vm],
 	})
-		with data.cloudsentinel.exceptions.exceptions as [_valid_checkov_exception]
+		with data.cloudsentinel.exceptions.exceptions as [_valid_checkov_exception_same_vm]
 
 	not result.allow
 	result.metrics.excepted == 1
 	some msg in result.deny
 	contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+}
+
+# TEST 19b: spoofing signal does not correlate with Checkov finding on another resource
+
+test_role_spoofing_v2_prod_different_resource_not_correlated if {
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"metadata": {"environment": "prod"},
+		"resources_analyzed": [_cloudinit_web_prod_spoofing],
+		"findings": [_critical_storage_finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CRITICAL findings")
+	every msg in result.deny {
+		not contains(msg, "CS-MULTI-SIGNAL-ROLE-SPOOFING-V2")
+	}
 }
 
 # TEST 20: missing cs:role in prod deny
