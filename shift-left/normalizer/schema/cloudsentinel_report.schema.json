@@ -190,7 +190,8 @@
               "db_packages_detected": { "type": "array", "items": { "type": "string" } },
               "remote_exec_patterns": { "type": "array", "items": { "type": "string" } },
               "security_bypass_detected": { "type": "boolean" },
-              "security_bypass_patterns": { "type": "array", "items": { "type": "string" } }
+              "security_bypass_patterns": { "type": "array", "items": { "type": "string" } },
+              "cloud_init_unresolvable": { "type": "boolean" }
             }
           },
           "violations": {
