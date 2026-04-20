@@ -18,29 +18,47 @@ readonly APPSEC_ALLOWED_USERS="${CLOUDSENTINEL_APPSEC_USERS}"
 HEAD_SHA="${CI_COMMIT_SHA:-HEAD}"
 ZERO_SHA="0000000000000000000000000000000000000000"
 DEFAULT_BRANCH="${CI_DEFAULT_BRANCH:-main}"
+TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${DEFAULT_BRANCH}}"
+FETCH_DEPTH="${IMMUTABILITY_FETCH_DEPTH:-200}"
+
+resolve_merge_base() {
+  local branch_name="$1"
+  git merge-base "$HEAD_SHA" "origin/${branch_name}" 2>/dev/null || true
+}
 
 # Resolve base SHA deterministically.
 BASE_SHA="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-${CI_COMMIT_BEFORE_SHA:-}}"
 
 if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
-  BASE_SHA="$(git merge-base "$HEAD_SHA" "origin/${DEFAULT_BRANCH}" 2>/dev/null || true)"
+  BASE_SHA="$(resolve_merge_base "$TARGET_BRANCH")"
+fi
+
+# In shallow clones, BASE_SHA may not be present locally. Fetch target/default branch
+# refs (never fetch by raw SHA) then recompute merge-base deterministically.
+if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+  log "Base SHA not present/resolvable in shallow clone. Fetching target branch refs..."
+  if ! git fetch --no-tags --depth="${FETCH_DEPTH}" origin \
+    "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" >/dev/null 2>&1; then
+    err "Unable to fetch target branch refs for ${TARGET_BRANCH}. Refusing to bypass immutability check."
+    exit 2
+  fi
+  if [[ "$TARGET_BRANCH" != "$DEFAULT_BRANCH" ]]; then
+    git fetch --no-tags --depth="${FETCH_DEPTH}" origin \
+      "refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1 || true
+  fi
+  BASE_SHA="$(resolve_merge_base "$TARGET_BRANCH")"
+  if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]] && [[ "$TARGET_BRANCH" != "$DEFAULT_BRANCH" ]]; then
+    BASE_SHA="$(resolve_merge_base "$DEFAULT_BRANCH")"
+  fi
 fi
 
 if [[ -z "$BASE_SHA" || "$BASE_SHA" == "$ZERO_SHA" ]]; then
-  err "Unable to resolve BASE_SHA for immutability check. Refusing to continue."
+  err "Unable to resolve BASE_SHA for immutability check after secure fetch."
   exit 2
 fi
 
 if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-  log "Base SHA not present in clone. Attempting secure fetch..."
-  if ! git fetch --no-tags --depth="${IMMUTABILITY_FETCH_DEPTH:-200}" origin "$BASE_SHA" "${DEFAULT_BRANCH}" >/dev/null 2>&1; then
-    err "Unable to fetch BASE_SHA=${BASE_SHA}. Refusing to bypass immutability check."
-    exit 2
-  fi
-fi
-
-if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-  err "BASE_SHA still unavailable after fetch: ${BASE_SHA}"
+  err "BASE_SHA still unavailable after secure fetch: ${BASE_SHA}"
   exit 2
 fi
 
