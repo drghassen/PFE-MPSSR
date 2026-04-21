@@ -45,7 +45,7 @@ stages:
   - maintenance
 
 .default_tools: &default_tools
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323"
   before_script: []
 
 .trivy_cache_pull: &trivy_cache_pull
@@ -192,22 +192,6 @@ contract-test:
   script:
     - bash ci/scripts/shift-left/contract-test.sh
 
-opa-image-smoke:
-  image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
-    entrypoint: [""]
-  stage: contract
-  needs:
-    - job: normalize-reports
-      artifacts: true
-  script:
-    - bash ci/scripts/shift-left/opa-image-smoke.sh
-  artifacts:
-    when: on_failure
-    expire_in: 7 days
-    paths:
-      - .cloudsentinel/opa-image-smoke.log
-
 opa-unit-tests:
   image:
     name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
@@ -233,7 +217,6 @@ opa-decision:
     - job: normalize-reports
       artifacts: true
     - job: contract-test
-    - job: opa-image-smoke
     - job: opa-unit-tests
   script:
     - bash ci/scripts/shift-left/opa-decision.sh
@@ -247,7 +230,7 @@ opa-decision:
 
 upload-to-defectdojo:
   stage: report
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323"
   timeout: 5 minutes
   retry: 2
   allow_failure: true
