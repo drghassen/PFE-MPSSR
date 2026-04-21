@@ -88,3 +88,6 @@ for i in {1..10}; do
   sleep 2
 done
 OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
+
+# Ensure downstream jobs (artifact-integrity-check/reporting) can read decision artifacts.
+chmod a+r .cloudsentinel/opa_decision.json .cloudsentinel/decision_audit_events.jsonl .cloudsentinel/audit_events.jsonl 2>/dev/null || true

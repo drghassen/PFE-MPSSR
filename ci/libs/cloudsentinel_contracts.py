@@ -109,6 +109,24 @@ def _load_jsonl(path: Path) -> List[Any]:
     return out
 
 
+def _safe_load_json(path: Path) -> Tuple[Optional[Any], Optional[str]]:
+    try:
+        return _load_json(path), None
+    except PermissionError as exc:
+        return None, f"permission_denied:{exc}"
+    except Exception as exc:
+        return None, f"invalid_json:{exc}"
+
+
+def _safe_load_jsonl(path: Path) -> Tuple[Optional[List[Any]], Optional[str]]:
+    try:
+        return _load_jsonl(path), None
+    except PermissionError as exc:
+        return None, f"permission_denied:{exc}"
+    except Exception as exc:
+        return None, f"invalid_jsonl:{exc}"
+
+
 def _ensure_scan_metadata(
     doc: Dict[str, Any],
     *,
@@ -687,6 +705,57 @@ def _validate_hmac_file(result: Dict[str, Any], path: Path) -> None:
         _fail(result, "hmac_invalid_format")
 
 
+def _verify_hmac_for_artifact(
+    result: Dict[str, Any],
+    *,
+    hmac_path: Path,
+    signed_artifact_path: Path,
+) -> None:
+    _validate_hmac_file(result, hmac_path)
+    if result["status"] != "passed":
+        return
+
+    secret = os.environ.get("CLOUDSENTINEL_HMAC_SECRET", "")
+    in_ci = bool(os.environ.get("CI"))
+    if not secret:
+        if in_ci:
+            _fail(result, "missing_hmac_secret_in_ci")
+        else:
+            result["details"]["hmac_verification"] = "skipped_no_secret_non_ci"
+        return
+
+    if not signed_artifact_path.exists():
+        _fail(result, f"missing_signed_artifact:{signed_artifact_path}")
+        return
+    if not signed_artifact_path.is_file():
+        _fail(result, f"signed_artifact_not_a_file:{signed_artifact_path}")
+        return
+
+    try:
+        expected = hmac.new(
+            secret.encode("utf-8"),
+            signed_artifact_path.read_bytes(),
+            hashlib.sha256,
+        ).hexdigest()
+    except PermissionError as exc:
+        _fail(result, f"signed_artifact_permission_denied:{exc}")
+        return
+    except Exception as exc:
+        _fail(result, f"signed_artifact_read_error:{exc}")
+        return
+
+    try:
+        actual = hmac_path.read_text(encoding="ascii").strip()
+    except Exception as exc:
+        _fail(result, f"hmac_read_error:{exc}")
+        return
+
+    if not hmac.compare_digest(expected, actual):
+        _fail(result, "hmac_mismatch")
+        return
+    result["details"]["hmac_verification"] = "verified"
+
+
 def _validate_jsonl_audit(
     result: Dict[str, Any],
     lines: List[Any],
@@ -760,15 +829,23 @@ def _validate_artifact(
     payload: Any
     payload_scan_id = ""
 
-    if artifact_id == "golden_report_hmac":
-        _validate_hmac_file(result, path)
+    if artifact_id.endswith("_hmac"):
+        signed_rel = str(spec.get("signed_artifact", "")).strip()
+        if not signed_rel:
+            _fail(result, "missing_signed_artifact_path")
+            return result, None, ""
+        signed_path = repo_root / signed_rel
+        _verify_hmac_for_artifact(
+            result,
+            hmac_path=path,
+            signed_artifact_path=signed_path,
+        )
         return result, None, ""
 
     if artifact_id in {"audit_events", "decision_audit_events"}:
-        try:
-            payload = _load_jsonl(path)
-        except Exception as exc:
-            _fail(result, f"invalid_jsonl:{exc}")
+        payload, load_err = _safe_load_jsonl(path)
+        if load_err:
+            _fail(result, load_err)
             return result, None, ""
 
         if artifact_id == "decision_audit_events":
@@ -786,10 +863,9 @@ def _validate_artifact(
                 payload_scan_id = str(first.get("scan_id", "")).strip()
         return result, payload, payload_scan_id
 
-    try:
-        payload = _load_json(path)
-    except Exception as exc:
-        _fail(result, f"invalid_json:{exc}")
+    payload, load_err = _safe_load_json(path)
+    if load_err:
+        _fail(result, load_err)
         return result, None, ""
 
     if artifact_id in {

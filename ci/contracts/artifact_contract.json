@@ -10,9 +10,21 @@
           "kind": "json"
         },
         {
+          "id": "gitleaks_raw_hmac",
+          "path": ".cloudsentinel/gitleaks_raw.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": ".cloudsentinel/gitleaks_raw.json"
+        },
+        {
           "id": "checkov_raw",
           "path": ".cloudsentinel/checkov_raw.json",
           "kind": "json"
+        },
+        {
+          "id": "checkov_raw_hmac",
+          "path": ".cloudsentinel/checkov_raw.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": ".cloudsentinel/checkov_raw.json"
         },
         {
           "id": "trivy_fs_raw",
@@ -20,14 +32,32 @@
           "kind": "json"
         },
         {
+          "id": "trivy_fs_raw_hmac",
+          "path": "shift-left/trivy/reports/raw/trivy-fs-raw.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": "shift-left/trivy/reports/raw/trivy-fs-raw.json"
+        },
+        {
           "id": "trivy_config_raw",
           "path": "shift-left/trivy/reports/raw/trivy-config-raw.json",
           "kind": "json"
         },
         {
+          "id": "trivy_config_raw_hmac",
+          "path": "shift-left/trivy/reports/raw/trivy-config-raw.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": "shift-left/trivy/reports/raw/trivy-config-raw.json"
+        },
+        {
           "id": "cloudinit_analysis",
           "path": ".cloudsentinel/cloudinit_analysis.json",
           "kind": "json"
+        },
+        {
+          "id": "cloudinit_analysis_hmac",
+          "path": ".cloudsentinel/cloudinit_analysis.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": ".cloudsentinel/cloudinit_analysis.json"
         }
       ]
     },
@@ -41,7 +71,8 @@
         {
           "id": "golden_report_hmac",
           "path": ".cloudsentinel/golden_report.json.hmac",
-          "kind": "hmac"
+          "kind": "hmac",
+          "signed_artifact": ".cloudsentinel/golden_report.json"
         },
         {
           "id": "exceptions",

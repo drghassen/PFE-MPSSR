@@ -50,14 +50,17 @@ debug_trivy_results_shape() {
 }
 
 log_scan_id_propagation() {
+  local include_golden="${1:-false}"
   local files=(
     ".cloudsentinel/gitleaks_raw.json"
     ".cloudsentinel/checkov_raw.json"
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
     "shift-left/trivy/reports/raw/trivy-config-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
-    ".cloudsentinel/golden_report.json"
   )
+  if [[ "$include_golden" == "true" ]]; then
+    files+=(".cloudsentinel/golden_report.json")
+  fi
   echo "[normalize-reports][debug] scan_id propagation:"
   for file in "${files[@]}"; do
     [[ -f "$file" ]] || continue
@@ -69,54 +72,6 @@ log_scan_id_propagation() {
       echo "[normalize-reports][debug] - ${file}: INVALID_JSON"
     fi
   done
-}
-
-prepare_detection_contract_context() {
-  local sid="${CLOUDSENTINEL_SCAN_ID:-${CI_COMMIT_SHA:-}}"
-  if [[ -z "$sid" ]]; then
-    echo "[normalize-reports][ERROR] scan_id is empty (CLOUDSENTINEL_SCAN_ID / CI_COMMIT_SHA)." >&2
-    exit 1
-  fi
-
-  [[ -f .cloudsentinel/gitleaks_raw.json ]] && \
-    python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
-      --artifact .cloudsentinel/gitleaks_raw.json \
-      --tool gitleaks \
-      --executed-target "${SCAN_TARGET:-repo}" \
-      --scan-status success \
-      --scan-id "$sid"
-
-  [[ -f .cloudsentinel/checkov_raw.json ]] && \
-    python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
-      --artifact .cloudsentinel/checkov_raw.json \
-      --tool checkov \
-      --executed-target "${CHECKOV_SCAN_TARGET:-.}" \
-      --scan-status success \
-      --scan-id "$sid"
-
-  [[ -f shift-left/trivy/reports/raw/trivy-fs-raw.json ]] && \
-    python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
-      --artifact shift-left/trivy/reports/raw/trivy-fs-raw.json \
-      --tool trivy \
-      --executed-target "${TRIVY_FS_TARGET:-${TRIVY_TARGET:-.}}" \
-      --scan-status success \
-      --scan-id "$sid"
-
-  [[ -f shift-left/trivy/reports/raw/trivy-config-raw.json ]] && \
-    python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
-      --artifact shift-left/trivy/reports/raw/trivy-config-raw.json \
-      --tool trivy \
-      --executed-target "${TRIVY_CONFIG_TARGET:-${TRIVY_TARGET:-.}}" \
-      --scan-status success \
-      --scan-id "$sid"
-
-  [[ -f .cloudsentinel/cloudinit_analysis.json ]] && \
-    python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
-      --artifact .cloudsentinel/cloudinit_analysis.json \
-      --tool cloudinit \
-      --executed-target "${CLOUDINIT_SCAN_TARGET:-.}" \
-      --scan-status success \
-      --scan-id "$sid"
 }
 
 run_detection_contract_check() {
@@ -143,13 +98,12 @@ run_detection_contract_check() {
 
 list_input_artifacts
 debug_trivy_results_shape
-prepare_detection_contract_context
-log_scan_id_propagation
+log_scan_id_propagation false
 run_detection_contract_check
 python3 shift-left/normalizer/normalize.py
 jq '.summary' .cloudsentinel/golden_report.json
 jq '.quality_gate' .cloudsentinel/golden_report.json
-log_scan_id_propagation
+log_scan_id_propagation true
 
 if ! jq -e '
   type == "object"

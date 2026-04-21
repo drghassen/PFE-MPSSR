@@ -26,7 +26,16 @@ python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
   --executed-target "${SCAN_TARGET_EFF}" \
   --scan-status success
 
-chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_scan.log 2>/dev/null || true
+if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
+  python3 ci/scripts/shift-left/artifact_hmac.py sign .cloudsentinel/checkov_raw.json
+elif [[ -n "${CI:-}" ]]; then
+  echo "[checkov][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
+  exit 1
+else
+  echo "[checkov][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping HMAC signing (non-CI mode)."
+fi
+
+chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_raw.json.hmac .cloudsentinel/checkov_scan.log 2>/dev/null || true
 
 jq -r '"[scan-summary] checkov_raw_failed_checks=" + (((.results.failed_checks // []) | length) | tostring)' \
   .cloudsentinel/checkov_raw.json
