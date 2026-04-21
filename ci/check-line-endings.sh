@@ -5,12 +5,16 @@ tmp_list="$(mktemp)"
 tmp_crlf="$(mktemp)"
 trap 'rm -f "$tmp_list" "$tmp_crlf"' EXIT HUP INT TERM
 
-git ls-files '*.sh' > "$tmp_list"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+
+find "$REPO_ROOT" -type f -name '*.sh' ! -path "$REPO_ROOT/.git/*" | sort > "$tmp_list"
 
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   if LC_ALL=C grep -q "$(printf '\r')" "$f"; then
-    printf '%s\n' "$f" >> "$tmp_crlf"
+    rel_path="${f#"$REPO_ROOT"/}"
+    printf '%s\n' "$rel_path" >> "$tmp_crlf"
   fi
 done < "$tmp_list"
 
@@ -20,4 +24,4 @@ if [ -s "$tmp_crlf" ]; then
   exit 1
 fi
 
-echo "[line-endings] OK: no CRLF detected in tracked *.sh files."
+echo "[line-endings] OK: no CRLF detected in *.sh files."
