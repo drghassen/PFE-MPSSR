@@ -54,22 +54,34 @@ fi
 if [[ -z "$CHANGED_FILES" ]] && \
    [[ -n "${CI_JOB_TOKEN:-}" && -n "${CI_API_V4_URL:-}" && -n "${CI_PROJECT_ID:-}" ]]; then
   log "Git history unavailable; using GitLab compare API..."
-  CHANGED_FILES="$(
-    curl -sf --max-time 30 \
-      -H "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/compare?from=${BASE_SHA}&to=${HEAD_SHA}&straight=true" \
-    | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-seen = set()
-for d in data.get('diffs', []):
-    for k in ('new_path', 'old_path'):
-        p = d.get(k, '')
-        if p and p not in seen:
-            seen.add(p)
-            print(p)
-" 2>/dev/null || true
+  _api_err_file="$(mktemp)"
+  CHANGED_FILES="$(python3 - "$BASE_SHA" "$HEAD_SHA" 2>"$_api_err_file" <<'PYEOF' || true
+import urllib.request, json, sys, os
+token   = os.environ["CI_JOB_TOKEN"]
+api_url = os.environ["CI_API_V4_URL"]
+proj    = os.environ["CI_PROJECT_ID"]
+base, head = sys.argv[1], sys.argv[2]
+url = f"{api_url}/projects/{proj}/repository/compare?from={base}&to={head}&straight=true"
+req = urllib.request.Request(url, headers={"JOB-TOKEN": token})
+try:
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = json.load(r)
+    seen = set()
+    for d in data.get("diffs", []):
+        for k in ("new_path", "old_path"):
+            p = d.get(k, "")
+            if p and p not in seen:
+                seen.add(p)
+                print(p)
+except Exception as e:
+    print(f"IMMUTABILITY_API_ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+PYEOF
   )"
+  if [[ -z "$CHANGED_FILES" ]]; then
+    err "GitLab compare API failed: $(cat "$_api_err_file" 2>/dev/null || true)"
+  fi
+  rm -f "$_api_err_file"
 fi
 
 if [[ -z "$CHANGED_FILES" ]]; then
