@@ -52,41 +52,22 @@ if has_commit "$BASE_SHA" && has_commit "$HEAD_SHA"; then
 fi
 
 if [[ -z "$CHANGED_FILES" ]] && \
-   [[ -n "${CI_JOB_TOKEN:-}" && -n "${CI_API_V4_URL:-}" && -n "${CI_PROJECT_ID:-}" ]]; then
-  log "Git history unavailable; using GitLab compare API..."
-  _api_err_file="$(mktemp)"
-  CHANGED_FILES="$(python3 - "$BASE_SHA" "$HEAD_SHA" 2>"$_api_err_file" <<'PYEOF' || true
-import urllib.request, json, sys, os
-token   = os.environ["CI_JOB_TOKEN"]
-api_url = os.environ["CI_API_V4_URL"]
-proj    = os.environ["CI_PROJECT_ID"]
-base, head = sys.argv[1], sys.argv[2]
-url = f"{api_url}/projects/{proj}/repository/compare?from={base}&to={head}&straight=true"
-req = urllib.request.Request(url, headers={"JOB-TOKEN": token})
-print(f"DEBUG url={url} project_id={proj}", file=sys.stderr)
-try:
-    with urllib.request.urlopen(req, timeout=30) as r:
-        data = json.load(r)
-    seen = set()
-    for d in data.get("diffs", []):
-        for k in ("new_path", "old_path"):
-            p = d.get(k, "")
-            if p and p not in seen:
-                seen.add(p)
-                print(p)
-except urllib.error.HTTPError as e:
-    body = e.read().decode("utf-8", errors="replace")[:300]
-    print(f"IMMUTABILITY_API_ERROR: HTTP {e.code} — {body}", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f"IMMUTABILITY_API_ERROR: {e}", file=sys.stderr)
-    sys.exit(1)
-PYEOF
-  )"
-  if [[ -z "$CHANGED_FILES" ]]; then
-    err "GitLab compare API failed: $(cat "$_api_err_file" 2>/dev/null || true)"
+   [[ -n "${CI_JOB_TOKEN:-}" && -n "${CI_SERVER_HOST:-}" && -n "${CI_PROJECT_PATH:-}" ]]; then
+  log "Git history unavailable; shallow-cloning for diff (depth=50)..."
+  _clone_dir="$(mktemp -d)"
+  _clone_err="$(mktemp)"
+  if git clone --quiet --depth=50 \
+    "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
+    "$_clone_dir" 2>"$_clone_err"; then
+    CHANGED_FILES="$(git -C "$_clone_dir" diff --name-only "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true)"
+    if [[ -z "$CHANGED_FILES" ]]; then
+      # BASE_SHA older than depth=50; fall back to HEAD~1..HEAD
+      CHANGED_FILES="$(git -C "$_clone_dir" diff --name-only HEAD~1 HEAD 2>/dev/null || true)"
+    fi
+  else
+    err "Shallow clone failed: $(cat "$_clone_err" 2>/dev/null || true)"
   fi
-  rm -f "$_api_err_file"
+  rm -rf "$_clone_dir" "$_clone_err"
 fi
 
 if [[ -z "$CHANGED_FILES" ]]; then
