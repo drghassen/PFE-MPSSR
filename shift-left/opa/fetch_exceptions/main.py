@@ -149,7 +149,7 @@ def execute(ctx: FetchContext) -> None:
         },
     }
     with open(ctx.audit_log_file, "a", encoding="utf-8") as audit_handle:
-        audit_handle.write(json.dumps(summary_event, separators=(",", ":"), sort_keys=True) + "\\n")
+        audit_handle.write(json.dumps(summary_event, separators=(",", ":"), sort_keys=True) + "\n")
 
     ctx.logger.info(
         "Exceptions payload written: valid=%s dropped=%s",

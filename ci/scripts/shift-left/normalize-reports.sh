@@ -223,3 +223,36 @@ if [[ -f .cloudsentinel/exceptions.json ]]; then
   DROPPED_EXCEPTIONS="$(jq -r '.cloudsentinel.exceptions.metadata.total_dropped // 0' .cloudsentinel/exceptions.json)"
   echo "[exceptions] valid=${VALID_EXCEPTIONS} dropped=${DROPPED_EXCEPTIONS}"
 fi
+
+if [[ ! -s .cloudsentinel/audit_events.jsonl ]]; then
+  echo "[normalize-reports][ERROR] Missing or empty audit_events.jsonl" >&2
+  exit 1
+fi
+
+python3 - <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(".cloudsentinel/audit_events.jsonl")
+count = 0
+with path.open("r", encoding="utf-8") as handle:
+    for idx, raw in enumerate(handle, start=1):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception as exc:
+            print(f"[normalize-reports][ERROR] audit_events.jsonl invalid at line {idx}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(obj, dict):
+            print(f"[normalize-reports][ERROR] audit_events.jsonl line {idx} is not a JSON object", file=sys.stderr)
+            sys.exit(1)
+        count += 1
+
+if count == 0:
+    print("[normalize-reports][ERROR] audit_events.jsonl has no JSON events", file=sys.stderr)
+    sys.exit(1)
+print(f"[normalize-reports][debug] audit_events.jsonl valid entries={count}")
+PY
