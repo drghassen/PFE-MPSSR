@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "description": "CloudSentinel artifact integrity contract across detection, normalization, and OPA decision stages.",
+  "stages": {
+    "detection": {
+      "required_artifacts": [
+        {
+          "id": "gitleaks_raw",
+          "path": ".cloudsentinel/gitleaks_raw.json",
+          "kind": "json"
+        },
+        {
+          "id": "checkov_raw",
+          "path": ".cloudsentinel/checkov_raw.json",
+          "kind": "json"
+        },
+        {
+          "id": "trivy_fs_raw",
+          "path": "shift-left/trivy/reports/raw/trivy-fs-raw.json",
+          "kind": "json"
+        },
+        {
+          "id": "trivy_config_raw",
+          "path": "shift-left/trivy/reports/raw/trivy-config-raw.json",
+          "kind": "json"
+        },
+        {
+          "id": "cloudinit_analysis",
+          "path": ".cloudsentinel/cloudinit_analysis.json",
+          "kind": "json"
+        }
+      ]
+    },
+    "normalization": {
+      "required_artifacts": [
+        {
+          "id": "golden_report",
+          "path": ".cloudsentinel/golden_report.json",
+          "kind": "json"
+        },
+        {
+          "id": "exceptions",
+          "path": ".cloudsentinel/exceptions.json",
+          "kind": "json"
+        },
+        {
+          "id": "audit_events",
+          "path": ".cloudsentinel/audit_events.jsonl",
+          "kind": "jsonl"
+        }
+      ]
+    },
+    "decision": {
+      "required_artifacts": [
+        {
+          "id": "opa_decision",
+          "path": ".cloudsentinel/opa_decision.json",
+          "kind": "json"
+        },
+        {
+          "id": "decision_audit_events",
+          "path": ".cloudsentinel/decision_audit_events.jsonl",
+          "kind": "jsonl"
+        }
+      ]
+    }
+  }
+}

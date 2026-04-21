@@ -20,6 +20,11 @@ if [[ "$TF_FILE_COUNT" -eq 0 ]]; then
 fi
 
 bash shift-left/checkov/run-checkov.sh "${SCAN_TARGET_EFF}"
+python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
+  --artifact .cloudsentinel/checkov_raw.json \
+  --tool checkov \
+  --executed-target "${SCAN_TARGET_EFF}" \
+  --scan-status success
 
 chmod a+r .cloudsentinel/checkov_raw.json .cloudsentinel/checkov_scan.log 2>/dev/null || true
 

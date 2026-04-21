@@ -72,6 +72,7 @@ def emit_audit_event(
     ensure_dir(ctx.audit_log_file)
     event: Dict[str, Any] = {
         "timestamp": to_rfc3339(now_utc()),
+        "scan_id": ctx.scan_id,
         "source": "defectdojo",
         "action": "normalize_exception",
         "input": input_payload,

@@ -78,6 +78,7 @@ class CloudSentinelNormalizer(
         self.git_commit = os.environ.get("CI_COMMIT_SHA", "").strip() or self._run(
             ["git", "rev-parse", "HEAD"], "unknown"
         )
+        self.scan_id = os.environ.get("CLOUDSENTINEL_SCAN_ID", "").strip() or self.git_commit
         self.git_commit_date = os.environ.get("CI_COMMIT_TIMESTAMP", "").strip() or self._run(
             ["git", "log", "-1", "--format=%cI"], self.ts
         )
@@ -193,6 +194,7 @@ class CloudSentinelNormalizer(
             "metadata": {
                 "tool": "cloudsentinel",
                 "timestamp": self.ts,
+                "scan_id": self.scan_id,
                 "generation_duration_ms": 0,
                 "environment": self.env,
                 "execution": {"mode": self.exec_mode},

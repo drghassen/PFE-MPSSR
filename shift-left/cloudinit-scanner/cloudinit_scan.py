@@ -4,8 +4,11 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import re
+import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -123,6 +126,21 @@ def _strip_hcl_heredoc(value: str) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _resolve_scan_id() -> str:
+    explicit = os.environ.get("CLOUDSENTINEL_SCAN_ID", "").strip()
+    if explicit:
+        return explicit
+    ci_sha = os.environ.get("CI_COMMIT_SHA", "").strip()
+    if ci_sha:
+        return ci_sha
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        return str(uuid.uuid4())
 
 
 def _iter_tf_files(terraform_dir: Path) -> Iterable[Path]:
@@ -454,10 +472,26 @@ def analyze_terraform(
                 continue
             by_rule[rule] = by_rule.get(rule, 0) + 1
 
+    scan_id = _resolve_scan_id()
+    executed_target = str(terraform_dir)
     return {
         "schema_version": "1.0.0",
         "generated_at": _utc_now(),
         "scanner": "cloudinit-scanner",
+        "scan_id": scan_id,
+        "scan_completed": True,
+        "scan_status": "success",
+        "findings_count": total_violations,
+        "executed_targets": [executed_target],
+        "scan_metadata": {
+            "tool": "cloudinit",
+            "scan_id": scan_id,
+            "scan_completed": True,
+            "scan_status": "success",
+            "findings_count": total_violations,
+            "executed_targets": [executed_target],
+            "scanned_at": _utc_now(),
+        },
         "resources_analyzed": resources,
         "summary": {
             "total_resources": len(resources),

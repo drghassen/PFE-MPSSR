@@ -21,6 +21,7 @@ upload_scan() {
   file_path="$1"
   scan_type="$2"
   label="$3"
+  upload_file_path="$file_path"
   safe_label="$(echo "${label}" | tr ' /()' '_____' | tr -cd '[:alnum:]_.-')"
   response_file=".cloudsentinel/dojo-responses/${safe_label}.json"
 
@@ -36,8 +37,12 @@ upload_scan() {
   fi
 
   if [ "${scan_type}" = "Gitleaks Scan" ]; then
-    if ! jq -e 'type == "array" and all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "${file_path}" >/dev/null 2>&1; then
-      echo "[dojo] ${label}: invalid report, CloudSentinelSecretHash is required on all findings."
+    if jq -e 'type == "object" and (.findings | type == "array")' "${file_path}" >/dev/null 2>&1; then
+      upload_file_path=".cloudsentinel/dojo-responses/${safe_label}.gitleaks-findings.json"
+      jq '.findings' "${file_path}" > "${upload_file_path}"
+    fi
+    if ! jq -e 'type == "array" and all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "${upload_file_path}" >/dev/null 2>&1; then
+      echo "[dojo] ${label}: invalid findings payload, CloudSentinelSecretHash is required on all findings."
       return 1
     fi
   fi
@@ -45,7 +50,7 @@ upload_scan() {
   HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
     -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
-    -F "file=@${file_path}" \
+    -F "file=@${upload_file_path}" \
     -F "scan_type=${scan_type}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
     --form-string "active=true" \

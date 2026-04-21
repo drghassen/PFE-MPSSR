@@ -8,6 +8,8 @@ This directory contains shared logic used by both CI wrappers (`ci/scripts/*`) a
   - `merge-trivy`: merges Trivy sub-scan OPA wrapper reports (`fs`, `config`, `image`) into a single `trivy_opa.json`.
   - `validate-schema`: validates JSON payloads against a JSON Schema using `jsonschema`.
   - `validate-scanner-contract`: validates scanner wrapper contract fields (`tool`, `version`, `status`, `findings`, `errors`).
+  - `stamp-artifact-metadata`: injects `scan_id`, `scan_status`, `scan_completed`, `findings_count`, `executed_targets`.
+  - `validate-artifact-contract`: validates detection/normalization/decision required artifacts and writes `artifact_contract_report.json`.
 
 ## Design Rules
 

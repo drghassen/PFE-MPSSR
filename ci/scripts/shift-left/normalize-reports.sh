@@ -4,9 +4,11 @@ set -euo pipefail
 export ENVIRONMENT="${CI_ENVIRONMENT_NAME:-dev}"
 export CLOUDSENTINEL_EXECUTION_MODE="ci"
 export CLOUDSENTINEL_SCHEMA_STRICT="true"
+export CLOUDSENTINEL_SCAN_ID="${CLOUDSENTINEL_SCAN_ID:-${CI_COMMIT_SHA:-}}"
 export DOJO_URL="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 
+bash ci/artifact-integrity-check.sh --up-to detection
 python3 shift-left/normalizer/normalize.py
 jq '.summary' .cloudsentinel/golden_report.json
 jq '.quality_gate' .cloudsentinel/golden_report.json
@@ -46,6 +48,17 @@ if ! timeout 30 python3 shift-left/opa/fetch-exceptions.py; then
   }
 }
 EOF
+    jq -nc \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg scan_id "${CLOUDSENTINEL_SCAN_ID:-${CI_COMMIT_SHA:-unknown}}" \
+      '{
+        timestamp: $ts,
+        scan_id: $scan_id,
+        source: "defectdojo",
+        action: "normalize_exception_summary",
+        status: "degraded",
+        reason: "defectdojo_unreachable"
+      }' > .cloudsentinel/audit_events.jsonl
   fi
 fi
 

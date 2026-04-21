@@ -33,6 +33,7 @@ class FetchContext:
     output_file: str
     dropped_file: str
     audit_log_file: str
+    scan_id: str
     schema_version: str
     severity_enum: Set[str]
     allowed_tools: Set[str]

@@ -189,6 +189,7 @@ normalize-reports:
       - .cloudsentinel/exceptions.json
       - .cloudsentinel/dropped_exceptions.json
       - .cloudsentinel/audit_events.jsonl
+      - .cloudsentinel/artifact_contract_report.json
 
 contract-test:
   <<: *default_tools
@@ -198,6 +199,11 @@ contract-test:
       artifacts: true
   script:
     - bash ci/scripts/shift-left/contract-test.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/artifact_contract_report.json
 
 opa-unit-tests:
   image:
@@ -235,6 +241,23 @@ opa-decision:
       - .cloudsentinel/decision_audit_events.jsonl
       - .cloudsentinel/audit_events.jsonl
 
+artifact-integrity-check:
+  <<: *default_tools
+  stage: report
+  needs:
+    - job: normalize-reports
+      artifacts: true
+    - job: opa-decision
+      artifacts: true
+  script:
+    - bash ci/artifact-integrity-check.sh --up-to decision
+  allow_failure: false
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/artifact_contract_report.json
+
 upload-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323"
@@ -244,6 +267,8 @@ upload-to-defectdojo:
   variables:
     GIT_STRATEGY: fetch
   needs:
+    - job: artifact-integrity-check
+      artifacts: true
     - job: gitleaks-scan
       artifacts: true
     - job: checkov-scan
@@ -273,6 +298,8 @@ deploy-infrastructure:
   stage: deploy
   needs:
     - job: opa-decision
+      artifacts: true
+    - job: artifact-integrity-check
       artifacts: true
   script:
     - bash ci/scripts/shift-left/deploy-infrastructure.sh

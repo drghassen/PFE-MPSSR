@@ -67,18 +67,35 @@ class NormalizerRawParsersMixin:
             return self._not_run(
                 "gitleaks", str(p), f"invalid_json:{p}", present=True, sha=sha
             )
-        if not isinstance(doc, list):
+        records: List[Any]
+        if isinstance(doc, list):
+            records = doc
+        elif isinstance(doc, dict):
+            raw_records = doc.get("findings")
+            if raw_records is None:
+                raw_records = doc.get("leaks")
+            if not isinstance(raw_records, list):
+                return self._not_run(
+                    "gitleaks",
+                    str(p),
+                    "invalid_raw_structure:expected_object_with_findings_array",
+                    present=True,
+                    valid=True,
+                    sha=sha,
+                )
+            records = raw_records
+        else:
             return self._not_run(
                 "gitleaks",
                 str(p),
-                "invalid_raw_structure:expected_array",
+                "invalid_raw_structure:expected_array_or_object",
                 present=True,
                 valid=True,
                 sha=sha,
             )
         sev_map = self._gitleaks_mapping()
         findings: List[Dict[str, Any]] = []
-        for i, it in enumerate(doc):
+        for i, it in enumerate(records):
             if not isinstance(it, dict):
                 findings.append(
                     {
@@ -146,10 +163,22 @@ class NormalizerRawParsersMixin:
                     meta.setdefault("in_latest_push", True)
         if range_p.is_file():
             range_doc, range_err = self._read_json(range_p)
-            if not range_err and isinstance(range_doc, list):
+            range_records: List[Any] = []
+            range_doc_valid = False
+            if isinstance(range_doc, list):
+                range_records = range_doc
+                range_doc_valid = True
+            elif isinstance(range_doc, dict):
+                candidates = range_doc.get("findings")
+                if candidates is None:
+                    candidates = range_doc.get("leaks")
+                if isinstance(candidates, list):
+                    range_records = candidates
+                    range_doc_valid = True
+            if not range_err and range_doc_valid:
                 # Index clé composite : (RuleID.upper(), norm_path(File), StartLine, EndLine, SecretHash)
                 range_index: Dict[tuple, Dict[str, Any]] = {}
-                for r_item in range_doc:
+                for r_item in range_records:
                     if not isinstance(r_item, dict):
                         continue
                     r_rid = str(r_item.get("RuleID") or "").upper().strip()

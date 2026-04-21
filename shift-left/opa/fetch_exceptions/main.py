@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import sys
+import json
+from datetime import datetime, timezone
+import uuid
 from typing import Optional
 
 from .fetch_defectdojo import DefectDojoFetchError, fetch_risk_acceptances
@@ -46,6 +50,23 @@ def configure_logging() -> logging.Logger:
     return logging.getLogger("fetch-exceptions")
 
 
+def _resolve_scan_id(repo_root: str) -> str:
+    explicit = os.environ.get("CLOUDSENTINEL_SCAN_ID", "").strip()
+    if explicit:
+        return explicit
+    ci_sha = os.environ.get("CI_COMMIT_SHA", "").strip()
+    if ci_sha:
+        return ci_sha
+    try:
+        return subprocess.check_output(
+            ["git", "-C", repo_root, "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return str(uuid.uuid4())
+
+
 def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
     logger = logger or configure_logging()
 
@@ -69,6 +90,7 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
         output_file=output_file,
         dropped_file=dropped_file,
         audit_log_file=audit_log_file,
+        scan_id=_resolve_scan_id(repo_root),
         schema_version="2.0.0",
         severity_enum={"CRITICAL", "HIGH", "MEDIUM", "LOW"},
         allowed_tools={"checkov", "trivy", "gitleaks"},
@@ -113,6 +135,21 @@ def execute(ctx: FetchContext) -> None:
     mapped, meta = map_risk_acceptances(ctx, raw_ras)
     payload = json_payload(ctx, mapped, meta)
     save_outputs(ctx, payload)
+
+    summary_event = {
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "scan_id": ctx.scan_id,
+        "source": "defectdojo",
+        "action": "normalize_exception_summary",
+        "status": "completed",
+        "output": {
+            "total_raw_risk_acceptances": meta.get("total_raw_risk_acceptances", 0),
+            "total_valid_exceptions": meta.get("total_valid_exceptions", 0),
+            "total_dropped": meta.get("total_dropped", 0),
+        },
+    }
+    with open(ctx.audit_log_file, "a", encoding="utf-8") as audit_handle:
+        audit_handle.write(json.dumps(summary_event, separators=(",", ":"), sort_keys=True) + "\\n")
 
     ctx.logger.info(
         "Exceptions payload written: valid=%s dropped=%s",

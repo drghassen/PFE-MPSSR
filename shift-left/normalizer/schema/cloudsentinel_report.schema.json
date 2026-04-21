@@ -23,6 +23,7 @@
       "required": [
         "tool",
         "timestamp",
+        "scan_id",
         "generation_duration_ms",
         "environment",
         "execution",
@@ -37,6 +38,10 @@
         "timestamp": {
           "type": "string",
           "format": "date-time"
+        },
+        "scan_id": {
+          "type": "string",
+          "minLength": 7
         },
         "generation_duration_ms": {
           "type": "integer",
@@ -468,4 +473,3 @@
     }
   }
 }
-

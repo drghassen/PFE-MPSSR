@@ -4,7 +4,19 @@ set -euo pipefail
 gitleaks version
 mkdir -p .cloudsentinel
 bash shift-left/gitleaks/run-gitleaks.sh
-chmod a+r .cloudsentinel/gitleaks_raw.json 2>/dev/null || true
+python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
+  --artifact .cloudsentinel/gitleaks_raw.json \
+  --tool gitleaks \
+  --executed-target "${SCAN_TARGET:-repo}" \
+  --scan-status success
+if [[ -f .cloudsentinel/gitleaks_range_raw.json ]]; then
+  python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
+    --artifact .cloudsentinel/gitleaks_range_raw.json \
+    --tool gitleaks \
+    --executed-target "${SCAN_TARGET:-repo}" \
+    --scan-status success
+fi
+chmod a+r .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_range_raw.json 2>/dev/null || true
 
 IGNORE_FILE="shift-left/gitleaks/.gitleaksignore"
 if [[ -f "$IGNORE_FILE" ]]; then
@@ -23,4 +35,4 @@ if [[ -f "$IGNORE_FILE" ]]; then
   done < "$IGNORE_FILE"
   echo "[gitleaks][GOVERNANCE] .gitleaksignore governance check passed."
 fi
-jq -r '"[scan-summary] gitleaks_raw_findings=" + (length|tostring)' .cloudsentinel/gitleaks_raw.json
+jq -r '"[scan-summary] gitleaks_raw_findings=" + (((.findings // []) | length)|tostring)' .cloudsentinel/gitleaks_raw.json

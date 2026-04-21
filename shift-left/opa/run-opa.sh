@@ -117,6 +117,7 @@ emit_decision_audit_applied_exceptions() {
 
   jq -c \
     --arg ts "$ts" \
+    --arg scan_id "$SCAN_ID" \
     --arg mode "$MODE" \
     --arg env "$ENVIRONMENT" \
     --argjson allow "$( [[ "$ALLOW" == "true" ]] && echo true || echo false )" \
@@ -124,6 +125,7 @@ emit_decision_audit_applied_exceptions() {
       (.result.exceptions.applied_audit // [])[]
       | {
           timestamp: $ts,
+          scan_id: $scan_id,
           component: "run-opa",
           event_type: "exception_applied",
           mode: $mode,
@@ -138,6 +140,38 @@ emit_decision_audit_applied_exceptions() {
     ' "$DECISION_FILE" >> "$DECISION_AUDIT_LOG_FILE" 2>/dev/null || true
 }
 
+emit_decision_audit_summary() {
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  jq -nc \
+    --arg ts "$ts" \
+    --arg scan_id "$SCAN_ID" \
+    --arg mode "$MODE" \
+    --arg env "$ENVIRONMENT" \
+    --arg engine "$INVOCATION_MODE" \
+    --arg commit "$GIT_COMMIT" \
+    --arg branch "$GIT_BRANCH" \
+    --argjson allow "$( [[ "$ALLOW" == "true" ]] && echo true || echo false )" \
+    --argjson deny_count "$DENY_COUNT" \
+    --argjson warn_count "$WARN_COUNT" \
+    --argjson applied_count "$APPLIED_COUNT" \
+    '{
+      timestamp: $ts,
+      scan_id: $scan_id,
+      component: "run-opa",
+      event_type: "decision_evaluated",
+      mode: $mode,
+      environment: $env,
+      engine: $engine,
+      allow: $allow,
+      deny_count: $deny_count,
+      warn_count: $warn_count,
+      applied_exceptions_count: $applied_count,
+      commit: $commit,
+      branch: $branch
+    }' >> "$DECISION_AUDIT_LOG_FILE"
+}
+
 # --- Prerequisites ---
 command -v jq >/dev/null 2>&1 || { log_err "jq is required. Install with: apt-get install jq"; exit 2; }
 
@@ -146,6 +180,12 @@ command -v jq >/dev/null 2>&1 || { log_err "jq is required. Install with: apt-ge
   log_err "Run first: bash shift-left/normalizer/normalize.sh"
   exit 2
 }
+
+SCAN_ID="$(jq -r '.metadata.scan_id // .metadata.git.commit // ""' "$GOLDEN_REPORT")"
+if [[ -z "$SCAN_ID" || "$SCAN_ID" == "null" ]]; then
+  log_err "golden_report is missing metadata.scan_id: ${GOLDEN_REPORT}"
+  exit 2
+fi
 
 if [[ ! -d "$GATE_POLICY_DIR" ]] || [[ -z "$(find "$GATE_POLICY_DIR" -maxdepth 1 -name '*.rego' -print -quit)" ]]; then
   log_err "Gate policies not found under: ${GATE_POLICY_DIR}"
@@ -338,12 +378,14 @@ echo "  ────────────────────────
 
 mkdir -p "$(dirname "$DECISION_AUDIT_LOG_FILE")"
 : > "$DECISION_AUDIT_LOG_FILE"
+emit_decision_audit_summary
+
+if [[ "$APPLIED_COUNT" -gt 0 ]]; then
+  emit_decision_audit_applied_exceptions
+  log_info "Applied exception decision_audit log appended to ${DECISION_AUDIT_LOG_FILE}"
+fi
 
 if [[ "$ALLOW" == "true" ]]; then
-  if [[ "$APPLIED_COUNT" -gt 0 ]]; then
-    emit_decision_audit_applied_exceptions
-    log_info "Applied exception decision_audit log appended to ${DECISION_AUDIT_LOG_FILE}"
-  fi
   log_ok "DECISION → ${BOLD}${GREEN}ALLOW ✓${NC}"
 else
   log_deny "DECISION → ${BOLD}${RED}DENY ✗${NC}  (${DENY_COUNT} reason(s))"
@@ -365,13 +407,18 @@ echo ""
 
 tmp_decision="$(mktemp -t opa_decision_enriched.XXXXXX.json)"
 jq \
+  --arg scan_id     "$SCAN_ID" \
   --arg mode        "$MODE" \
   --arg engine      "$INVOCATION_MODE" \
   --arg policy_file "$GATE_POLICY_DIR" \
   --arg exc_file    "$EXCEPTIONS_FILE" \
   --arg timestamp   "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-  '.result += {
+  '. + {
+    scan_id: $scan_id
+  }
+  | .result += {
     _gate: {
+      scan_id: $scan_id,
       mode:         $mode,
       engine:       $engine,
       policy_file:  $policy_file,

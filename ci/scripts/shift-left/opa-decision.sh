@@ -13,19 +13,36 @@ set -euo pipefail
 # The token is ephemeral — generated per CI job and discarded after.
 # ==============================================================================
 
-# --- Artifact integrity: verify golden_report.json before feeding it to OPA ---
-# Recomputes HMAC-SHA256 and compares against the sidecar signed by normalize-reports.
-# A mismatch means the artifact was replaced after signing — hard stop.
+# --- Artifact integrity pre-gate: fail fast before starting OPA ---
+artifact=".cloudsentinel/golden_report.json"
+sidecar="${artifact}.hmac"
+
+if [[ ! -s "${artifact}" ]]; then
+  echo "[opa-decision][ERROR] Missing/empty golden_report: ${artifact}" >&2
+  exit 1
+fi
+
+if ! jq -e '
+  type == "object"
+  and (.metadata | type == "object")
+  and ((.metadata.scan_id // .metadata.git.commit // "") | type == "string" and length > 0)
+  and (.findings | type == "array")
+  and (.summary | type == "object")
+  and (.summary.global | type == "object")
+  and ((.summary.global.TOTAL // -1) == (.findings | length))
+' "${artifact}" >/dev/null 2>&1; then
+  echo "[opa-decision][ERROR] Invalid or non-correlated golden_report.json. Refusing OPA evaluation." >&2
+  exit 1
+fi
+
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  artifact=".cloudsentinel/golden_report.json"
-  sidecar="${artifact}.hmac"
   if [[ ! -f "${sidecar}" ]]; then
     echo "[opa-decision][ERROR] HMAC sidecar missing: ${sidecar}" >&2
     echo "[opa-decision][ERROR] Artifact may have been tampered or signing step did not run." >&2
     exit 1
   fi
-  computed=$(openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${artifact}" | awk '{print $NF}')
-  stored=$(tr -d '[:space:]' < "${sidecar}")
+  computed="$(openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${artifact}" | awk '{print $NF}')"
+  stored="$(tr -d '[:space:]' < "${sidecar}")"
   if [[ "${computed}" != "${stored}" ]]; then
     echo "[opa-decision][ERROR] HMAC mismatch — ${artifact} integrity check FAILED" >&2
     exit 1
