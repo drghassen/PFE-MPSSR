@@ -73,6 +73,115 @@ upload_scan() {
   fi
 }
 
+upload_cloudinit_generic_findings() {
+  local file_path=".cloudsentinel/cloudinit_analysis.json"
+  local label="Cloud-init"
+  local generic_file=".cloudsentinel/dojo-responses/cloudinit-generic-findings.json"
+  local response_file=".cloudsentinel/dojo-responses/cloudinit-generic-response.json"
+
+  if [[ ! -f "${file_path}" ]]; then
+    echo "[dojo] ${label}: report not found (${file_path}), skipping."
+    return 0
+  fi
+
+  if ! jq -e '
+    type == "object"
+    and (.resources_analyzed | type == "array")
+    and (.summary | type == "object")
+  ' "${file_path}" >/dev/null 2>&1; then
+    echo "[dojo] ${label}: invalid cloudinit_analysis structure, skipping."
+    return 1
+  fi
+
+  local scan_date
+  scan_date="$(jq -r '(.generated_at // now | tostring)[0:10]' "${file_path}")"
+  local scan_id
+  scan_id="$(jq -r '.scan_id // ""' "${file_path}")"
+
+  jq -c \
+    --arg scan_date "${scan_date}" \
+    --arg scan_id "${scan_id}" \
+    '
+    def normalize_severity($s):
+      if ($s // "" | ascii_downcase) == "critical" then "Critical"
+      elif ($s // "" | ascii_downcase) == "high" then "High"
+      elif ($s // "" | ascii_downcase) == "medium" then "Medium"
+      elif ($s // "" | ascii_downcase) == "low" then "Low"
+      elif ($s // "" | ascii_downcase) == "info" then "Info"
+      else "Medium"
+      end;
+    {
+      findings: [
+        (.resources_analyzed // [])[] as $r
+        | ($r.violations // [])[]
+        | {
+            title: ("Cloud-init violation: " + ((.rule // "unknown") | tostring)),
+            vuln_id_from_tool: ((.rule // "unknown") | tostring),
+            component_name: (($r.resource_address // $r.resource_name // "unknown") | tostring),
+            unique_id_from_tool:
+              (
+                "cloudinit:"
+                + ((.rule // "unknown") | tostring) + ":"
+                + (($r.resource_address // "unknown") | tostring) + ":"
+                + (($r.file // "unknown") | tostring) + ":"
+                + (($r.line // 0) | tostring)
+              ),
+            severity: normalize_severity(.severity),
+            date: $scan_date,
+            description:
+              (
+                "CloudSentinel cloud-init finding\n"
+                + "- Rule: " + ((.rule // "unknown") | tostring) + "\n"
+                + "- Resource: " + (($r.resource_address // "unknown") | tostring) + "\n"
+                + "- File: " + (($r.file // "unknown") | tostring) + ":" + (($r.line // 0) | tostring) + "\n"
+                + "- Environment: " + (($r.environment // "unknown") | tostring) + "\n"
+                + "- Message: " + ((.message // "n/a") | tostring) + "\n"
+                + "- Non waivable in prod: " + ((.non_waivable_in_prod // false) | tostring) + "\n"
+                + "- Block: " + ((.block // false) | tostring) + "\n"
+                + (if ($scan_id | length) > 0 then "- Scan ID: " + $scan_id else "- Scan ID: n/a" end)
+              ),
+            mitigation:
+              "Harden cloud-init bootstrap script and align resource intent/tagging before deployment.",
+            references:
+              (
+                "CloudSentinel cloudinit_analysis.json"
+                + (if ($scan_id | length) > 0 then " scan_id=" + $scan_id else "" end)
+              )
+          }
+      ]
+    }' "${file_path}" > "${generic_file}"
+
+  local findings_count
+  findings_count="$(jq -r '(.findings // []) | length' "${generic_file}")"
+  if [[ "${findings_count}" -eq 0 ]]; then
+    echo "[dojo] ${label}: no violations to upload (findings=0)."
+    return 0
+  fi
+
+  HTTP_CODE="$(curl -sS -o "${response_file}" -w "%{http_code}" \
+    -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+    -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+    -F "file=@${generic_file}" \
+    -F "scan_type=Generic Findings Import" \
+    --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+    --form-string "test_title=CloudSentinel Cloud-init (Shift-Left)" \
+    --form-string "scan_date=${scan_date}" \
+    --form-string "active=true" \
+    --form-string "verified=true" \
+    --form-string "close_old_findings=true" \
+    --form-string "close_old_findings_product_scope=false" \
+    --form-string "deduplication_on_engagement=true" \
+    --form-string "minimum_severity=Info")"
+
+  if [[ "${HTTP_CODE}" = "201" ]]; then
+    echo "[dojo] ${label} uploaded HTTP=201 (findings=${findings_count})"
+  else
+    echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
+    cat "${response_file}" || true
+    return 1
+  fi
+}
+
 validate_optional_json_artifact() {
   local file_path="$1"
   local label="$2"
@@ -106,3 +215,4 @@ upload_scan ".cloudsentinel/gitleaks_raw.json"                                  
 upload_scan ".cloudsentinel/checkov_raw.json"                                        "Checkov Scan"  "Checkov"
 upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json"                        "Trivy Scan"    "Trivy (FS/SCA)"
 upload_scan "shift-left/trivy/reports/raw/trivy-config-raw.json"                    "Trivy Scan"    "Trivy (Config)"
+upload_cloudinit_generic_findings
