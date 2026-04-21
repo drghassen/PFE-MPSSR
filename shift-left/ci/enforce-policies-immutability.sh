@@ -63,6 +63,7 @@ proj    = os.environ["CI_PROJECT_ID"]
 base, head = sys.argv[1], sys.argv[2]
 url = f"{api_url}/projects/{proj}/repository/compare?from={base}&to={head}&straight=true"
 req = urllib.request.Request(url, headers={"JOB-TOKEN": token})
+print(f"DEBUG url={url} project_id={proj}", file=sys.stderr)
 try:
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.load(r)
@@ -73,6 +74,10 @@ try:
             if p and p not in seen:
                 seen.add(p)
                 print(p)
+except urllib.error.HTTPError as e:
+    body = e.read().decode("utf-8", errors="replace")[:300]
+    print(f"IMMUTABILITY_API_ERROR: HTTP {e.code} — {body}", file=sys.stderr)
+    sys.exit(1)
 except Exception as e:
     print(f"IMMUTABILITY_API_ERROR: {e}", file=sys.stderr)
     sys.exit(1)
