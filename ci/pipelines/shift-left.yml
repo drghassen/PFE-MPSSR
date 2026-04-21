@@ -50,14 +50,14 @@ stages:
 
 .trivy_cache_pull: &trivy_cache_pull
   cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}"
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
     policy: pull
     paths:
       - .trivy-cache
 
 .trivy_cache_pull_push: &trivy_cache_pull_push
   cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}"
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
     policy: pull-push
     paths:
       - .trivy-cache
@@ -82,7 +82,7 @@ trivy-db-warm:
   <<: *default_tools
   stage: guard
   cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}"
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
     policy: pull-push
     paths:
       - .trivy-cache
