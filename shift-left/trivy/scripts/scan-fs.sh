@@ -70,6 +70,7 @@ log "SBOM      : $SBOM_FILE"
 # ── SBOM Generation ──────────────────────────────────────────────────────────
 log "Generating SBOM (CycloneDX)..."
 trivy fs \
+  --config "$CONFIG_FILE" \
   --format cyclonedx \
   --output "$SBOM_FILE" \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
