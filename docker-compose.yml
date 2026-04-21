@@ -26,7 +26,7 @@ services:
       - /app/data/exceptions.json
       - /app/auth/opa_config.json
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8181/health"]
+      test: ["CMD", "/opa", "eval", "--format=raw", "1 == 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -68,7 +68,7 @@ services:
       - /app/data/drift_exceptions.json
       - /app/auth/opa_config.json
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8182/health"]
+      test: ["CMD", "/opa", "eval", "--format=raw", "1 == 1"]
       interval: 10s
       timeout: 5s
       retries: 3

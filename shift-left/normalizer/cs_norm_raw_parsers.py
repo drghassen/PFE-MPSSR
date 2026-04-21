@@ -8,9 +8,53 @@ from typing import Any, Dict, List, Optional
 
 
 class NormalizerRawParsersMixin:
+    def _gitleaks_secret_hash(
+        self,
+        item: Dict[str, Any],
+        rule_id: str,
+        file_path: str,
+        start_line: int,
+        end_line: int,
+    ) -> str:
+        precomputed = self._first(
+            item.get("CloudSentinelSecretHash"),
+            item.get("SecretHash"),
+            item.get("secret_hash"),
+            "",
+        )
+        if precomputed and len(str(precomputed).strip()) == 64:
+            return str(precomputed).strip().lower()
+
+        secret = (
+            self._first(item.get("Secret"), item.get("secret"), item.get("Match"), item.get("match"), "")
+            or ""
+        )
+        if secret and str(secret).strip().upper() != "REDACTED":
+            return self._sha256(str(secret))
+
+        st_col = self._to_int(
+            self._first(item.get("StartColumn"), item.get("start_column"), "0"), 0
+        )
+        en_col = self._to_int(
+            self._first(item.get("EndColumn"), item.get("end_column"), "0"), 0
+        )
+        fallback_material = "|".join(
+            [
+                "v1",
+                "location",
+                str(rule_id).upper(),
+                self._norm_path(file_path),
+                str(start_line),
+                str(end_line),
+                str(st_col),
+                str(en_col),
+            ]
+        )
+        return self._sha256(fallback_material)
+
     def _parse_gitleaks(self, skip=False):
         # ENRICHISSEMENT UNIQUEMENT — gitleaks_range_raw.json n'est jamais un signal OPA.
-        # La clé composite (RuleID, File, StartLine, EndLine) est la seule clé de matching.
+        # La clé composite (RuleID, File, StartLine, EndLine, SecretHash) est la seule clé de matching.
         # Fingerprint NON utilisé : incompatible entre modes --no-git et --log-opts.
         p = self.out_dir / "gitleaks_raw.json"
         if skip:
@@ -69,10 +113,7 @@ class NormalizerRawParsersMixin:
             en = self._to_int(
                 self._first(it.get("EndLine"), it.get("end_line"), str(st)), st
             )
-            secret = (
-                self._first(it.get("Secret"), it.get("Match"), it.get("match"), "")
-                or ""
-            )
+            secret_hash = self._gitleaks_secret_hash(it, str(rid), fp, st, en)
             raw_sev = self._first(
                 it.get("Severity"), sev_map.get(str(rid), "HIGH"), "HIGH"
             )
@@ -88,7 +129,7 @@ class NormalizerRawParsersMixin:
                     "finding_type": "secret",
                     "resource": {"name": fp, "path": fp, "type": "file"},
                     "metadata": {
-                        "secret_hash": self._sha256(secret) if secret else "",
+                        "secret_hash": secret_hash,
                         "commit": self._first(it.get("Commit"), ""),
                         "author": self._first(it.get("Email"), ""),
                         "date": self._first(it.get("Date"), ""),
@@ -106,7 +147,7 @@ class NormalizerRawParsersMixin:
         if range_p.is_file():
             range_doc, range_err = self._read_json(range_p)
             if not range_err and isinstance(range_doc, list):
-                # Index clé composite : (RuleID.upper(), norm_path(File), StartLine, EndLine)
+                # Index clé composite : (RuleID.upper(), norm_path(File), StartLine, EndLine, SecretHash)
                 range_index: Dict[tuple, Dict[str, Any]] = {}
                 for r_item in range_doc:
                     if not isinstance(r_item, dict):
@@ -115,6 +156,9 @@ class NormalizerRawParsersMixin:
                     r_file = self._norm_path(r_item.get("File") or "")
                     r_start = self._to_int(r_item.get("StartLine"), 0)
                     r_end = self._to_int(r_item.get("EndLine"), r_start)
+                    r_hash = self._gitleaks_secret_hash(
+                        r_item, r_rid, r_file, r_start, r_end
+                    )
                     r_commit = str(r_item.get("Commit") or "").strip()
                     r_email = str(r_item.get("Email") or "").strip()
                     r_date = str(r_item.get("Date") or "").strip()
@@ -129,7 +173,7 @@ class NormalizerRawParsersMixin:
                     except (ValueError, AttributeError):
                         continue
 
-                    key = (r_rid, r_file, r_start, r_end)
+                    key = (r_rid, r_file, r_start, r_end, r_hash)
                     if key not in range_index:
                         range_index[key] = r_item
 
@@ -139,8 +183,11 @@ class NormalizerRawParsersMixin:
                     f_file = self._norm_path(f.get("file") or "")
                     f_start = self._to_int(f.get("start_line"), 0)
                     f_end = self._to_int(f.get("end_line"), f_start)
-                    key = (f_rid, f_file, f_start, f_end)
                     meta = f.get("metadata")
+                    f_hash = ""
+                    if isinstance(meta, dict):
+                        f_hash = str(meta.get("secret_hash") or "").strip().lower()
+                    key = (f_rid, f_file, f_start, f_end, f_hash)
                     if isinstance(meta, dict):
                         # True = finding introduced in the current push → pipeline blocks on it
                         # False = historical finding from prior commits → advisory only, never blocks

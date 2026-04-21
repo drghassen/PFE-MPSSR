@@ -12,7 +12,7 @@ Dans le pattern de séparation de CloudSentinel, Gitleaks ne bloque jamais direc
 OPA est le seul point de décision (`run-opa.sh --enforce` en CI, `--advisory` en local).
 
 Le script `run-gitleaks.sh` encapsule l'outil pour :
-1. Rediriger tous les résultats sécurisement (`--redact` activé sur tous les modes).
+1. Rediriger tous les résultats sécurisement (`--redact` activé sur tous les modes) et enrichir chaque finding avec `CloudSentinelSecretHash` (SHA-256 redacted-safe).
 2. Toujours renvoyer un exit code permettant à OPA de décider.
 
 ---
@@ -44,7 +44,7 @@ gitleaks detect --source <repo> --log-opts <range> --redact ...
 ```
 
 - **Output** : `.cloudsentinel/gitleaks_range_raw.json`
-- Enrichit les findings du scan principal avec les metadata git (commit, author, date) quand un matching par clé composite (RuleID, File, StartLine, EndLine) est trouvé.
+- Enrichit les findings du scan principal avec les metadata git (commit, author, date) quand un matching par clé composite (RuleID, File, StartLine, SecretHash) est trouvé.
 - **Jamais gating, jamais un signal OPA.**
 - Absent ou invalide = ignoré silencieusement (best-effort).
 - Range sélectionné automatiquement :
@@ -75,4 +75,4 @@ SCAN_TARGET=repo bash shift-left/gitleaks/run-gitleaks.sh
 
 1. **Redaction** : `--redact` activé sur tous les modes. L'audit JSON ne contient aucun secret en clair.
 2. **Baseline** : Si un repository hérite de secrets ineffaçables dans l'historique, générez un `gitleaks.baseline.json` et référencez-le dans `gitleaks.toml`.
-3. **Fingerprint** : Non utilisé comme clé de matching entre le scan principal (`--no-git`) et le scan range (`--log-opts`) — incompatibles structurellement. La clé composite (RuleID, File, StartLine, EndLine) est utilisée.
+3. **Fingerprint** : Non utilisé comme clé de matching entre le scan principal (`--no-git`) et le scan range (`--log-opts`) — incompatibles structurellement. La clé composite (RuleID, File, StartLine, SecretHash) est utilisée.

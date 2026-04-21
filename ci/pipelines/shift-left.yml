@@ -69,6 +69,13 @@ retry-guard:
     - bash ci/scripts/shift-left/retry-guard.sh
   allow_failure: false
 
+line-endings-check:
+  <<: *default_tools
+  stage: guard
+  script:
+    - bash ci/check-line-endings.sh
+  allow_failure: false
+
 policies-immutability:
   <<: *default_tools
   stage: guard

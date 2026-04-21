@@ -62,5 +62,5 @@ docker build \
 ## 📋 Bonnes Pratiques CI (`.gitlab-ci.yml`)
 
 1.  **Immuabilité** : Le `.gitlab-ci.yml` utilise la variable `OPA_IMAGE` pointant vers un digest (et non un tag).
-2.  **Smoke Tests** : Le job `opa-image-smoke` valide que le binaire OPA démarre bien avant le block `decide`.
+2.  **Contrats & Tests OPA** : Les jobs `contract-test` et `opa-unit-tests` valident les contrats d'artefacts, l'architecture Rego et l'intégrité des politiques avant `decide`.
 3.  **Factorisation** : Les validations de contrat (merge Trivy + schéma JSON) sont centralisées dans `ci/libs/cloudsentinel_contracts.py` et appelées par les wrappers `ci/scripts/*`.

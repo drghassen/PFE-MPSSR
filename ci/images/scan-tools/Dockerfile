@@ -5,6 +5,8 @@ ARG GITLEAKS_VERSION=8.21.2
 ARG CHECKOV_VERSION=3.2.502
 ARG TRIVY_VERSION=0.69.3
 ARG JSONSCHEMA_VERSION=4.25.1
+ARG PYTHON_HCL2_VERSION=8.1.2
+ARG PYYAML_VERSION=6.0.3
 
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
@@ -35,13 +37,15 @@ RUN set -eux; \
 
 RUN pip install --disable-pip-version-check --no-cache-dir \
       "checkov==${CHECKOV_VERSION}" \
-      "jsonschema==${JSONSCHEMA_VERSION}"
+      "jsonschema==${JSONSCHEMA_VERSION}" \
+      "python-hcl2==${PYTHON_HCL2_VERSION}" \
+      "PyYAML==${PYYAML_VERSION}"
 
 RUN gitleaks version \
  && checkov --version \
  && trivy --version \
  && jq --version \
- && python3 -c "from importlib.metadata import version; print(version('jsonschema'))"
+ && python3 -c "from importlib.metadata import version; print(version('jsonschema')); print(version('python-hcl2')); print(version('PyYAML'))"
 
 RUN groupadd --gid 65532 nonroot \
  && useradd --uid 65532 --gid 65532 --no-create-home nonroot

@@ -35,6 +35,13 @@ upload_scan() {
     return 1
   fi
 
+  if [ "${scan_type}" = "Gitleaks Scan" ]; then
+    if ! jq -e 'type == "array" and all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "${file_path}" >/dev/null 2>&1; then
+      echo "[dojo] ${label}: invalid report, CloudSentinelSecretHash is required on all findings."
+      return 1
+    fi
+  fi
+
   HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
     -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \

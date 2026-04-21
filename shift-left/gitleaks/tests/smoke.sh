@@ -13,5 +13,6 @@ bash "$REPO_ROOT/shift-left/gitleaks/run-gitleaks.sh"
 
 test -f "$OUT_FILE"
 jq -e 'type == "array"' "$OUT_FILE" >/dev/null
+jq -e 'all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "$OUT_FILE" >/dev/null
 
 echo "[smoke][gitleaks] PASS"

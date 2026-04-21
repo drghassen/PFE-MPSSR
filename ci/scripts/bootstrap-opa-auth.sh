@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
 OUTPUT_FILE="${OUTPUT_DIR}/opa_auth_config.json"
 

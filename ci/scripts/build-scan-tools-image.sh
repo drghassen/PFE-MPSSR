@@ -12,6 +12,8 @@ printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
   --build-arg "CHECKOV_VERSION=${CHECKOV_VERSION}" \
   --build-arg "TRIVY_VERSION=${TRIVY_VERSION}" \
   --build-arg "JSONSCHEMA_VERSION=${JSONSCHEMA_VERSION}" \
+  --build-arg "PYTHON_HCL2_VERSION=${PYTHON_HCL2_VERSION}" \
+  --build-arg "PYYAML_VERSION=${PYYAML_VERSION}" \
   --snapshot-mode=redo \
   --cache=true \
   --cache-repo "${CI_REGISTRY_IMAGE}/cache/scan-tools"

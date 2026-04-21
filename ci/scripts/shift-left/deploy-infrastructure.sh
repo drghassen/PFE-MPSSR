@@ -16,9 +16,10 @@ for name in "${required_vars[@]}"; do
     exit 2
   fi
 done
-if ! printf '%s' "${TF_VAR_admin_ssh_public_key}" | grep -Eq '^ssh-rsa[[:space:]]+[A-Za-z0-9+/=]+([[:space:]].*)?$'; then
-  echo "[deploy][ERROR] TF_VAR_admin_ssh_public_key must be RSA format (starts with 'ssh-rsa ')." >&2
-  echo "[deploy][ERROR] Generate with: ssh-keygen -t rsa -b 4096 -C \"gitlab-ci\" -f ~/.ssh/student_secure_rsa" >&2
+SSH_PUBKEY_REGEX='^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp(256|384|521))[[:space:]]+[A-Za-z0-9+/]+={0,2}([[:space:]].*)?$'
+if ! printf '%s' "${TF_VAR_admin_ssh_public_key}" | grep -Eq "${SSH_PUBKEY_REGEX}"; then
+  echo "[deploy][ERROR] TF_VAR_admin_ssh_public_key must be a valid OpenSSH public key (ssh-ed25519, ecdsa-sha2-nistp256/384/521, or ssh-rsa)." >&2
+  echo "[deploy][ERROR] Recommended: ssh-keygen -t ed25519 -C \"gitlab-ci\" -f ~/.ssh/student_secure_ed25519" >&2
   exit 2
 fi
 
