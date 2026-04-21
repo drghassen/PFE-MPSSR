@@ -75,9 +75,13 @@ class CloudSentinelNormalizer(
         self.git_branch = os.environ.get("CI_COMMIT_REF_NAME", "").strip() or self._run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"], "unknown"
         )
-        self.git_commit = self._run(["git", "rev-parse", "HEAD"], "unknown")
-        self.git_commit_date = self._run(["git", "log", "-1", "--format=%cI"], self.ts)
-        self.git_author_email = self._run(
+        self.git_commit = os.environ.get("CI_COMMIT_SHA", "").strip() or self._run(
+            ["git", "rev-parse", "HEAD"], "unknown"
+        )
+        self.git_commit_date = os.environ.get("CI_COMMIT_TIMESTAMP", "").strip() or self._run(
+            ["git", "log", "-1", "--format=%cI"], self.ts
+        )
+        self.git_author_email = os.environ.get("GITLAB_USER_EMAIL", "").strip() or self._run(
             ["git", "log", "-1", "--format=%ae"], "unknown@example.invalid"
         )
         self.pipeline_id = os.environ.get("CI_PIPELINE_ID", "local")
