@@ -5,6 +5,8 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "scan_id",
+    "scan_status",
     "metadata",
     "summary",
     "scanners",
@@ -17,6 +19,14 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
+    "scan_id": {
+      "type": "string",
+      "minLength": 7
+    },
+    "scan_status": {
+      "type": "string",
+      "enum": ["success", "failure"]
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
@@ -24,6 +34,7 @@
         "tool",
         "timestamp",
         "scan_id",
+        "executed_scanners",
         "generation_duration_ms",
         "environment",
         "execution",
@@ -42,6 +53,15 @@
         "scan_id": {
           "type": "string",
           "minLength": 7
+        },
+        "executed_scanners": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["gitleaks", "checkov", "trivy", "cloudinit"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
         },
         "generation_duration_ms": {
           "type": "integer",

@@ -188,14 +188,31 @@ class CloudSentinelNormalizer(
             "by_category": by_cat,
         }
         not_run = [k for k, v in scanners.items() if v["status"] == "NOT_RUN"]
+        source_reports = {
+            "gitleaks": g_trace,
+            "checkov": c_trace,
+            "trivy": t_trace,
+            "cloudinit": ci_trace,
+        }
+        executed_scanners = [
+            tool
+            for tool, trace in source_reports.items()
+            if isinstance(trace, dict)
+            and bool(trace.get("present", False))
+            and bool(trace.get("valid_json", False))
+        ]
+        scan_status = "success" if executed_scanners else "failure"
 
         report = {
             "schema_version": self.schema_version,
+            "scan_id": self.scan_id,
+            "scan_status": scan_status,
             "metadata": {
                 "tool": "cloudsentinel",
                 "timestamp": self.ts,
                 "scan_id": self.scan_id,
                 "generation_duration_ms": 0,
+                "executed_scanners": executed_scanners,
                 "environment": self.env,
                 "execution": {"mode": self.exec_mode},
                 "git": {
@@ -209,12 +226,7 @@ class CloudSentinelNormalizer(
                 "normalizer": {
                     "version": self.schema_version,
                     "compatibility": "backward",
-                    "source_reports": {
-                        "gitleaks": g_trace,
-                        "checkov": c_trace,
-                        "trivy": t_trace,
-                        "cloudinit": ci_trace,
-                    },
+                    "source_reports": source_reports,
                 },
             },
             "scanners": scanners,

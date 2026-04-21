@@ -384,10 +384,14 @@ def _fail(result: Dict[str, Any], error: str) -> None:
 
 def _extract_scan_id(doc: Any, artifact_id: str) -> str:
     if artifact_id == "golden_report":
-        metadata = doc.get("metadata") if isinstance(doc, dict) else None
-        if isinstance(metadata, dict):
-            value = metadata.get("scan_id")
-            return str(value).strip() if value is not None else ""
+        if isinstance(doc, dict):
+            top_value = doc.get("scan_id")
+            if top_value is not None and str(top_value).strip():
+                return str(top_value).strip()
+            metadata = doc.get("metadata")
+            if isinstance(metadata, dict):
+                value = metadata.get("scan_id")
+                return str(value).strip() if value is not None else ""
         return ""
     if artifact_id == "opa_decision":
         if isinstance(doc, dict):
@@ -423,6 +427,19 @@ def _validate_scan_context_fields(result: Dict[str, Any], doc: Dict[str, Any]) -
 
     if not isinstance(executed_targets, list) or not executed_targets:
         _fail(result, "executed_targets_required")
+
+
+def _has_scan_context_evidence(doc: Dict[str, Any]) -> bool:
+    scan_id = str(doc.get("scan_id", "")).strip()
+    scan_status = str(doc.get("scan_status", "")).strip().lower()
+    executed_targets = doc.get("executed_targets")
+    if not scan_id or not _is_scan_id_valid(scan_id):
+        return False
+    if scan_status not in SCAN_STATUS_VALUES:
+        return False
+    if not isinstance(executed_targets, list) or not executed_targets:
+        return False
+    return True
 
 
 def _validate_detection_artifact(
@@ -463,7 +480,7 @@ def _validate_detection_artifact(
 
         evidence_keys = ["failed_checks", "passed_checks", "skipped_checks", "parsing_errors"]
         has_evidence = any(isinstance(results.get(key), list) for key in evidence_keys)
-        if not has_evidence:
+        if not has_evidence and not _has_scan_context_evidence(doc):
             _fail(result, "checkov_executed_scan_evidence_missing")
 
         failed_checks = results.get("failed_checks", [])
@@ -540,11 +557,27 @@ def _validate_golden_report(
         _fail(result, "golden_report_metadata_missing")
         return
 
+    top_scan_id = str(doc.get("scan_id", "")).strip()
+    if not top_scan_id:
+        _fail(result, "golden_report_top_level_scan_id_missing")
+    elif not _is_scan_id_valid(top_scan_id):
+        _fail(result, f"golden_report_top_level_scan_id_invalid:{top_scan_id}")
+
+    top_scan_status = str(doc.get("scan_status", "")).strip().lower()
+    if top_scan_status not in SCAN_STATUS_VALUES:
+        _fail(result, "golden_report_scan_status_invalid")
+
     scan_id = str(metadata.get("scan_id", "")).strip()
     if not scan_id:
         _fail(result, "golden_report_missing_scan_id")
     elif not _is_scan_id_valid(scan_id):
         _fail(result, f"golden_report_invalid_scan_id_format:{scan_id}")
+    elif top_scan_id and top_scan_id != scan_id:
+        _fail(result, "golden_report_scan_id_mismatch_top_vs_metadata")
+
+    executed_scanners = metadata.get("executed_scanners")
+    if not isinstance(executed_scanners, list) or not executed_scanners:
+        _fail(result, "golden_report_executed_scanners_missing")
 
     findings = doc.get("findings")
     if not isinstance(findings, list):
@@ -632,6 +665,16 @@ def _validate_opa_decision(result: Dict[str, Any], doc: Any) -> None:
         _fail(result, "opa_decision_gate_scan_id_mismatch")
 
 
+def _validate_hmac_file(result: Dict[str, Any], path: Path) -> None:
+    try:
+        content = path.read_text(encoding="ascii").strip()
+    except Exception as exc:
+        _fail(result, f"hmac_read_error:{exc}")
+        return
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", content):
+        _fail(result, "hmac_invalid_format")
+
+
 def _validate_jsonl_audit(
     result: Dict[str, Any],
     lines: List[Any],
@@ -705,6 +748,10 @@ def _validate_artifact(
     payload: Any
     payload_scan_id = ""
 
+    if artifact_id == "golden_report_hmac":
+        _validate_hmac_file(result, path)
+        return result, None, ""
+
     if artifact_id in {"audit_events", "decision_audit_events"}:
         try:
             payload = _load_jsonl(path)
@@ -743,11 +790,6 @@ def _validate_artifact(
         _validate_detection_artifact(result, payload)
     elif artifact_id == "golden_report":
         _validate_golden_report(result, payload, schema_path, path)
-        ok, detail = _validate_hmac_sidecar(path)
-        if not ok:
-            _fail(result, detail)
-        else:
-            result["details"]["hmac"] = detail
     elif artifact_id == "exceptions":
         _validate_exceptions_json(result, payload)
     elif artifact_id == "opa_decision":

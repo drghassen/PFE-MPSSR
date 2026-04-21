@@ -47,6 +47,11 @@ upload_scan() {
     fi
   fi
 
+  if ! jq empty "${upload_file_path}" >/dev/null 2>&1; then
+    echo "[dojo] ${label}: invalid JSON payload (${upload_file_path}), skipping upload."
+    return 1
+  fi
+
   HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
     -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
@@ -67,6 +72,34 @@ upload_scan() {
     return 1
   fi
 }
+
+validate_optional_json_artifact() {
+  local file_path="$1"
+  local label="$2"
+  if [[ ! -f "$file_path" ]]; then
+    echo "[dojo] ${label}: not found (${file_path}), skipping."
+    return 0
+  fi
+  if ! jq empty "$file_path" >/dev/null 2>&1; then
+    echo "[dojo] ${label}: invalid JSON (${file_path}), skipping."
+    return 1
+  fi
+  echo "[dojo] ${label}: present + valid JSON."
+  return 0
+}
+
+# Golden report is not uploaded to DefectDojo, but we keep a safe guard so CI never
+# attempts to treat missing/invalid normalization artifacts as upload candidates.
+validate_optional_json_artifact ".cloudsentinel/golden_report.json" "golden_report"
+if [[ -f ".cloudsentinel/golden_report.json.hmac" ]]; then
+  if [[ -s ".cloudsentinel/golden_report.json.hmac" ]]; then
+    echo "[dojo] golden_report.hmac: present."
+  else
+    echo "[dojo] golden_report.hmac: empty, skipping."
+  fi
+else
+  echo "[dojo] golden_report.hmac: not found, skipping."
+fi
 
 # Shift-Left scanners
 upload_scan ".cloudsentinel/gitleaks_raw.json"                                       "Gitleaks Scan" "Gitleaks"

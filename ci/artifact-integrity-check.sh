@@ -68,7 +68,28 @@ for st in "${STAGES[@]}"; do
   cmd+=(--stage "$st")
 done
 
+set +e
 "${cmd[@]}"
+rc=$?
+set -e
+
+if [[ -f "$REPORT_OUTPUT" ]]; then
+  jq -r '
+    .errors[]? as $e | "[artifact-integrity][error] " + $e
+  ' "$REPORT_OUTPUT" 2>/dev/null || true
+  jq -r '
+    .stages[]? as $s
+    | $s.artifacts[]?
+    | select(.status != "passed")
+    | "[artifact-integrity][failed] stage=" + ($s.name // "unknown")
+      + " artifact=" + (.id // "unknown")
+      + " errors=" + ((.errors // []) | join(", "))
+  ' "$REPORT_OUTPUT" 2>/dev/null || true
+fi
+
+if [[ "$rc" -ne 0 ]]; then
+  exit "$rc"
+fi
 
 jq -r '
   "[artifact-integrity] status=" + (.status // "unknown") +

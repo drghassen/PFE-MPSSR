@@ -39,6 +39,11 @@
           "kind": "json"
         },
         {
+          "id": "golden_report_hmac",
+          "path": ".cloudsentinel/golden_report.json.hmac",
+          "kind": "hmac"
+        },
+        {
           "id": "exceptions",
           "path": ".cloudsentinel/exceptions.json",
           "kind": "json"

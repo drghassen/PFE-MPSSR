@@ -178,18 +178,9 @@ normalize-reports:
     when: always
     expire_in: 30 days
     paths:
-      - .cloudsentinel/golden_report.json
-      - .cloudsentinel/golden_report.json.hmac
-      - .cloudsentinel/gitleaks_raw.json
-      - .cloudsentinel/checkov_raw.json
-      - .cloudsentinel/checkov_scan.log
-      - .cloudsentinel/cloudinit_analysis.json
+      - .cloudsentinel/
       - shift-left/trivy/reports/raw/trivy-fs-raw.json
       - shift-left/trivy/reports/raw/trivy-config-raw.json
-      - .cloudsentinel/exceptions.json
-      - .cloudsentinel/dropped_exceptions.json
-      - .cloudsentinel/audit_events.jsonl
-      - .cloudsentinel/artifact_contract_report.json
 
 contract-test:
   <<: *default_tools
