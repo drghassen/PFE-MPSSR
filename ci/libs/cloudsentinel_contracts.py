@@ -222,6 +222,12 @@ def stamp_artifact_metadata(
     elif tool == "trivy":
         if not isinstance(doc, dict):
             raise SystemExit("[contract] trivy raw artifact must be JSON object")
+        # Trivy may emit Results as null for clean/empty target contexts depending on scan mode.
+        # Normalize to [] to keep the contract deterministic.
+        if doc.get("Results", "__missing__") is None:
+            doc["Results"] = []
+        elif "Results" not in doc and isinstance(doc.get("results"), list):
+            doc["Results"] = doc.get("results")
         stamped = _ensure_scan_metadata(
             doc,
             tool=tool,
@@ -495,6 +501,12 @@ def _validate_detection_artifact(
             _fail(result, "trivy_raw_must_be_object")
             return
         results = doc.get("Results")
+        if results is None and _has_scan_context_evidence(doc):
+            results = []
+            result["details"]["results_coerced_from_null"] = True
+        elif "Results" not in doc and isinstance(doc.get("results"), list) and _has_scan_context_evidence(doc):
+            results = doc.get("results")
+            result["details"]["results_coerced_from_lowercase"] = True
         if not isinstance(results, list):
             _fail(result, "trivy_results_must_be_array")
             return

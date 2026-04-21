@@ -27,6 +27,28 @@ list_input_artifacts() {
   done
 }
 
+debug_trivy_results_shape() {
+  local trivy_files=(
+    "shift-left/trivy/reports/raw/trivy-fs-raw.json"
+    "shift-left/trivy/reports/raw/trivy-config-raw.json"
+  )
+  for file in "${trivy_files[@]}"; do
+    [[ -f "$file" ]] || continue
+    if jq empty "$file" >/dev/null 2>&1; then
+      shape="$(jq -r '
+        if has("Results") then
+          "Results:" + (.Results | type)
+        elif has("results") then
+          "results:" + (.results | type)
+        else
+          "Results:<missing>"
+        end
+      ' "$file" 2>/dev/null || echo "Results:<unknown>")"
+      echo "[normalize-reports][debug] - ${file}: ${shape}"
+    fi
+  done
+}
+
 log_scan_id_propagation() {
   local files=(
     ".cloudsentinel/gitleaks_raw.json"
@@ -120,6 +142,7 @@ run_detection_contract_check() {
 }
 
 list_input_artifacts
+debug_trivy_results_shape
 prepare_detection_contract_context
 log_scan_id_propagation
 run_detection_contract_check
