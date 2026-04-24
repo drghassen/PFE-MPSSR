@@ -61,17 +61,29 @@ if ! grep -q "BEGIN CERTIFICATE" "${custom_ca_file}"; then
 fi
 
 python3 - "${custom_ca_file}" <<'PY'
+import re
 import ssl
 import sys
 from pathlib import Path
 
 p = Path(sys.argv[1])
-data = p.read_text(encoding="utf-8")
-for block in data.split("-----END CERTIFICATE-----"):
-    if "-----BEGIN CERTIFICATE-----" not in block:
-        continue
-    pem = block + "-----END CERTIFICATE-----\n"
+data = p.read_text(encoding="utf-8", errors="replace")
+pattern = re.compile(
+    r"-----BEGIN CERTIFICATE-----\s+.*?\s+-----END CERTIFICATE-----",
+    re.DOTALL,
+)
+certs = pattern.findall(data)
+if not certs:
+    raise SystemExit("no_valid_pem_certificates_found")
+
+normalized = []
+for cert in certs:
+    lines = [line.strip() for line in cert.splitlines() if line.strip()]
+    pem = "\n".join(lines) + "\n"
     ssl.PEM_cert_to_DER_cert(pem)
+    normalized.append(pem)
+
+p.write_text("".join(normalized), encoding="utf-8")
 PY
 
 base_bundle="${SSL_CERT_FILE:-/etc/ssl/certs/ca-certificates.crt}"
