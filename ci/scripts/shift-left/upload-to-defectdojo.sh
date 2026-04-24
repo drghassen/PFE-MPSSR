@@ -66,7 +66,7 @@ upload_scan() {
     return 1
   fi
 
-  HTTP_CODE=$(curl -sS -o "${response_file}" -w "%{http_code}" \
+  HTTP_CODE=$(curl -sS -L --post301 -o "${response_file}" -w "%{http_code}" \
     -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${upload_file_path}" \
@@ -174,7 +174,7 @@ upload_cloudinit_generic_findings() {
     return 0
   fi
 
-  HTTP_CODE="$(curl -sS -o "${response_file}" -w "%{http_code}" \
+  HTTP_CODE="$(curl -sS -L --post301 -o "${response_file}" -w "%{http_code}" \
     -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${generic_file}" \
