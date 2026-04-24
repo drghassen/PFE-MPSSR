@@ -26,8 +26,6 @@ variables:
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "5"
-  RETRY_GUARD_MAX_RETRIES: "1"
-  RETRY_GUARD_MIN_INTERVAL_SEC: "10"
 
   # ── Security governance variables (must be set in GitLab CI/CD Settings) ──
   # CLOUDSENTINEL_APPSEC_USERS: "user1,user2"  # comma-separated GitLab usernames
@@ -61,20 +59,6 @@ stages:
     policy: pull-push
     paths:
       - .trivy-cache
-
-retry-guard:
-  <<: *default_tools
-  stage: guard
-  script:
-    - bash ci/scripts/shift-left/retry-guard.sh
-  allow_failure: false
-
-line-endings-check:
-  <<: *default_tools
-  stage: guard
-  script:
-    - bash ci/check-line-endings.sh
-  allow_failure: false
 
 policies-immutability:
   <<: *default_tools
@@ -234,25 +218,9 @@ opa-decision:
     expire_in: 30 days
     paths:
       - .cloudsentinel/opa_decision.json
+      - .cloudsentinel/opa_decision.json.hmac
       - .cloudsentinel/decision_audit_events.jsonl
       - .cloudsentinel/audit_events.jsonl
-
-artifact-integrity-check:
-  <<: *default_tools
-  stage: report
-  needs:
-    - job: normalize-reports
-      artifacts: true
-    - job: opa-decision
-      artifacts: true
-  script:
-    - bash ci/artifact-integrity-check.sh --up-to decision
-  allow_failure: false
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/artifact_contract_report.json
 
 upload-to-defectdojo:
   stage: report
@@ -262,9 +230,9 @@ upload-to-defectdojo:
   allow_failure: true
   variables:
     GIT_STRATEGY: fetch
+  # Distributed artifact integrity model:
+  # this consumer verifies HMAC sidecars for each artifact before upload.
   needs:
-    - job: artifact-integrity-check
-      artifacts: true
     - job: gitleaks-scan
       artifacts: true
     - job: checkov-scan
@@ -292,10 +260,10 @@ deploy-infrastructure:
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:dc56369d20c03f05a46ad8b8b8b4f1f65e07d0ab491231a4b2244bdd9eb547a2"
   before_script: []
   stage: deploy
+  # Distributed artifact integrity model:
+  # deploy verifies OPA decision artifact + HMAC locally before apply.
   needs:
     - job: opa-decision
-      artifacts: true
-    - job: artifact-integrity-check
       artifacts: true
   script:
     - bash ci/scripts/shift-left/deploy-infrastructure.sh

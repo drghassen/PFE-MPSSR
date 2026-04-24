@@ -1,5 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Distributed integrity model: deploy verifies the decision artifact locally
+# instead of relying on a centralized integrity job.
+OPA_DECISION_ARTIFACT=".cloudsentinel/opa_decision.json"
+if [[ ! -s "${OPA_DECISION_ARTIFACT}" ]]; then
+  echo "[deploy][ERROR] Missing/empty OPA decision artifact: ${OPA_DECISION_ARTIFACT}" >&2
+  exit 1
+fi
+
+bash ci/scripts/verify-hmac.sh "${OPA_DECISION_ARTIFACT}"
+
+if ! jq -e '
+  type == "object"
+  and ((.scan_id // "") | type == "string" and length > 0)
+  and (.result | type == "object")
+  and (.result.allow | type == "boolean")
+  and (.result.deny | type == "array")
+' "${OPA_DECISION_ARTIFACT}" >/dev/null 2>&1; then
+  echo "[deploy][ERROR] Invalid OPA decision payload. Refusing deployment." >&2
+  exit 1
+fi
+
+if ! jq -e '.result.allow == true' "${OPA_DECISION_ARTIFACT}" >/dev/null 2>&1; then
+  echo "[deploy][ERROR] OPA denied deployment. Refusing infrastructure apply." >&2
+  jq -r '.result.deny[]? | "[deploy][DENY] " + .' "${OPA_DECISION_ARTIFACT}" >&2 || true
+  exit 1
+fi
+
+echo "[deploy] OPA decision integrity verified and allow=true confirmed."
+
 required_vars=(
   ARM_CLIENT_ID
   ARM_CLIENT_SECRET

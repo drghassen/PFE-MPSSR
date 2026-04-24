@@ -15,7 +15,6 @@ set -euo pipefail
 
 # --- Artifact integrity pre-gate: fail fast before starting OPA ---
 artifact=".cloudsentinel/golden_report.json"
-sidecar="${artifact}.hmac"
 
 if [[ ! -s "${artifact}" ]]; then
   echo "[opa-decision][ERROR] Missing/empty golden_report: ${artifact}" >&2
@@ -35,26 +34,8 @@ if ! jq -e '
   exit 1
 fi
 
-if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  if [[ ! -f "${sidecar}" ]]; then
-    echo "[opa-decision][ERROR] HMAC sidecar missing: ${sidecar}" >&2
-    echo "[opa-decision][ERROR] Artifact may have been tampered or signing step did not run." >&2
-    exit 1
-  fi
-  computed="$(openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${artifact}" | awk '{print $NF}')"
-  stored="$(tr -d '[:space:]' < "${sidecar}")"
-  if [[ "${computed}" != "${stored}" ]]; then
-    echo "[opa-decision][ERROR] HMAC mismatch — ${artifact} integrity check FAILED" >&2
-    exit 1
-  fi
-  echo "[opa-decision] HMAC-SHA256 verified: ${artifact}"
-elif [[ -n "${CI:-}" ]]; then
-  echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
-  echo "[opa-decision][ERROR] Cannot verify artifact integrity — refusing to proceed." >&2
-  exit 1
-else
-  echo "[opa-decision][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping HMAC verification (non-CI mode)."
-fi
+# Distributed integrity model: the consumer verifies before using the artifact.
+bash ci/scripts/verify-hmac.sh "${artifact}"
 
 # Generate ephemeral auth token for this CI run
 OPA_AUTH_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
@@ -89,5 +70,22 @@ for i in {1..10}; do
 done
 OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
 
-# Ensure downstream jobs (artifact-integrity-check/reporting) can read decision artifacts.
-chmod a+r .cloudsentinel/opa_decision.json .cloudsentinel/decision_audit_events.jsonl .cloudsentinel/audit_events.jsonl 2>/dev/null || true
+# Sign OPA decision so downstream consumers (deploy/reporting) can verify integrity.
+decision_artifact=".cloudsentinel/opa_decision.json"
+if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
+  python3 ci/scripts/shift-left/artifact_hmac.py sign "${decision_artifact}"
+elif [[ -n "${CI:-}" ]]; then
+  echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
+  echo "[opa-decision][ERROR] Cannot sign decision artifact for downstream integrity checks." >&2
+  exit 1
+else
+  echo "[opa-decision][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping decision artifact signing (non-CI mode)."
+fi
+
+if [[ -n "${CI:-}" ]] && [[ ! -s "${decision_artifact}.hmac" ]]; then
+  echo "[opa-decision][ERROR] Missing/empty HMAC sidecar after signing: ${decision_artifact}.hmac" >&2
+  exit 1
+fi
+
+# Ensure downstream jobs can read decision artifacts.
+chmod a+r .cloudsentinel/opa_decision.json .cloudsentinel/opa_decision.json.hmac .cloudsentinel/decision_audit_events.jsonl .cloudsentinel/audit_events.jsonl 2>/dev/null || true

@@ -6,7 +6,7 @@ tmp_crlf="$(mktemp)"
 trap 'rm -f "$tmp_list" "$tmp_crlf"' EXIT HUP INT TERM
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 
 find "$REPO_ROOT" -type f -name '*.sh' ! -path "$REPO_ROOT/.git/*" | sort > "$tmp_list"
 

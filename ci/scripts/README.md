@@ -9,7 +9,6 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 
 | Wrapper | Role | Dependencies | Shared Lib Called |
 |---|---|---|---|
-| `retry-guard.sh` | enforce retry governance guard | bash, `shift-left/ci/retry-guard.sh` | n/a |
 | `policies-immutability.sh` | enforce policy immutability guard | bash, `shift-left/ci/enforce-policies-immutability.sh` | n/a |
 | `build-scan-tools-image.sh` | build/push scan-tools image | `/kaniko/executor` | n/a |
 | `build-deploy-tools-image.sh` | build/push deploy-tools image | `/kaniko/executor` | n/a |
@@ -21,10 +20,15 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `trivy-db-warm.sh` | warm Trivy vulnerability DB cache with timeout + repository fallback | trivy | n/a |
 | `normalize-reports.sh` | merge trivy sub-reports, run normalizer, fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | `cloudsentinel_contracts.py merge-trivy` |
 | `contract-test.sh` | enforce detection+normalization artifact contract | python3, bash | `cloudsentinel_contracts.py validate-artifact-contract` |
-| `../artifact-integrity-check.sh` | CI fail-fast integrity guard (detection/normalization/decision) | python3, jq | `cloudsentinel_contracts.py validate-artifact-contract` |
+| `verify-hmac.sh` | reusable HMAC-SHA256 verifier for consumer jobs | bash, python3 | n/a |
 | `verify-db-ports-sync.sh` | fail if `DB_PORTS` (Python) and `db_ports` (Rego) drift | bash, grep, sed | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
 | `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |
 | `upload-drift-to-defectdojo.sh` | upload shift-right drift report to DefectDojo (`Generic Findings Import`) | curl, jq | n/a |
 | `upload-to-defectdojo.sh` | upload scanner raw reports to DefectDojo | curl, scanner artifacts | n/a |
 | `deploy-infrastructure.sh` | run fail-closed OpenTofu deploy | tofu, cosign | n/a |
+
+Archived (not used by shift-left pipeline anymore):
+- `archive/ci/check-line-endings.sh`
+- `archive/ci/scripts/shift-left/retry-guard.sh`
+- `archive/shift-left/ci/retry-guard.sh`

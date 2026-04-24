@@ -75,8 +75,20 @@ log_scan_id_propagation() {
 }
 
 run_detection_contract_check() {
+  local expected_scan_id="${CLOUDSENTINEL_SCAN_ID:-${CI_COMMIT_SHA:-}}"
+  local cmd=(
+    python3 ci/libs/cloudsentinel_contracts.py validate-artifact-contract
+    --contract ci/contracts/artifact_contract.json
+    --report-output .cloudsentinel/artifact_contract_report.json
+    --golden-schema shift-left/normalizer/schema/cloudsentinel_report.schema.json
+    --stage detection
+  )
+  if [[ -n "${expected_scan_id}" ]]; then
+    cmd+=(--expected-scan-id "${expected_scan_id}")
+  fi
+
   set +e
-  bash ci/artifact-integrity-check.sh --up-to detection
+  "${cmd[@]}"
   rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then

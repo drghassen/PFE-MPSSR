@@ -4,6 +4,7 @@ set -euo pipefail
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID_LEFT:-}}"
+VERIFY_HMAC_SCRIPT="ci/scripts/verify-hmac.sh"
 
 if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
   echo "[dojo] Missing Dojo vars. Accepted names:"
@@ -16,6 +17,15 @@ fi
 
 chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
 mkdir -p .cloudsentinel/dojo-responses
+
+verify_artifact_integrity() {
+  local file_path="$1"
+  local label="$2"
+  if ! bash "${VERIFY_HMAC_SCRIPT}" "${file_path}"; then
+    echo "[dojo] ${label}: artifact integrity verification failed (${file_path})." >&2
+    return 1
+  fi
+}
 
 upload_scan() {
   file_path="$1"
@@ -35,6 +45,8 @@ upload_scan() {
     ls -l "${file_path}" || true
     return 1
   fi
+
+  verify_artifact_integrity "${file_path}" "${label}"
 
   if [ "${scan_type}" = "Gitleaks Scan" ]; then
     if jq -e 'type == "object" and (.findings | type == "array")' "${file_path}" >/dev/null 2>&1; then
@@ -83,6 +95,8 @@ upload_cloudinit_generic_findings() {
     echo "[dojo] ${label}: report not found (${file_path}), skipping."
     return 0
   fi
+
+  verify_artifact_integrity "${file_path}" "${label}"
 
   if ! jq -e '
     type == "object"
@@ -200,14 +214,8 @@ validate_optional_json_artifact() {
 # Golden report is not uploaded to DefectDojo, but we keep a safe guard so CI never
 # attempts to treat missing/invalid normalization artifacts as upload candidates.
 validate_optional_json_artifact ".cloudsentinel/golden_report.json" "golden_report"
-if [[ -f ".cloudsentinel/golden_report.json.hmac" ]]; then
-  if [[ -s ".cloudsentinel/golden_report.json.hmac" ]]; then
-    echo "[dojo] golden_report.hmac: present."
-  else
-    echo "[dojo] golden_report.hmac: empty, skipping."
-  fi
-else
-  echo "[dojo] golden_report.hmac: not found, skipping."
+if [[ -f ".cloudsentinel/golden_report.json" ]]; then
+  verify_artifact_integrity ".cloudsentinel/golden_report.json" "golden_report"
 fi
 
 # Shift-Left scanners
