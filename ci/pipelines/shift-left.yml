@@ -31,6 +31,8 @@ variables:
   # CLOUDSENTINEL_APPSEC_USERS: "user1,user2"  # comma-separated GitLab usernames
   #   authorized to modify security policies. If unset, policies-immutability
   #   job will fail with exit 2. Set in: Settings → CI/CD → Variables (masked).
+  # CLOUDSENTINEL_CUSTOM_CA_PEM_B64: base64 PEM chain for enterprise/internal CAs.
+  #   Used to trust private DefectDojo TLS certificates in non-root CI containers.
 
 stages:
   - guard

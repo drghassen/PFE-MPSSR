@@ -21,6 +21,7 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `normalize-reports.sh` | merge trivy sub-reports, run normalizer, fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | `cloudsentinel_contracts.py merge-trivy` |
 | `contract-test.sh` | enforce detection+normalization artifact contract | python3, bash | `cloudsentinel_contracts.py validate-artifact-contract` |
 | `verify-hmac.sh` | reusable HMAC-SHA256 verifier for consumer jobs | bash, python3 | n/a |
+| `setup-custom-ca.sh` | bootstrap custom CA trust bundle for non-root CI containers | bash, python3 | n/a |
 | `verify-db-ports-sync.sh` | fail if `DB_PORTS` (Python) and `db_ports` (Rego) drift | bash, grep, sed | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
 | `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |

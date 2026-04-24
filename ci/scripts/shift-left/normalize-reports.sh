@@ -7,6 +7,8 @@ export CLOUDSENTINEL_SCHEMA_STRICT="true"
 export CLOUDSENTINEL_SCAN_ID="${CLOUDSENTINEL_SCAN_ID:-${CI_COMMIT_SHA:-}}"
 export DOJO_URL="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
+# Optional enterprise PKI bootstrap for DefectDojo TLS.
+source ci/scripts/setup-custom-ca.sh
 
 list_input_artifacts() {
   local artifacts=(

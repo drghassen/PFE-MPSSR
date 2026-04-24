@@ -6,6 +6,9 @@ default:
     - cloudsentinel
     - docker
 
+# Optional CI variable for enterprise PKI:
+# CLOUDSENTINEL_CUSTOM_CA_PEM_B64 -> base64 PEM chain used to trust private DefectDojo TLS certs.
+
 stages:
   - drift
   - decide

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import os
+import ssl
 import urllib.error
 import urllib.request
 from logging import Logger
@@ -16,12 +18,25 @@ class DefectDojoFetchError(RuntimeError):
     """Raised when DefectDojo cannot be queried reliably."""
 
 
+def _resolve_ssl_context() -> ssl.SSLContext:
+    # Prefer explicit CloudSentinel bundle, then standard env overrides.
+    for env_name in ("CLOUDSENTINEL_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE"):
+        ca_path = os.environ.get(env_name, "").strip()
+        if not ca_path:
+            continue
+        if not os.path.isfile(ca_path):
+            raise DefectDojoFetchError(f"invalid_ca_bundle:{env_name}:{ca_path}")
+        return ssl.create_default_context(cafile=ca_path)
+    return ssl.create_default_context()
+
+
 def _fetch_json(
     url: str, headers: Dict[str, str], timeout: int, logger: Logger
 ) -> Dict[str, Any]:
     req = urllib.request.Request(url, headers=headers)
+    ssl_ctx = _resolve_ssl_context()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as exc:
         logger.error(f"DefectDojo request failed: {exc}")
