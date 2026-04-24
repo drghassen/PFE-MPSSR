@@ -47,18 +47,7 @@ if [[ ! "${stored_hmac}" =~ ^[0-9a-fA-F]{64}$ ]]; then
   exit 1
 fi
 
-computed_hmac="$(
-  python3 - "${artifact_path}" "${secret}" <<'PY'
-import hashlib
-import hmac
-import sys
-from pathlib import Path
-
-artifact = Path(sys.argv[1])
-secret = sys.argv[2].encode("utf-8")
-print(hmac.new(secret, artifact.read_bytes(), hashlib.sha256).hexdigest())
-PY
-)"
+computed_hmac="$(openssl dgst -sha256 -hmac "${secret}" "${artifact_path}" | awk '{print $NF}')"
 
 if [[ "${computed_hmac}" != "${stored_hmac}" ]]; then
   echo "[verify-hmac][ERROR] HMAC mismatch for ${artifact_path}" >&2

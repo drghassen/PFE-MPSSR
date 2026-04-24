@@ -73,7 +73,8 @@ OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
 # Sign OPA decision so downstream consumers (deploy/reporting) can verify integrity.
 decision_artifact=".cloudsentinel/opa_decision.json"
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  python3 ci/scripts/shift-left/artifact_hmac.py sign "${decision_artifact}"
+  openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${decision_artifact}" | awk '{print $NF}' > "${decision_artifact}.hmac"
+  echo "[artifact-hmac] Signed   ${decision_artifact} → ${decision_artifact}.hmac"
 elif [[ -n "${CI:-}" ]]; then
   echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
   echo "[opa-decision][ERROR] Cannot sign decision artifact for downstream integrity checks." >&2
