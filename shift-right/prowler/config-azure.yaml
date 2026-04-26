@@ -1,0 +1,109 @@
+# =============================================================================
+# Prowler v4 — Azure Check Configuration
+# CloudSentinel / PFE-MPSSR
+#
+# Passed via: prowler azure --config-file shift-right/prowler/config-azure.yaml
+#
+# This file contains ONLY check-level parameter overrides (thresholds, allowlists,
+# resource exclusions). Runtime options — auth, compliance framework, severity
+# filter, output format — are all controlled by CLI flags in run-prowler.sh.
+# Keeping them separate means config changes don't require script changes.
+#
+# Reference: https://docs.prowler.com/en/latest/tutorials/configuration_file/
+# =============================================================================
+
+# ── Identity & Access Management ─────────────────────────────────────────────
+# CIS Azure 2.0 §1.21 — custom subscription-owner roles violate least-privilege.
+# Add object IDs to this list only after formal risk acceptance in DefectDojo.
+azure_iam_subscription_roles_assignments_no_custom_subscription_owner_roles:
+  custom_roles_allowed: []
+
+# CIS Azure 2.0 §1.1-1.3 — flag guest accounts; extend threshold if B2B is used.
+azure_iam_ensure_that_no_custom_subscription_owner_roles_are_created:
+  custom_roles_allowed: []
+
+# ── Key Vault ─────────────────────────────────────────────────────────────────
+# CIS Azure 2.0 §8.1 — keys expiring within this many days trigger a finding.
+# 90 days gives ops team time to rotate without emergency procedures.
+azure_keyvault_key_expiration_set:
+  days_to_expire_threshold: 90
+
+# CIS Azure 2.0 §8.2 — same window for secrets.
+azure_keyvault_secret_expiration_set:
+  days_to_expire_threshold: 90
+
+# ── App Service ───────────────────────────────────────────────────────────────
+# CIS Azure 2.0 §9.1 — localhost is exempt from HTTPS redirect for local dev.
+# No production FQDNs should appear here.
+azure_app_ensure_http_is_redirected_to_https:
+  fqdns_allowed_http:
+    - "localhost"
+
+# CIS Azure 2.0 §9.3 — TLS 1.1 and below is disallowed by policy.
+azure_app_ensure_web_app_uses_latest_tls_version:
+  minimum_tls_version: "1.2"
+
+# ── Networking ────────────────────────────────────────────────────────────────
+# CIS Azure 2.0 §6.1 — RFC-1918 ranges exempt from NSG RDP-exposure alert.
+# Update when VPN/bastion CIDR changes for this dev environment.
+azure_network_security_group_rdp_access_restricted:
+  trusted_ip_ranges:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+# CIS Azure 2.0 §6.2 — same exemption for SSH.
+azure_network_security_group_ssh_access_restricted:
+  trusted_ip_ranges:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+# ── SQL Server ────────────────────────────────────────────────────────────────
+# CIS Azure 2.0 §4.1.3 — audit log retention lower bound (days).
+# 90 days is the CIS minimum; raise if GDPR/legal retention differs.
+azure_sql_server_auditing_retention_greater_than_90_days:
+  min_retention_days: 90
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# CIS Azure 2.0 §3.7 — no storage account should expose public blob access
+# in this Terraform-managed dev environment.
+azure_storage_ensure_that_public_access_level_is_disabled_for_storage_accounts:
+  storage_account_allowed_public_access: false
+
+# ── Monitor & Logging ─────────────────────────────────────────────────────────
+# CIS Azure 2.0 §5.1.1 — activity log profile retention lower bound (days).
+# 365 days aligns with common regulatory requirements.
+azure_monitor_log_profile_retains_security_logs:
+  minimum_retention_days: 365
+
+# CIS Azure 2.0 §5.2 — alert rules must exist for these critical operations.
+# List here is informational; check uses its own built-in required-operations set.
+azure_monitor_activitylog_alert_exists_for_delete_policy_assignment:
+  enabled: true
+
+azure_monitor_activitylog_alert_exists_for_create_update_policy_assignment:
+  enabled: true
+
+# ── Defender for Cloud ────────────────────────────────────────────────────────
+# CIS Azure 2.0 §2.x — Defender plans that must be enabled.
+# Prowler checks each plan independently; config below suppresses noisy
+# sub-plan checks for services not deployed in this subscription.
+azure_defender_ensure_that_microsoft_cloud_security_posture_management_is_on:
+  enabled: true
+
+# ── Mutelist stub (inactive) ──────────────────────────────────────────────────
+# To activate exceptions, create shift-right/prowler/mutelist-azure.yaml and
+# add --mutelist-file to the prowler command in run-prowler.sh.
+# Entries are added ONLY after formal risk acceptance in DefectDojo.
+#
+# Example entry structure (do not uncomment without a DefectDojo risk record):
+#
+# Accounts:
+#   "*":
+#     Checks:
+#       azure_storage_ensure_that_public_access_level_is_disabled_for_storage_accounts:
+#         Regions:
+#           - "*"
+#         Resources:
+#           - "stdevpublic001"   # risk-accepted: DefectDojo finding #<ID>

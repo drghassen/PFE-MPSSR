@@ -10,10 +10,64 @@ default:
 # CLOUDSENTINEL_CUSTOM_CA_PEM_B64 -> base64 PEM chain used to trust private DefectDojo TLS certs.
 
 stages:
+  - sensor    # Prowler live compliance scan — independent of Terraform state
   - drift
   - decide
   - report
   - remediate
+
+prowler-audit:
+  stage: sensor
+  # Custom image built from shift-right/prowler/Dockerfile.
+  # Pin the sha256 digest after the first registry push:
+  #   docker inspect registry.gitlab.com/.../prowler:latest --format '{{index .RepoDigests 0}}'
+  image:
+    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler:latest
+    entrypoint: [""]
+  before_script: []
+  variables:
+    GIT_STRATEGY: fetch
+    PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/shift-right/prowler/output"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - mkdir -p shift-right/prowler/output .cloudsentinel
+    - bash shift-right/prowler/run-prowler.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/prowler_generic_findings.json
+      - shift-right/prowler/output/*.ocsf.json
+  # allow_failure: false (default) — sensor must complete successfully.
+  # An auth failure or network error here means the pipeline has no compliance
+  # signal and should stop, not silently continue with stale data.
+
+upload-prowler-to-defectdojo:
+  stage: report
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: prowler-audit
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/upload-prowler-to-defectdojo.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/prowler_generic_findings.json
+      - .cloudsentinel/dojo-responses/prowler-compliance.json
+  # Non-blocking: a DefectDojo outage must not stop drift detection or remediation.
+  allow_failure: true
 
 drift-detect:
   stage: drift
