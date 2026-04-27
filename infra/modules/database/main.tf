@@ -14,7 +14,6 @@ resource "azurerm_postgresql_flexible_server" "this" {
   storage_mb                        = 32768
   backup_retention_days             = 7
   geo_redundant_backup_enabled      = false
-  ssl_minimal_tls_version_enforced  = "TLS1_2"
   public_network_access_enabled     = false
   zone                              = "1"
   tags                              = var.tags
