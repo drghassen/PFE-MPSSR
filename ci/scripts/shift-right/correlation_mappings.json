@@ -1,0 +1,9 @@
+{
+  "azurerm_network_security_group":     ["azure_network_security_group_"],
+  "azurerm_network_security_rule":      ["azure_network_security_group_"],
+  "azurerm_storage_account":            ["azure_storage_"],
+  "azurerm_key_vault":                  ["azure_keyvault_"],
+  "azurerm_sql_server":                 ["azure_sql_", "azure_defender_"],
+  "azurerm_linux_virtual_machine":      ["azure_vm_", "azure_defender_"],
+  "azurerm_monitor_diagnostic_setting": ["azure_monitor_"]
+}

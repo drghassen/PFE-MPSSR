@@ -13,6 +13,7 @@ stages:
   - sensor    # Prowler live compliance scan — independent of Terraform state
   - drift
   - decide
+  - correlate # Cross-signal correlation: Prowler findings × drift items (G6)
   - report
   - remediate
 
@@ -98,6 +99,9 @@ upload-prowler-to-defectdojo:
     # are available for upload metadata enrichment.
     - job: opa-prowler-decision
       artifacts: true
+    - job: correlate-signals
+      artifacts: true
+      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -200,6 +204,33 @@ opa-drift-decision:
     reports:
       dotenv: .cloudsentinel/opa_drift.env
 
+correlate-signals:
+  stage: correlate
+  # Same scan-tools image as the upload jobs — jq and sha256sum are present.
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: opa-prowler-decision
+      artifacts: true
+    - job: opa-drift-decision
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/correlate-signals.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/correlation_report.json
+    reports:
+      dotenv: .cloudsentinel/correlation.env
+  # Enrichment only — a failure here must never block DefectDojo uploads.
+  allow_failure: true
+
 upload-drift-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
@@ -207,6 +238,9 @@ upload-drift-to-defectdojo:
   needs:
     - job: drift-detect
       artifacts: true
+    - job: correlate-signals
+      artifacts: true
+      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -247,6 +281,9 @@ custodian-remediate:
       artifacts: true
     - job: upload-drift-to-defectdojo
       artifacts: true
+    - job: correlate-signals
+      artifacts: true
+      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always

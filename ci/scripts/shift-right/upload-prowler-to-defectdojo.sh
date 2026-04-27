@@ -73,6 +73,55 @@ else
 fi
 
 SCAN_DATE="$(date -u +"%Y-%m-%d")"
+
+# ── Correlation enrichment ─────────────────────────────────────────────────────
+# If correlate-signals produced a report, annotate each finding whose
+# unique_id_from_tool appears in a correlation record. The description field
+# receives a drift-correlation note so DefectDojo operators can triage faster.
+# This enrichment is best-effort: any error here skips the annotation silently.
+CORRELATION_REPORT="${OUTPUT_DIR}/correlation_report.json"
+ENRICHED_FILE="${UPLOAD_FILE}.enriched"
+
+if [[ -f "${CORRELATION_REPORT}" ]]; then
+  CORR_COUNT="$(jq '.correlations | length' "${CORRELATION_REPORT}" 2>/dev/null || echo 0)"
+  if [[ "${CORR_COUNT}" -gt 0 ]]; then
+    echo "[dojo-prowler] Applying ${CORR_COUNT} correlation annotation(s) to findings"
+    # Build a lookup map: unique_id_from_tool → first matching correlation record.
+    # If multiple drift items correlate to the same Prowler finding, take the
+    # highest combined_risk (CRITICAL_CONFIRMED > HIGH_CONFIRMED > CORRELATED).
+    CORR_MAP="$(jq '
+      [.correlations[] | {key: .prowler_uid, value: .}]
+      | sort_by(
+          if .value.combined_risk == "CRITICAL_CONFIRMED" then 0
+          elif .value.combined_risk == "HIGH_CONFIRMED"   then 1
+          else 2
+          end
+        )
+      | unique_by(.key)
+      | from_entries
+    ' "${CORRELATION_REPORT}" 2>/dev/null || echo "{}")"
+
+    jq \
+      --argjson corr_map "${CORR_MAP}" \
+      '
+      .findings |= map(
+        . as $f |
+        ($corr_map[$f.unique_id_from_tool]) as $c |
+        if $c != null then
+          .description += (
+            "\n\n**⚠ Drift Correlation**: This resource also has an active drift "
+            + "finding (address: " + $c.drift_address
+            + ", severity: " + $c.drift_severity
+            + "). Combined risk: " + $c.combined_risk + "."
+          )
+        else . end
+      )
+      ' "${UPLOAD_FILE}" > "${ENRICHED_FILE}" 2>/dev/null \
+      && UPLOAD_FILE="${ENRICHED_FILE}" \
+      || echo "[dojo-prowler][WARN] Correlation annotation failed — uploading without enrichment"
+  fi
+fi
+
 FINDING_COUNT="$(jq '.findings | length' "${UPLOAD_FILE}")"
 echo "[dojo-prowler] Uploading ${FINDING_COUNT} finding(s) to DefectDojo engagement ${DOJO_ENGAGEMENT_ID_RIGHT_EFF}"
 
