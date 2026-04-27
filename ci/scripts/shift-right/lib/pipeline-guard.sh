@@ -27,6 +27,14 @@ sr_audit() {
   local message="${3:-}"
   local details_json="${4:-{}}"
 
+  # Defensive guard: normalise empty or invalid details_json before --argjson.
+  # Prevents cascade failure where a caller passes the output of a failed jq
+  # sub-shell (empty string), which itself may be caused by the jq-1.6
+  # reserved-keyword 'label' bug fixed in sr_require_file/nonempty/json/number.
+  if [[ -z "$details_json" ]] || ! printf '%s' "$details_json" | jq -e . >/dev/null 2>&1; then
+    details_json='{"error":"invalid_details_json_suppressed"}'
+  fi
+
   if command -v jq >/dev/null 2>&1; then
     local line
     line="$(
@@ -87,40 +95,57 @@ sr_require_env() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# FIX (jq 1.6 reserved keyword): In jq >= 1.6, 'label' is a reserved keyword
+# used in the label-break control flow construct. Using '--arg label $label'
+# inside a jq expression causes a parse error:
+#   "unexpected label, expecting IDENT or __loc__"
+# Solution: rename the jq variable to $file_label. The JSON output key
+# "label" is preserved using quoted-key syntax '"label": $file_label'.
+# ---------------------------------------------------------------------------
+
 sr_require_file() {
   local file="${1:?file is required}"
-  local label="${2:-$file}"
+  local file_label="${2:-$file}"
   if [[ ! -f "$file" ]]; then
-    sr_fail "required file is missing: ${label}" 1 "$(jq -cn --arg file "$file" --arg label "$label" '{file:$file,label:$label}')"
+    sr_fail "required file is missing: ${file_label}" 1 \
+      "$(jq -cn --arg file "$file" --arg file_label "$file_label" \
+         '{file:$file,"label":$file_label}')"
   fi
 }
 
 sr_require_nonempty_file() {
   local file="${1:?file is required}"
-  local label="${2:-$file}"
-  sr_require_file "$file" "$label"
+  local file_label="${2:-$file}"
+  sr_require_file "$file" "$file_label"
   if [[ ! -s "$file" ]]; then
-    sr_fail "required file is empty: ${label}" 1 "$(jq -cn --arg file "$file" --arg label "$label" '{file:$file,label:$label}')"
+    sr_fail "required file is empty: ${file_label}" 1 \
+      "$(jq -cn --arg file "$file" --arg file_label "$file_label" \
+         '{file:$file,"label":$file_label}')"
   fi
 }
 
 sr_require_json() {
   local file="${1:?file is required}"
   local jq_filter="${2:?jq filter is required}"
-  local label="${3:-$file}"
-  sr_require_nonempty_file "$file" "$label"
+  local file_label="${3:-$file}"
+  sr_require_nonempty_file "$file" "$file_label"
   if ! jq -e "$jq_filter" "$file" >/dev/null 2>&1; then
-    sr_fail "JSON validation failed: ${label}" 1 "$(jq -cn --arg file "$file" --arg label "$label" --arg filter "$jq_filter" '{file:$file,label:$label,filter:$filter}')"
+    sr_fail "JSON validation failed: ${file_label}" 1 \
+      "$(jq -cn --arg file "$file" --arg file_label "$file_label" --arg filter "$jq_filter" \
+         '{file:$file,"label":$file_label,filter:$filter}')"
   fi
 }
 
 sr_json_number() {
   local file="${1:?file is required}"
   local jq_expr="${2:?jq expression is required}"
-  local label="${3:-$file}"
+  local file_label="${3:-$file}"
   local value
   if ! value="$(jq -er "${jq_expr} | if type == \"number\" then . else error(\"not_number\") end" "$file" 2>/dev/null)"; then
-    sr_fail "numeric JSON query failed: ${label}" 1 "$(jq -cn --arg file "$file" --arg label "$label" --arg expr "$jq_expr" '{file:$file,label:$label,expr:$expr}')"
+    sr_fail "numeric JSON query failed: ${file_label}" 1 \
+      "$(jq -cn --arg file "$file" --arg file_label "$file_label" --arg expr "$jq_expr" \
+         '{file:$file,"label":$file_label,expr:$expr}')"
   fi
   printf '%s\n' "$value"
 }
