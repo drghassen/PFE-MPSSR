@@ -21,7 +21,7 @@ drift-detect:
   image:
     # Digest pinned to current build. Update after each rebuild via:
     # docker inspect registry.../drift-engine:latest --format '{{index .RepoDigests 0}}'
-    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/drift-engine@sha256:ce0558fad56843b9e47c9a829ce5074ea12a93c3540eda95532ec594dfdfe1e4
+    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/drift-engine@sha256:cbaa06f8a3180c429dde6e835b174b114e3c1b9ed9d75531ec25f9e34d7544b3
     entrypoint: [""]
   before_script: []
   variables:

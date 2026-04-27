@@ -12,7 +12,7 @@ WORKDIR /app
 
 RUN apt-get update \
   && apt-get upgrade -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends ca-certificates curl unzip tini \
+  && apt-get install -y --no-install-recommends ca-certificates curl jq unzip tini \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
