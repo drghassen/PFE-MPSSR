@@ -113,27 +113,53 @@ def fetch_accepted_prowler_findings(
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
-    url = f"{base_url.rstrip('/')}/api/v2/findings/"
-    params: dict[str, Any] = {
+    base_endpoint = f"{base_url.rstrip('/')}/api/v2/findings/"
+
+    def _paginate(params: dict[str, Any]) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        url: str | None = base_endpoint
+        next_params: dict[str, Any] = params
+        while url:
+            resp = requests.get(url, headers=headers, params=next_params, timeout=30, verify=_verify)
+            resp.raise_for_status()
+            data = resp.json()
+            results.extend(data.get("results", []))
+            url = data.get("next")
+            next_params = {}
+        return results
+
+    # Preferred: server-side filter by vuln_id prefix (reduces payload size).
+    # Fallback: some DefectDojo versions return 400/403 for unknown filter params
+    # → retry without the prefix filter and filter client-side instead.
+    preferred_params: dict[str, Any] = {
         "limit": 200,
         "offset": 0,
         "risk_accepted": "true",
         "vuln_id_from_tool__startswith": _PROWLER_PREFIX,
     }
     if engagement:
-        params["engagement"] = engagement
+        preferred_params["engagement"] = engagement
 
-    results: list[dict[str, Any]] = []
-    while url:
-        resp = requests.get(url, headers=headers, params=params, timeout=30, verify=_verify)
-        resp.raise_for_status()
-        data = resp.json()
-        results.extend(data.get("results", []))
-        url = data.get("next")
-        params = {}
+    try:
+        results = _paginate(preferred_params)
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        if status in (400, 403):
+            # vuln_id_from_tool__startswith is not supported by this DefectDojo
+            # version. Retry without it and filter client-side.
+            print(
+                f"[fetch-prowler-exc][WARN] Server returned {status} for "
+                f"vuln_id_from_tool__startswith filter — retrying without it "
+                f"(client-side filtering will apply).",
+                file=sys.stderr,
+            )
+            fallback_params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
+            if engagement:
+                fallback_params["engagement"] = engagement
+            results = _paginate(fallback_params)
+        else:
+            raise
 
-    # Fallback: some DefectDojo versions don't support vuln_id__startswith filter.
-    # Re-filter client-side to be safe.
     return [f for f in results if _clean(f.get("vuln_id_from_tool", "")).startswith(_PROWLER_PREFIX)]
 
 

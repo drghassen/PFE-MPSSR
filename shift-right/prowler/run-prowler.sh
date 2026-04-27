@@ -134,8 +134,8 @@ prowler azure \
   --compliance cis_2.0_azure \
   --severity medium high critical \
   --output-formats json-ocsf \
-  --output-path "${OUTPUT_DIR}" \
-  --output-filename "prowler-output-${TIMESTAMP}" \
+  -o "${OUTPUT_DIR}" \
+  -F "prowler-output-${TIMESTAMP}" \
   --config-file "${CONFIG_FILE}" \
   "${PROWLER_EXTRA_ARGS[@]}"
 PROWLER_EXIT="${?}"

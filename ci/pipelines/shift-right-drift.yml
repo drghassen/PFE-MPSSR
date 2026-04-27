@@ -30,6 +30,9 @@ prowler-audit:
   variables:
     GIT_STRATEGY: fetch
     PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/shift-right/prowler/output"
+    # host.docker.internal:8443 uses a self-signed cert in dev/PFE environments.
+    # Set to "true" in production once a trusted CA is in place.
+    DEFECTDOJO_VERIFY_SSL: "false"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
