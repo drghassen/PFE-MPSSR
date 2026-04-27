@@ -145,6 +145,26 @@ def _build_scope(environment: str) -> dict[str, Any]:
     }
 
 
+def _normalize_dojo_base_url(base_url: str) -> str:
+    normalized = _clean_text(base_url).rstrip("/")
+    if normalized.endswith("/api/v2"):
+        normalized = normalized[: -len("/api/v2")]
+    return normalized
+
+
+def _extract_engagement_id(finding: dict[str, Any]) -> str:
+    raw = finding.get("engagement")
+    if isinstance(raw, dict):
+        return _clean_text(raw.get("id"))
+    return _clean_text(raw)
+
+
+def _matches_engagement(finding: dict[str, Any], engagement: str) -> bool:
+    if not engagement:
+        return True
+    return _extract_engagement_id(finding) == _clean_text(engagement)
+
+
 def _parse_ra_to_exception(
     finding: dict[str, Any], scope: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -258,21 +278,69 @@ def fetch_risk_acceptances(
         "Authorization": f"Token {api_key}",
         "Content-Type": "application/json",
     }
-    url = f"{base_url.rstrip('/')}/api/v2/findings/"
-    params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
+    endpoint = f"{_normalize_dojo_base_url(base_url)}/api/v2/findings/"
+
+    def _paginate(params: dict[str, Any]) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        url: str | None = endpoint
+        next_params: dict[str, Any] = params
+        while url:
+            resp = requests.get(
+                url, headers=headers, params=next_params, timeout=30, verify=_verify
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results.extend(data.get("results", []))
+            url = data.get("next")  # type: ignore[assignment]
+            next_params = {}  # next URL already has params embedded
+        return results
+
+    base_params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
+    attempts: list[tuple[str, dict[str, Any]]] = []
     if engagement:
-        params["engagement"] = engagement
+        p = dict(base_params)
+        p["engagement"] = engagement
+        attempts.append(("engagement_only", p))
+    attempts.append(("risk_accepted_only", dict(base_params)))
 
+    last_http_error: requests.exceptions.HTTPError | None = None
+    tried_signatures: set[tuple[tuple[str, str], ...]] = set()
     results: list[dict[str, Any]] = []
-    while url:
-        resp = requests.get(url, headers=headers, params=params, timeout=30, verify=_verify)
-        resp.raise_for_status()
-        data = resp.json()
-        results.extend(data.get("results", []))
-        url = data.get("next")  # type: ignore[assignment]
-        params = {}  # next URL already has params embedded
 
-    return results
+    for label, params in attempts:
+        signature = tuple(sorted((str(k), str(v)) for k, v in params.items()))
+        if signature in tried_signatures:
+            continue
+        tried_signatures.add(signature)
+
+        try:
+            results = _paginate(params)
+            if label != "engagement_only":
+                logger.warning(
+                    "fetch_drift_exceptions_fallback_mode mode=%s", label
+                )
+            break
+        except requests.exceptions.HTTPError as exc:
+            last_http_error = exc
+            status = exc.response.status_code if exc.response is not None else None
+            if status in (400, 403):
+                logger.warning(
+                    "fetch_drift_exceptions_query_rejected mode=%s status=%s",
+                    label,
+                    status,
+                )
+                continue
+            raise
+    else:
+        if last_http_error is not None:
+            raise last_http_error
+        return []
+
+    return [
+        f
+        for f in results
+        if f.get("risk_accepted") and _matches_engagement(f, engagement)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +371,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--engagement",
         default=os.getenv(
-            "DOJO_ENGAGEMENT_ID_RIGHT", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_RIGHT", "")
+            "DOJO_ENGAGEMENT_ID_RIGHT",
+            os.getenv(
+                "DEFECTDOJO_ENGAGEMENT_ID_RIGHT",
+                os.getenv("DOJO_ENGAGEMENT_ID", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_LEFT", "")),
+            ),
         ),
     )
     parser.add_argument(
@@ -365,6 +437,29 @@ def main(argv: list[str]) -> int:
         raw_ras = fetch_risk_acceptances(
             args.base_url, args.api_key, engagement=args.engagement
         )
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        reason = "defectdojo_forbidden" if status == 403 else "defectdojo_http_error"
+        print(
+            f"ERROR: Failed to fetch Risk Acceptances from DefectDojo (HTTP {status}): {exc}",
+            file=sys.stderr,
+        )
+        logger.warning("Network/API failure to DefectDojo. Entering DEGRADED mode.")
+        write_output(
+            {
+                "cloudsentinel": {
+                    "drift_exceptions": {
+                        "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
+                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "environment": args.environment,
+                        "source": "defectdojo",
+                        "meta": {"mode": "DEGRADED", "reason": reason},
+                        "exceptions": [],
+                    }
+                }
+            }
+        )
+        return 0
     except Exception as exc:
         print(
             f"ERROR: Failed to fetch Risk Acceptances from DefectDojo: {exc}",

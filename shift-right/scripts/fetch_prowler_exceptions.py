@@ -86,6 +86,31 @@ def _extract_resource(finding: dict[str, Any]) -> str:
     return "*"
 
 
+def _normalize_dojo_base_url(base_url: str) -> str:
+    """
+    Normalize DefectDojo base URL so callers can pass either:
+      - https://dojo.example.local
+      - https://dojo.example.local/api/v2
+    """
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/api/v2"):
+        normalized = normalized[: -len("/api/v2")]
+    return normalized
+
+
+def _extract_engagement_id(finding: dict[str, Any]) -> str:
+    raw = finding.get("engagement")
+    if isinstance(raw, dict):
+        return _clean(raw.get("id"))
+    return _clean(raw)
+
+
+def _matches_engagement(finding: dict[str, Any], engagement: str) -> bool:
+    if not engagement:
+        return True
+    return _extract_engagement_id(finding) == _clean(engagement)
+
+
 def _parse_ra_dates(finding: dict[str, Any]) -> tuple[str, str | None]:
     """Return (approved_at, expires_at) in RFC3339 format."""
     accepted_risks = finding.get("accepted_risks", [])
@@ -113,7 +138,7 @@ def fetch_accepted_prowler_findings(
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
-    base_endpoint = f"{base_url.rstrip('/')}/api/v2/findings/"
+    base_endpoint = f"{_normalize_dojo_base_url(base_url)}/api/v2/findings/"
 
     def _paginate(params: dict[str, Any]) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
@@ -128,39 +153,68 @@ def fetch_accepted_prowler_findings(
             next_params = {}
         return results
 
-    # Preferred: server-side filter by vuln_id prefix (reduces payload size).
-    # Fallback: some DefectDojo versions return 400/403 for unknown filter params
-    # → retry without the prefix filter and filter client-side instead.
-    preferred_params: dict[str, Any] = {
-        "limit": 200,
-        "offset": 0,
-        "risk_accepted": "true",
-        "vuln_id_from_tool__startswith": _PROWLER_PREFIX,
-    }
+    # Preferred: server-side filter by vuln_id prefix + engagement.
+    # Fallback chain: progressively remove API-side filters that may be blocked
+    # by some DefectDojo versions or RBAC profiles, then apply filtering
+    # client-side to preserve exact scope.
+    base_params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
+    attempts: list[tuple[str, dict[str, Any]]] = []
+
+    p = dict(base_params)
+    p["vuln_id_from_tool__startswith"] = _PROWLER_PREFIX
     if engagement:
-        preferred_params["engagement"] = engagement
+        p["engagement"] = engagement
+    attempts.append(("vuln_prefix+engagement", p))
 
-    try:
-        results = _paginate(preferred_params)
-    except requests.exceptions.HTTPError as exc:
-        status = exc.response.status_code if exc.response is not None else None
-        if status in (400, 403):
-            # vuln_id_from_tool__startswith is not supported by this DefectDojo
-            # version. Retry without it and filter client-side.
-            print(
-                f"[fetch-prowler-exc][WARN] Server returned {status} for "
-                f"vuln_id_from_tool__startswith filter — retrying without it "
-                f"(client-side filtering will apply).",
-                file=sys.stderr,
-            )
-            fallback_params: dict[str, Any] = {"limit": 200, "offset": 0, "risk_accepted": "true"}
-            if engagement:
-                fallback_params["engagement"] = engagement
-            results = _paginate(fallback_params)
-        else:
+    if engagement:
+        p = dict(base_params)
+        p["engagement"] = engagement
+        attempts.append(("engagement_only", p))
+
+    attempts.append(("risk_accepted_only", dict(base_params)))
+
+    results: list[dict[str, Any]] = []
+    last_http_error: requests.exceptions.HTTPError | None = None
+    tried_signatures: set[tuple[tuple[str, str], ...]] = set()
+
+    for label, params in attempts:
+        signature = tuple(sorted((str(k), str(v)) for k, v in params.items()))
+        if signature in tried_signatures:
+            continue
+        tried_signatures.add(signature)
+
+        try:
+            results = _paginate(params)
+            if label != "vuln_prefix+engagement":
+                print(
+                    f"[fetch-prowler-exc][WARN] Using fallback query mode '{label}' "
+                    f"(client-side filtering active).",
+                    file=sys.stderr,
+                )
+            break
+        except requests.exceptions.HTTPError as exc:
+            last_http_error = exc
+            status = exc.response.status_code if exc.response is not None else None
+            if status in (400, 403):
+                print(
+                    f"[fetch-prowler-exc][WARN] Query mode '{label}' rejected with HTTP {status} "
+                    f"— trying next fallback.",
+                    file=sys.stderr,
+                )
+                continue
             raise
+    else:
+        if last_http_error is not None:
+            raise last_http_error
+        return []
 
-    return [f for f in results if _clean(f.get("vuln_id_from_tool", "")).startswith(_PROWLER_PREFIX)]
+    return [
+        f
+        for f in results
+        if f.get("risk_accepted")
+        and _clean(f.get("vuln_id_from_tool", "")).startswith(_PROWLER_PREFIX)
+        and _matches_engagement(f, engagement)
+    ]
 
 
 def build_opa_exceptions(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -262,7 +316,13 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--engagement",
-        default=os.getenv("DOJO_ENGAGEMENT_ID_RIGHT", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_RIGHT", "")),
+        default=os.getenv(
+            "DOJO_ENGAGEMENT_ID_RIGHT",
+            os.getenv(
+                "DEFECTDOJO_ENGAGEMENT_ID_RIGHT",
+                os.getenv("DOJO_ENGAGEMENT_ID", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_LEFT", "")),
+            ),
+        ),
     )
     parser.add_argument("--dry-run", action="store_true", help="Print outputs without writing files")
     args = parser.parse_args(argv)
@@ -274,6 +334,23 @@ def main(argv: list[str]) -> int:
 
     try:
         findings = fetch_accepted_prowler_findings(args.base_url, args.api_key, args.engagement)
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        if status == 403:
+            print(
+                f"[fetch-prowler-exc][WARN] DefectDojo access forbidden (HTTP 403): {exc} "
+                f"— writing empty exception set.",
+                file=sys.stderr,
+            )
+            _write_degraded(args.output_exceptions, "defectdojo_forbidden")
+        else:
+            print(
+                f"[fetch-prowler-exc][WARN] DefectDojo HTTP error: {exc} "
+                f"— writing empty exception set.",
+                file=sys.stderr,
+            )
+            _write_degraded(args.output_exceptions, "defectdojo_http_error")
+        return 0
     except Exception as exc:
         print(f"[fetch-prowler-exc][WARN] DefectDojo unreachable: {exc} — writing empty exception set.", file=sys.stderr)
         _write_degraded(args.output_exceptions, "defectdojo_unreachable")
