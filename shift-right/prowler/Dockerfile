@@ -43,6 +43,20 @@ RUN apt-get update \
 # Return to the non-root prowler user shipped by the base image.
 USER prowler
 
+# Container health is defined as "toolchain is executable".
+# This image is a batch scanner (not a long-running API), so healthcheck must
+# remain local and deterministic: no external network calls to Azure/DefectDojo.
+HEALTHCHECK --interval=5m --timeout=15s --start-period=30s --retries=3 \
+  CMD /bin/bash -lc '\
+    command -v jq >/dev/null 2>&1 && \
+    command -v curl >/dev/null 2>&1 && \
+    if command -v prowler >/dev/null 2>&1; then \
+      prowler --version >/dev/null 2>&1; \
+    else \
+      _p="$(find /home /root /usr /opt -maxdepth 7 -name prowler -type f -executable 2>/dev/null | head -1 || true)"; \
+      test -n "${_p}" && "${_p}" --version >/dev/null 2>&1; \
+    fi'
+
 # Allow CI to pass arbitrary subcommands: azure, aws, --version, etc.
 ENTRYPOINT ["prowler"]
 CMD ["--help"]

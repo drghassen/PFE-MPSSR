@@ -104,6 +104,7 @@ opa-prowler-decision:
     when: always
     expire_in: 30 days
     paths:
+      - .cloudsentinel/prowler_generic_findings.json
       - .cloudsentinel/opa_prowler_decision.json
       - .cloudsentinel/opa_prowler.env
       - .cloudsentinel/prowler_opa_input.json
@@ -119,6 +120,10 @@ upload-prowler-to-defectdojo:
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
+    # Pull raw findings artifact directly from sensor to guarantee upload input.
+    - job: prowler-audit
+      artifacts: true
+      optional: true
     # Depend on OPA decision (not raw prowler-audit) so OPA_PROWLER_* env vars
     # are available for upload metadata enrichment.
     - job: opa-prowler-decision

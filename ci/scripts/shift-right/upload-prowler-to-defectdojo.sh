@@ -17,6 +17,12 @@ set -euo pipefail
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_RIGHT_EFF="${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}"
+DOJO_BASE_URL="${DOJO_URL_EFF%/}"
+if [[ "${DOJO_BASE_URL}" =~ /api/v2$ ]]; then
+  IMPORT_SCAN_URL="${DOJO_BASE_URL}/import-scan/"
+else
+  IMPORT_SCAN_URL="${DOJO_BASE_URL}/api/v2/import-scan/"
+fi
 
 # Enterprise PKI bootstrap — trusts private DefectDojo TLS certificates.
 # Reads CLOUDSENTINEL_CUSTOM_CA_PEM_B64 or CLOUDSENTINEL_CUSTOM_CA_PEM if set.
@@ -38,19 +44,23 @@ if [[ -z "${DOJO_URL_EFF}" || -z "${DOJO_API_KEY_EFF}" || -z "${DOJO_ENGAGEMENT_
   exit 0
 fi
 
-# ── Guard: missing findings file ──────────────────────────────────────────────
-# If run-prowler.sh didn't produce the file at all (e.g. runner crashed before
-# writing DEGRADED), fail loudly so the missing artifact is visible in CI.
-if [[ ! -f "${GENERIC_FINDINGS_FILE}" ]]; then
-  echo "[dojo-prowler][ERROR] Findings file not found: ${GENERIC_FINDINGS_FILE}"
-  echo "[dojo-prowler][ERROR] Did prowler-audit artifact upload succeed?"
-  exit 1
-fi
-
 command -v jq  >/dev/null 2>&1 || { echo "[dojo-prowler][ERROR] jq is required"; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo "[dojo-prowler][ERROR] curl is required"; exit 1; }
 
 mkdir -p "${OUTPUT_DIR}/dojo-responses"
+
+# ── Guard: missing findings file ──────────────────────────────────────────────
+# Reporting jobs are non-blocking by design. If the artifact is missing, publish
+# a DEGRADED empty payload and preserve existing DefectDojo history.
+if [[ ! -f "${GENERIC_FINDINGS_FILE}" ]]; then
+  echo "[dojo-prowler][WARN] Findings file not found: ${GENERIC_FINDINGS_FILE}"
+  echo "[dojo-prowler][WARN] Writing DEGRADED empty payload (artifact-missing) and continuing."
+  jq -n \
+    --arg reason "artifact_missing" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{meta:{mode:"DEGRADED",reason:$reason,timestamp:$ts,tool:"prowler"},findings:[]}' \
+    > "${GENERIC_FINDINGS_FILE}"
+fi
 
 # ── DEGRADED mode: upload empty findings WITHOUT closing existing records ──────
 # If run-prowler.sh wrote a DEGRADED payload (auth failure, network error, etc.),
@@ -131,10 +141,10 @@ echo "[dojo-prowler] Uploading ${FINDING_COUNT} finding(s) to DefectDojo engagem
 # close_old_findings=true + deduplication_on_engagement=true ensures that
 # resolved misconfigurations (fixed resources) are closed automatically.
 
-HTTP_CODE="$(curl -sS \
+HTTP_CODE="$(curl -sS -L --post301 --post302 \
   -o "${DOJO_RESPONSE_FILE}" \
   -w "%{http_code}" \
-  -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+  -X POST "${IMPORT_SCAN_URL}" \
   -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
   -F "file=@${UPLOAD_FILE}" \
   -F "scan_type=Generic Findings Import" \

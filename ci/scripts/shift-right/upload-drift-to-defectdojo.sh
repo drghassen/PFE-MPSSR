@@ -4,6 +4,12 @@ set -euo pipefail
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_RIGHT_EFF="${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}"
+DOJO_BASE_URL="${DOJO_URL_EFF%/}"
+if [[ "${DOJO_BASE_URL}" =~ /api/v2$ ]]; then
+  IMPORT_SCAN_URL="${DOJO_BASE_URL}/import-scan/"
+else
+  IMPORT_SCAN_URL="${DOJO_BASE_URL}/api/v2/import-scan/"
+fi
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
 source ci/scripts/setup-custom-ca.sh
 
@@ -27,6 +33,7 @@ if [ ! -f "${REPORT_PATH}" ]; then
 fi
 
 command -v jq >/dev/null 2>&1 || { echo "[dojo-drift][ERROR] jq is required"; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "[dojo-drift][ERROR] curl is required"; exit 1; }
 
 mkdir -p "${OUTPUT_DIR}/dojo-responses"
 
@@ -69,8 +76,8 @@ jq -c \
     ]
   }' "${REPORT_PATH}" > "${GENERIC_FINDINGS_FILE}"
 
-HTTP_CODE="$(curl -sS -o "${DOJO_RESPONSE_FILE}" -w "%{http_code}" \
-  -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+HTTP_CODE="$(curl -sS -L --post301 --post302 -o "${DOJO_RESPONSE_FILE}" -w "%{http_code}" \
+  -X POST "${IMPORT_SCAN_URL}" \
   -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
   -F "file=@${GENERIC_FINDINGS_FILE}" \
   -F "scan_type=Generic Findings Import" \

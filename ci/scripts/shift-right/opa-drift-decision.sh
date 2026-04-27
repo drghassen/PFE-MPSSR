@@ -182,6 +182,7 @@ EFFECTIVE_LOW="$(jq -r '[(.result.effective_violations // .result.violations // 
 TOTAL_EXCEPTIONS_LOADED="$(jq -r '(.result.drift_exception_summary.total_exceptions_loaded // 0)' "$DECISION_FILE")"
 VALID_EXCEPTIONS="$(jq -r '(.result.drift_exception_summary.valid_exceptions // 0)' "$DECISION_FILE")"
 OPA_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select(.action_required != "none" and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
+FAIL_CLOSED="${CLOUDSENTINEL_FAIL_CLOSED:-true}"
 
 log_header "Decision Report"
 printf "  %-14s : %s\n" "Environment" "$ENVIRONMENT"
@@ -205,6 +206,31 @@ if [[ -n "$OPA_CUSTODIAN_POLICIES" ]]; then
   printf "  ${DIM}%-26s %s${NC}\n" "Custodian policies" "$OPA_CUSTODIAN_POLICIES"
 fi
 
+if [[ "$DENY_COUNT" -gt 0 ]] || [[ "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 ]]; then
+  OPA_DRIFT_BLOCK=true
+else
+  OPA_DRIFT_BLOCK=false
+fi
+
+if [[ "$DENY_COUNT" -gt 0 ]]; then
+  OPA_DRIFT_DENY=true
+else
+  OPA_DRIFT_DENY=false
+fi
+
+{
+  echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK}"
+  echo "OPA_DRIFT_DENY=${OPA_DRIFT_DENY}"
+  echo "OPA_DENY_COUNT=${DENY_COUNT}"
+  echo "OPA_DECISION_MODE=${mode}"
+  echo "OPA_FAIL_CLOSED=${FAIL_CLOSED}"
+  echo "OPA_RAW_VIOLATIONS=${RAW_VIOLATIONS}"
+  echo "OPA_EFFECTIVE_VIOLATIONS=${EFFECTIVE_VIOLATIONS}"
+  echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+  echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
+  echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
+} > "$ENV_FILE"
+
 if [[ "$DENY_COUNT" -gt 0 ]]; then
   echo ""
   log_err "OPA explicit DENY triggered (Zero Trust / Degraded mode)."
@@ -219,23 +245,12 @@ if [[ "$DENY_COUNT" -gt 0 ]]; then
           end
         )
   ' "$DECISION_FILE" >&2
-  exit 1
+  log_info "Artifacts   : decision=${DECISION_FILE} env=${ENV_FILE}"
+  if [[ "${FAIL_CLOSED}" == "true" ]]; then
+    exit 1
+  fi
+  log_warn "Deny detected but CLOUDSENTINEL_FAIL_CLOSED=false — continuing."
 fi
-
-if [[ "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 ]]; then
-  OPA_DRIFT_BLOCK=true
-else
-  OPA_DRIFT_BLOCK=false
-fi
-
-{
-  echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK}"
-  echo "OPA_RAW_VIOLATIONS=${RAW_VIOLATIONS}"
-  echo "OPA_EFFECTIVE_VIOLATIONS=${EFFECTIVE_VIOLATIONS}"
-  echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
-  echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
-  echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
-} > "$ENV_FILE"
 
 if [[ "$OPA_DRIFT_BLOCK" == "true" ]]; then
   log_warn "Remediation Gate: BLOCK (actionable drift violations detected)."
