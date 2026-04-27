@@ -38,20 +38,20 @@ prowler-audit:
     - set -euo pipefail
     - mkdir -p shift-right/prowler/output .cloudsentinel
     # ── Prowler v5 venv PATH fix ──────────────────────────────────────────────
-    # prowlercloud/prowler:5.x installs Prowler in /home/prowler/.venv/bin via
-    # pip. GitLab's Docker runner executes the container as root, so the
-    # prowler user's venv is not in root's PATH. Extend PATH before any script
-    # that calls `prowler` (including the check inside run-prowler.sh).
+    # prowlercloud/prowler:5.x may install Prowler in a virtualenv whose bin
+    # dir is not in $PATH when the container entrypoint is overridden to "".
+    # Use `find` to locate the binary wherever it actually lives in the image
+    # rather than hard-coding a path that can differ across upstream releases.
     - |
       if ! command -v prowler >/dev/null 2>&1; then
-        for _venv_dir in /home/prowler/.venv/bin /home/prowler/venv/bin \
-                         /root/.venv/bin /usr/local/bin; do
-          if [ -x "${_venv_dir}/prowler" ]; then
-            export PATH="${_venv_dir}:${PATH}"
-            echo "[prowler-audit] Found prowler in ${_venv_dir} — PATH updated"
-            break
-          fi
-        done
+        _prowler_bin="$(find /home /root /usr /opt -maxdepth 7 -name prowler \
+                         -type f -executable 2>/dev/null | head -1 || true)"
+        if [ -n "${_prowler_bin}" ]; then
+          export PATH="$(dirname "${_prowler_bin}"):${PATH}"
+          echo "[prowler-audit] Located prowler at: ${_prowler_bin}"
+        else
+          echo "[prowler-audit][WARN] prowler binary not found anywhere — PATH=${PATH}"
+        fi
       fi
     # ── Custom CA for DefectDojo TLS (host.docker.internal self-signed cert) ──
     # Set CLOUDSENTINEL_CUSTOM_CA_PEM_B64 in GitLab CI variables to trust the

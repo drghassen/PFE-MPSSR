@@ -104,6 +104,14 @@ def _parse_ra_dates(finding: dict[str, Any]) -> tuple[str, str | None]:
 def fetch_accepted_prowler_findings(
     base_url: str, api_key: str, engagement: str
 ) -> list[dict[str, Any]]:
+    # DEFECTDOJO_VERIFY_SSL=false disables TLS verification for local/dev
+    # instances whose cert hostname does not match (e.g. host.docker.internal
+    # with a cert issued for 'localhost'). Never set this in production.
+    _verify: bool | str = os.environ.get("DEFECTDOJO_VERIFY_SSL", "true").lower() != "false"
+    if not _verify:
+        import urllib3  # noqa: PLC0415
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
     url = f"{base_url.rstrip('/')}/api/v2/findings/"
     params: dict[str, Any] = {
@@ -117,7 +125,7 @@ def fetch_accepted_prowler_findings(
 
     results: list[dict[str, Any]] = []
     while url:
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        resp = requests.get(url, headers=headers, params=params, timeout=30, verify=_verify)
         resp.raise_for_status()
         data = resp.json()
         results.extend(data.get("results", []))
