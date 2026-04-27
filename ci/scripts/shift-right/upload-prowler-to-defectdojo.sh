@@ -52,15 +52,19 @@ command -v curl >/dev/null 2>&1 || { echo "[dojo-prowler][ERROR] curl is require
 
 mkdir -p "${OUTPUT_DIR}/dojo-responses"
 
-# ── DEGRADED mode: upload empty findings to close stale records ───────────────
-# If run-prowler.sh wrote a DEGRADED payload, we still upload it.
-# DefectDojo with close_old_findings=true will close findings that no longer
-# appear — which is the correct behaviour when the sensor couldn't scan.
+# ── DEGRADED mode: upload empty findings WITHOUT closing existing records ──────
+# If run-prowler.sh wrote a DEGRADED payload (auth failure, network error, etc.),
+# we still upload to keep DefectDojo informed, but we MUST NOT close existing
+# findings: a transient Azure AD outage must not erase compliance history.
+# close_old_findings=false is safe here — findings that were genuinely fixed
+# will be closed on the next successful scan.
 DEGRADED_MODE="$(jq -r '.meta.mode // "NORMAL"' "${GENERIC_FINDINGS_FILE}")"
+CLOSE_OLD_FINDINGS="true"
 if [[ "${DEGRADED_MODE}" == "DEGRADED" ]]; then
   DEGRADED_REASON="$(jq -r '.meta.reason // "unknown"' "${GENERIC_FINDINGS_FILE}")"
   echo "[dojo-prowler][WARN] Findings file is in DEGRADED mode (reason: ${DEGRADED_REASON})."
-  echo "[dojo-prowler][WARN] Uploading empty findings set to keep DefectDojo state consistent."
+  echo "[dojo-prowler][WARN] Uploading empty findings with close_old_findings=false to preserve history."
+  CLOSE_OLD_FINDINGS="false"
   # Rewrite as a valid Generic Findings payload with zero findings.
   jq -n '{findings: []}' > "${GENERIC_FINDINGS_FILE}.upload"
   UPLOAD_FILE="${GENERIC_FINDINGS_FILE}.upload"
@@ -90,7 +94,7 @@ HTTP_CODE="$(curl -sS \
   --form-string "scan_date=${SCAN_DATE}" \
   --form-string "active=true" \
   --form-string "verified=true" \
-  --form-string "close_old_findings=true" \
+  --form-string "close_old_findings=${CLOSE_OLD_FINDINGS}" \
   --form-string "close_old_findings_product_scope=false" \
   --form-string "deduplication_on_engagement=true" \
   --form-string "minimum_severity=Info")"

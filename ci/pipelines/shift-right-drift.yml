@@ -19,10 +19,11 @@ stages:
 prowler-audit:
   stage: sensor
   # Custom image built from shift-right/prowler/Dockerfile.
-  # Pin the sha256 digest after the first registry push:
+  # Update the digest after each rebuild:
   #   docker inspect registry.gitlab.com/.../prowler:latest --format '{{index .RepoDigests 0}}'
+  # Use @sha256: (digest) not :sha256: (tag) — only digest refs are truly immutable.
   image:
-    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler:latest
+    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler@sha256:f8101c3e1160aeda876ccc63607c992185108368e2b064d3eb429ee99bb0b3cf
     entrypoint: [""]
   before_script: []
   variables:
@@ -35,23 +36,67 @@ prowler-audit:
   script:
     - set -euo pipefail
     - mkdir -p shift-right/prowler/output .cloudsentinel
+    # Fetch Prowler exceptions from DefectDojo risk acceptances.
+    # Generates shift-right/prowler/mutelist-azure.yaml (pre-scan filter) and
+    # .cloudsentinel/prowler_exceptions.json (OPA gate input).
+    # Non-blocking: if DefectDojo is unreachable, scan proceeds without exceptions.
+    - |
+      if ! python shift-right/scripts/fetch_prowler_exceptions.py \
+        --output-exceptions .cloudsentinel/prowler_exceptions.json \
+        --output-mutelist   shift-right/prowler/mutelist-azure.yaml; then
+        echo "[prowler-audit][WARN] Exception fetch failed — scan proceeds without exceptions"
+      fi
     - bash shift-right/prowler/run-prowler.sh
   artifacts:
     when: always
     expire_in: 30 days
     paths:
       - .cloudsentinel/prowler_generic_findings.json
+      - .cloudsentinel/prowler_exceptions.json
       - shift-right/prowler/output/*.ocsf.json
   # allow_failure: false (default) — sensor must complete successfully.
   # An auth failure or network error here means the pipeline has no compliance
   # signal and should stop, not silently continue with stale data.
+
+opa-prowler-decision:
+  stage: decide
+  # Reuse the same OPA image used by opa-drift-decision.
+  image:
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
+    entrypoint: [""]
+  before_script: []
+  needs:
+    - job: prowler-audit
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/opa-prowler-decision.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/opa_prowler_decision.json
+      - .cloudsentinel/opa_prowler.env
+      - .cloudsentinel/prowler_opa_input.json
+      - .cloudsentinel/opa_prowler_server.log
+    reports:
+      dotenv: .cloudsentinel/opa_prowler.env
+  # Non-blocking: the OPA gate produces a BLOCK signal for downstream jobs to
+  # act on, but a gate failure must not prevent findings from reaching DefectDojo.
+  allow_failure: true
 
 upload-prowler-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
-    - job: prowler-audit
+    # Depend on OPA decision (not raw prowler-audit) so OPA_PROWLER_* env vars
+    # are available for upload metadata enrichment.
+    - job: opa-prowler-decision
       artifacts: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
@@ -177,8 +222,20 @@ upload-drift-to-defectdojo:
       - .cloudsentinel/dojo-responses/
   allow_failure: true
 
-# Placeholder: Cloud Custodian is the only remediation engine.
-# Trigger only when OPA effective violations require remediation.
+# Remediation: Cloud Custodian is the sole remediation engine.
+# Trigger only when OPA drift gate signals actionable violations.
+#
+# ARCHITECTURAL NOTE (Gap #5 — Prowler observational):
+# Prowler produces CIS Azure 2.0 compliance violations (IAM over-privilege,
+# missing MFA, unencrypted disks). These violations now pass through the OPA
+# gate (opa-prowler-decision) and are tracked in DefectDojo, but they do NOT
+# currently trigger Cloud Custodian remediation.
+#
+# Rationale: Prowler checks describe configuration state, not Terraform-managed
+# resource drift. Custodian remediation policies for Prowler checks require
+# careful scoping per check family to avoid unintended side effects. This is a
+# deliberate phased rollout — Prowler is observational until per-check Custodian
+# policies are reviewed and approved. Wire OPA_PROWLER_BLOCK here when ready.
 custodian-remediate:
   stage: remediate
   image: alpine:3.20

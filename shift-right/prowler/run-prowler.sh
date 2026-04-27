@@ -111,9 +111,20 @@ log_info "Run ID       : ${TIMESTAMP}"
 # ── Run Prowler ───────────────────────────────────────────────────────────────
 # --sp-env-auth    : authenticate via AZURE_CLIENT_ID/SECRET/TENANT_ID
 # --compliance     : CIS Azure Foundations Benchmark 2.0
-# --severity       : skip Info/Low; report Medium, High, Critical only
+# --severity       : Medium and above only (Info/Low excluded — too noisy for DefectDojo)
 # --output-formats : OCSF schema (Prowler v4 native); consumed by post-processing below
 # --config-file    : check-level parameters (thresholds, trusted CIDRs, etc.)
+# --mutelist-file  : dynamic exception list generated from DefectDojo risk acceptances
+#                    (present only when fetch_prowler_exceptions.py ran successfully)
+
+MUTELIST_FILE="shift-right/prowler/mutelist-azure.yaml"
+PROWLER_EXTRA_ARGS=()
+if [[ -f "${MUTELIST_FILE}" ]]; then
+  PROWLER_EXTRA_ARGS+=("--mutelist-file" "${MUTELIST_FILE}")
+  log_info "Mutelist     : ${MUTELIST_FILE} (risk-accepted exceptions active)"
+else
+  log_info "Mutelist     : not found — scan without exceptions"
+fi
 
 set +e
 prowler azure \
@@ -121,12 +132,12 @@ prowler azure \
   --tenant-id "${ARM_TENANT_ID}" \
   --sp-env-auth \
   --compliance cis_azure_2.0 \
-  --severity medium high critical low info \
+  --severity medium high critical \
   --output-formats json-ocsf \
   --output-path "${OUTPUT_DIR}" \
   --output-filename "prowler-output-${TIMESTAMP}" \
   --config-file "${CONFIG_FILE}" \
-  --ignore-exit-code-3
+  "${PROWLER_EXTRA_ARGS[@]}"
 PROWLER_EXIT="${?}"
 set -e
 
