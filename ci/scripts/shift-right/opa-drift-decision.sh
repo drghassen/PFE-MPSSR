@@ -76,15 +76,28 @@ cat > "$OPA_AUTH_CONFIG_FILE" <<EOF_INNER
 EOF_INNER
 
 sr_audit "INFO" "stage_start" "starting OPA drift decision" "$(sr_build_details \
-  --arg report_path "$REPORT_PATH" \
-  --arg exceptions_file "$EXCEPTIONS_FILE" \
-  --arg environment "$ENVIRONMENT" \
-  --arg repo "$REPO_PATH" \
-  --arg branch "$BRANCH_NAME" \
-  --arg opa_server_url "$OPA_SERVER_URL" \
-  --argjson drift_input_count "$DRIFT_INPUT_COUNT" \
-  --argjson exception_count "$EXCEPTION_COUNT" \
-  '{report_path:$report_path,exceptions_file:$exceptions_file,environment:$environment,repo:$repo,branch:$branch,opa_server_url:$opa_server_url,drift_input_count:$drift_input_count,exception_count:$exception_count}')"
+  --arg  environment       "$ENVIRONMENT" \
+  --arg  repo              "$REPO_PATH" \
+  --arg  branch            "$BRANCH_NAME" \
+  --arg  mode              "ENFORCING" \
+  --arg  fail_closed       "$FAIL_CLOSED" \
+  --argjson drift_findings "$DRIFT_INPUT_COUNT" \
+  --argjson exceptions_loaded "$EXCEPTION_COUNT" \
+  --arg  opa_server_url    "$OPA_SERVER_URL" \
+  '{
+    evaluation_context: {
+      environment:  $environment,
+      repo:         $repo,
+      branch:       $branch,
+      mode:         $mode,
+      fail_closed:  ($fail_closed == "true")
+    },
+    input_summary: {
+      drift_findings:    $drift_findings,
+      exceptions_loaded: $exceptions_loaded
+    },
+    opa_server: $opa_server_url
+  }')"
 
 opa run --server --addr="$OPA_SERVER_ADDR" \
   --authentication=token \
@@ -207,6 +220,38 @@ if [[ "$DENY_COUNT" -gt 0 ]]; then
   OPA_DRIFT_DENY=true
 fi
 
+# ── OPA Policy Decision Table ──────────────────────────────────────────────────
+{
+  printf '┌────────────────────────────────────────────────────────────────────────────────┐\n'
+  printf '│ %-78s │\n' "CloudSentinel OPA — Drift Policy Evaluation"
+  printf '│ %-78s │\n' "Mode: ENFORCING  |  Fail-closed: ${FAIL_CLOSED}  |  Env: ${ENVIRONMENT}  |  Branch: ${BRANCH_NAME}"
+  printf '├────────────────────────────────────────────────────────────────────────────────┤\n'
+  if [[ "$OPA_DRIFT_BLOCK" == "true" ]]; then
+    printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
+  else
+    printf '│ %-78s │\n' "  DECISION: ALLOW  — no actionable violations (monitor-only)"
+  fi
+  printf '│ %-78s │\n' \
+    "  Deny: ${OPA_DRIFT_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+  printf '│ %-78s │\n' \
+    "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
+  printf '├──────────────────────────────────┬──────────┬───────────┬──────────────────────┤\n'
+  printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' "Resource" "Severity" "Action" "Reason"
+  printf '├──────────────────────────────────┼──────────┼───────────┼──────────────────────┤\n'
+  if [[ "$INPUT_COUNT" -gt 0 ]]; then
+    while IFS=$'\t' read -r _rid _sev _act _rsn; do
+      printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' \
+        "${_rid:0:32}" "${_sev:0:8}" "${_act:0:9}" "${_rsn:0:20}"
+    done < <(jq -r '
+      ((.result.effective_violations // .result.violations) // [])[] |
+      [.resource_id, (.severity // "?"), (.action_required // "?"), (.reason // "?")] | @tsv
+    ' "$DECISION_FILE")
+  else
+    printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' "  No violations" "" "" ""
+  fi
+  printf '└──────────────────────────────────┴──────────┴───────────┴──────────────────────┘\n'
+} >&2
+
 {
   echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK}"
   echo "OPA_DRIFT_DENY=${OPA_DRIFT_DENY}"
@@ -225,14 +270,45 @@ fi
 } > "$ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "OPA drift decision completed" "$(sr_build_details \
-  --arg decision_file "$DECISION_FILE" \
-  --arg env_file "$ENV_FILE" \
-  --arg block "$OPA_DRIFT_BLOCK" \
-  --arg deny "$OPA_DRIFT_DENY" \
-  --arg fail_closed "$FAIL_CLOSED" \
-  --argjson input_count "$INPUT_COUNT" \
-  --argjson raw_violations "$RAW_VIOLATIONS" \
+  --arg  block                  "$OPA_DRIFT_BLOCK" \
+  --arg  deny                   "$OPA_DRIFT_DENY" \
+  --arg  mode                   "ENFORCING" \
+  --arg  fail_closed            "$FAIL_CLOSED" \
+  --argjson raw_violations      "$RAW_VIOLATIONS" \
   --argjson effective_violations "$EFFECTIVE_VIOLATIONS" \
   --argjson actionable_violations "$ACTIONABLE_EFFECTIVE_VIOLATIONS" \
-  --argjson deny_count "$DENY_COUNT" \
-  '{decision_file:$decision_file,env_file:$env_file,block:$block,deny:$deny,fail_closed:$fail_closed,input_count:$input_count,raw_violations:$raw_violations,effective_violations:$effective_violations,actionable_violations:$actionable_violations,deny_count:$deny_count}')"
+  --argjson excepted_violations "$EXCEPTED_VIOLATIONS" \
+  --argjson critical            "$EFFECTIVE_CRITICAL" \
+  --argjson high                "$EFFECTIVE_HIGH" \
+  --argjson medium              "$EFFECTIVE_MEDIUM" \
+  --argjson low                 "$EFFECTIVE_LOW" \
+  --argjson exceptions_loaded   "$TOTAL_EXCEPTIONS_LOADED" \
+  --argjson exceptions_valid    "$VALID_EXCEPTIONS" \
+  --argjson exceptions_applied  "$EXCEPTED_VIOLATIONS" \
+  --arg  decision_file          "$DECISION_FILE" \
+  '{
+    decision: {
+      block:       ($block == "true"),
+      deny:        ($deny  == "true"),
+      mode:        $mode,
+      fail_closed: ($fail_closed == "true")
+    },
+    violations: {
+      raw:        $raw_violations,
+      effective:  $effective_violations,
+      actionable: $actionable_violations,
+      excepted:   $excepted_violations,
+      by_severity: {
+        critical: $critical,
+        high:     $high,
+        medium:   $medium,
+        low:      $low
+      }
+    },
+    exceptions: {
+      loaded:  $exceptions_loaded,
+      valid:   $exceptions_valid,
+      applied: $exceptions_applied
+    },
+    artifacts: { decision_file: $decision_file }
+  }')"

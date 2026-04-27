@@ -69,13 +69,23 @@ EFFECTIVE_MAP="$(jq '
 ' "$OPA_DECISION_PATH")"
 
 sr_audit "INFO" "stage_start" "starting DefectDojo upload for drift findings" "$(sr_build_details \
-  --arg report_path "$REPORT_PATH" \
-  --arg opa_decision_path "$OPA_DECISION_PATH" \
-  --arg import_scan_url "$IMPORT_SCAN_URL" \
-  --argjson drift_count "$DRIFT_COUNT" \
+  --arg  import_scan_url       "$IMPORT_SCAN_URL" \
+  --arg  engagement_id         "$DOJO_ENGAGEMENT_ID_RIGHT_EFF" \
+  --argjson drift_findings     "$DRIFT_COUNT" \
   --argjson opa_raw_violations "$OPA_RAW_VIOLATIONS" \
   --argjson opa_effective_violations "$OPA_EFFECTIVE_VIOLATIONS" \
-  '{report_path:$report_path,opa_decision_path:$opa_decision_path,import_scan_url:$import_scan_url,drift_count:$drift_count,opa_raw_violations:$opa_raw_violations,opa_effective_violations:$opa_effective_violations}')"
+  '{
+    upload_target: {
+      url:           $import_scan_url,
+      engagement_id: $engagement_id,
+      scan_type:     "Generic Findings Import"
+    },
+    payload: {
+      drift_findings:        $drift_findings,
+      opa_raw_violations:    $opa_raw_violations,
+      opa_effective_violations: $opa_effective_violations
+    }
+  }')"
 
 jq -c \
   --arg scan_date "$SCAN_DATE" \
@@ -146,8 +156,20 @@ if [[ "$HTTP_CODE" != "201" ]]; then
 fi
 
 sr_audit "INFO" "stage_complete" "DefectDojo upload for drift findings completed" "$(sr_build_details \
-  --arg response_file "$DOJO_RESPONSE_FILE" \
-  --arg generic_findings_file "$GENERIC_FINDINGS_FILE" \
-  --argjson drift_count "$DRIFT_COUNT" \
-  --argjson generated_count "$GENERATED_COUNT" \
-  '{response_file:$response_file,generic_findings_file:$generic_findings_file,drift_count:$drift_count,generated_count:$generated_count}')"
+  --arg  http_code             "$HTTP_CODE" \
+  --argjson findings_uploaded  "$GENERATED_COUNT" \
+  --argjson drift_input_count  "$DRIFT_COUNT" \
+  --arg  response_file         "$DOJO_RESPONSE_FILE" \
+  --arg  generic_findings_file "$GENERIC_FINDINGS_FILE" \
+  '{
+    result: {
+      status:           "success",
+      http_code:        $http_code,
+      findings_uploaded: $findings_uploaded,
+      drift_input_count: $drift_input_count
+    },
+    artifacts: {
+      dojo_response:    $response_file,
+      generic_findings: $generic_findings_file
+    }
+  }')"

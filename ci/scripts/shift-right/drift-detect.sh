@@ -32,12 +32,24 @@ export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}
 export OPA_ENABLED="${OPA_ENABLED:-false}"
 
 sr_audit "INFO" "stage_start" "starting drift detection" "$(sr_build_details \
-  --arg drift_output_path "$DRIFT_REPORT_PATH" \
-  --arg drift_config_path "$DRIFT_CONFIG_PATH" \
   --arg environment "$ENVIRONMENT" \
-  --arg tf_working_dir "${TF_WORKING_DIR:-}" \
-  --arg opa_enabled "$OPA_ENABLED" \
-  '{drift_output_path:$drift_output_path,drift_config_path:$drift_config_path,environment:$environment,tf_working_dir:$tf_working_dir,opa_enabled:$opa_enabled}')"
+  --arg terraform_workspace "${TF_WORKSPACE:-default}" \
+  --arg terraform_working_dir "${TF_WORKING_DIR:-unknown}" \
+  --arg config_path "$DRIFT_CONFIG_PATH" \
+  --arg report_path "$DRIFT_REPORT_PATH" \
+  --arg opa_evaluation "delegated_to_opa_drift_decision_job" \
+  '{
+    scan_target: {
+      environment:          $environment,
+      terraform_workspace:  $terraform_workspace,
+      terraform_working_dir: $terraform_working_dir
+    },
+    configuration: {
+      config_path:    $config_path,
+      opa_evaluation: $opa_evaluation
+    },
+    output: { report_path: $report_path }
+  }')"
 
 DRIFT_ENGINE_EXIT_CODE=0
 if python "$DRIFT_ENGINE_ENTRYPOINT" --config "$DRIFT_CONFIG_PATH"; then
@@ -90,6 +102,38 @@ sr_require_json "$DRIFT_EXCEPTIONS_FILE" '
   and (.cloudsentinel.drift_exceptions.exceptions | type == "array")
 ' "drift exceptions"
 
+DRIFT_EXCEPTION_COUNT="$(sr_json_number "$DRIFT_EXCEPTIONS_FILE" '.cloudsentinel.drift_exceptions.exceptions | length' 'drift exceptions')"
+
+# ── Drift Detection Summary Table ─────────────────────────────────────────────
+_dur="$(jq -r '(.cloudsentinel.duration_ms // 0) / 1000 | floor | tostring' \
+  "$DRIFT_REPORT_PATH" 2>/dev/null || echo "?")s"
+_ws="$(jq -r '.cloudsentinel.terraform_workspace // "default"' \
+  "$DRIFT_REPORT_PATH" 2>/dev/null || echo "?")"
+_status="$([ "$REPORT_DETECTED" == "true" ] && echo "DRIFTED" || echo "CLEAN")"
+{
+  printf '┌────────────────────────────────────────────────────────────────────────────────┐\n'
+  printf '│ %-78s │\n' "CloudSentinel Drift Engine — Terraform State vs Azure Reality"
+  printf '│ %-78s │\n' "Env: ${ENVIRONMENT}  |  Workspace: ${_ws}  |  Duration: ${_dur}  |  Status: ${_status}"
+  printf '├──────────────────────────────────────────┬───────────┬──────────┬──────────────┤\n'
+  printf '│ %-40s │ %-9s │ %-8s │ %-12s │\n' "Terraform Address" "Type" "Action" "Changed"
+  printf '├──────────────────────────────────────────┼───────────┼──────────┼──────────────┤\n'
+  if [[ "$DRIFT_ITEM_COUNT" -gt 0 ]]; then
+    while IFS=$'\t' read -r _a _t _ac _p; do
+      printf '│ %-40s │ %-9s │ %-8s │ %-12s │\n' \
+        "${_a:0:40}" "${_t:0:9}" "${_ac:0:8}" "${_p:0:12}"
+    done < <(jq -r '.drift.items[] |
+      [.address, (.type // "?"), (.actions | join(",")), (.changed_paths | join(" "))] | @tsv' \
+      "$DRIFT_REPORT_PATH")
+  else
+    printf '│ %-40s │ %-9s │ %-8s │ %-12s │\n' \
+      "  No drift — all resources match Azure" "" "" "—"
+  fi
+  printf '├──────────────────────────────────────────┴───────────┴──────────┴──────────────┤\n'
+  printf '│ %-78s │\n' \
+    "Total drifted: ${DRIFT_ITEM_COUNT}   |   Errors: ${REPORT_ERROR_COUNT}   |   Exceptions available: ${DRIFT_EXCEPTION_COUNT}"
+  printf '└────────────────────────────────────────────────────────────────────────────────┘\n'
+} >&2
+
 {
   echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE}"
   if [[ "$DRIFT_ENGINE_EXIT_CODE" -eq 2 ]]; then
@@ -98,14 +142,29 @@ sr_require_json "$DRIFT_EXCEPTIONS_FILE" '
     echo "DRIFT_DETECTED=false"
   fi
   echo "DRIFT_ITEM_COUNT=${DRIFT_ITEM_COUNT}"
-  echo "DRIFT_EXCEPTION_COUNT=$(sr_json_number "$DRIFT_EXCEPTIONS_FILE" '.cloudsentinel.drift_exceptions.exceptions | length' 'drift exceptions')"
+  echo "DRIFT_EXCEPTION_COUNT=${DRIFT_EXCEPTION_COUNT}"
 } > "$DRIFT_ENGINE_ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "drift detection completed" "$(sr_build_details \
-  --arg report_path "$DRIFT_REPORT_PATH" \
-  --arg env_file "$DRIFT_ENGINE_ENV_FILE" \
-  --arg exceptions_file "$DRIFT_EXCEPTIONS_FILE" \
-  --argjson exit_code "$DRIFT_ENGINE_EXIT_CODE" \
-  --arg detected "$REPORT_DETECTED" \
-  --argjson drift_item_count "$DRIFT_ITEM_COUNT" \
-  '{report_path:$report_path,env_file:$env_file,exceptions_file:$exceptions_file,exit_code:$exit_code,detected:$detected,drift_item_count:$drift_item_count}')"
+  --arg  environment        "$ENVIRONMENT" \
+  --arg  terraform_workspace "${TF_WORKSPACE:-default}" \
+  --argjson drift_detected  "$REPORT_DETECTED" \
+  --argjson resources_drifted "$DRIFT_ITEM_COUNT" \
+  --argjson engine_exit_code  "$DRIFT_ENGINE_EXIT_CODE" \
+  --argjson exceptions_available "$DRIFT_EXCEPTION_COUNT" \
+  --arg  report_path        "$DRIFT_REPORT_PATH" \
+  --arg  env_file           "$DRIFT_ENGINE_ENV_FILE" \
+  '{
+    result: {
+      drift_detected:       $drift_detected,
+      resources_drifted:    $resources_drifted,
+      engine_exit_code:     $engine_exit_code,
+      exceptions_available: $exceptions_available,
+      environment:          $environment,
+      terraform_workspace:  $terraform_workspace
+    },
+    artifacts: {
+      report:   $report_path,
+      env_file: $env_file
+    }
+  }')"
