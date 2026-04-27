@@ -21,17 +21,33 @@ _sr_plain_log() {
   printf '[%s][%s][%s] %s\n' "$SHIFT_RIGHT_STAGE" "$level" "$event" "$message" >&2
 }
 
+# Build audit details JSON safely, surfacing jq errors instead of swallowing them.
+# Usage: sr_build_details --arg foo "$bar" '{foo:$foo}'
+# Always returns exit 0 with valid JSON; logs a WARN on jq failure.
+sr_build_details() {
+  local _out _rc=0
+  _out="$(jq -cn "$@" 2>&1)" || _rc=$?
+  if [[ $_rc -ne 0 ]]; then
+    _sr_plain_log "WARN" "audit_details_build_failed" \
+      "jq failed (rc=${_rc}) building audit details; event context lost: ${_out}"
+    printf '%s' '{}'
+    return 0
+  fi
+  printf '%s' "$_out"
+}
+
 sr_audit() {
   local level="${1:?level is required}"
   local event="${2:?event is required}"
   local message="${3:-}"
   local details_json="${4:-{}}"
 
-  # Defensive guard: normalise empty or invalid details_json before --argjson.
-  # Prevents cascade failure where a caller passes the output of a failed jq
-  # sub-shell (empty string), which itself may be caused by the jq-1.6
-  # reserved-keyword 'label' bug fixed in sr_require_file/nonempty/json/number.
+  # Last-resort guard: if the caller passed empty or non-JSON, log a visible
+  # WARN so the problem is traceable, then replace with a sentinel.
+  # Callers should use sr_build_details() to avoid reaching this path.
   if [[ -z "$details_json" ]] || ! printf '%s' "$details_json" | jq -e . >/dev/null 2>&1; then
+    _sr_plain_log "WARN" "audit_details_suppressed" \
+      "details JSON was empty or invalid for event='${event}'; use sr_build_details() at the call site"
     details_json='{"error":"invalid_details_json_suppressed"}'
   fi
 

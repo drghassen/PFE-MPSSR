@@ -68,7 +68,7 @@ EFFECTIVE_MAP="$(jq '
   | from_entries
 ' "$OPA_DECISION_PATH")"
 
-sr_audit "INFO" "stage_start" "starting DefectDojo upload for drift findings" "$(jq -cn \
+sr_audit "INFO" "stage_start" "starting DefectDojo upload for drift findings" "$(sr_build_details \
   --arg report_path "$REPORT_PATH" \
   --arg opa_decision_path "$OPA_DECISION_PATH" \
   --arg import_scan_url "$IMPORT_SCAN_URL" \
@@ -145,7 +145,7 @@ if [[ "$HTTP_CODE" != "201" ]]; then
   sr_fail "DefectDojo rejected drift upload" 1 "$(jq -cn --arg http_code "$HTTP_CODE" --arg response_file "$DOJO_RESPONSE_FILE" '{http_code:$http_code,response_file:$response_file}')"
 fi
 
-sr_audit "INFO" "stage_complete" "DefectDojo upload for drift findings completed" "$(jq -cn \
+sr_audit "INFO" "stage_complete" "DefectDojo upload for drift findings completed" "$(sr_build_details \
   --arg response_file "$DOJO_RESPONSE_FILE" \
   --arg generic_findings_file "$GENERIC_FINDINGS_FILE" \
   --argjson drift_count "$DRIFT_COUNT" \

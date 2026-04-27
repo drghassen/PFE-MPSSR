@@ -75,7 +75,7 @@ cat > "$OPA_AUTH_CONFIG_FILE" <<EOF_INNER
 {"opa_config":{"auth_token":"${OPA_AUTH_TOKEN}","generated_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}}
 EOF_INNER
 
-sr_audit "INFO" "stage_start" "starting OPA drift decision" "$(jq -cn \
+sr_audit "INFO" "stage_start" "starting OPA drift decision" "$(sr_build_details \
   --arg report_path "$REPORT_PATH" \
   --arg exceptions_file "$EXCEPTIONS_FILE" \
   --arg environment "$ENVIRONMENT" \
@@ -224,7 +224,7 @@ fi
   echo "OPA_DRIFT_TOTAL_EXCEPTIONS_LOADED=${TOTAL_EXCEPTIONS_LOADED}"
 } > "$ENV_FILE"
 
-sr_audit "INFO" "stage_complete" "OPA drift decision completed" "$(jq -cn \
+sr_audit "INFO" "stage_complete" "OPA drift decision completed" "$(sr_build_details \
   --arg decision_file "$DECISION_FILE" \
   --arg env_file "$ENV_FILE" \
   --arg block "$OPA_DRIFT_BLOCK" \

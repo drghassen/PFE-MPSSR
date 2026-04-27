@@ -27,9 +27,11 @@ sr_require_nonempty_file "$DRIFT_CONFIG_PATH" "drift engine config"
 sr_require_nonempty_file "$DRIFT_ENGINE_ENTRYPOINT" "drift engine entrypoint"
 
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
+# OPA evaluation is intentionally delegated to the external opa-drift-decision job.
+# The drift engine's built-in OPA guard is disabled here to avoid redundant evaluation.
 export OPA_ENABLED="${OPA_ENABLED:-false}"
 
-sr_audit "INFO" "stage_start" "starting drift detection" "$(jq -cn \
+sr_audit "INFO" "stage_start" "starting drift detection" "$(sr_build_details \
   --arg drift_output_path "$DRIFT_REPORT_PATH" \
   --arg drift_config_path "$DRIFT_CONFIG_PATH" \
   --arg environment "$ENVIRONMENT" \
@@ -99,7 +101,7 @@ sr_require_json "$DRIFT_EXCEPTIONS_FILE" '
   echo "DRIFT_EXCEPTION_COUNT=$(sr_json_number "$DRIFT_EXCEPTIONS_FILE" '.cloudsentinel.drift_exceptions.exceptions | length' 'drift exceptions')"
 } > "$DRIFT_ENGINE_ENV_FILE"
 
-sr_audit "INFO" "stage_complete" "drift detection completed" "$(jq -cn \
+sr_audit "INFO" "stage_complete" "drift detection completed" "$(sr_build_details \
   --arg report_path "$DRIFT_REPORT_PATH" \
   --arg env_file "$DRIFT_ENGINE_ENV_FILE" \
   --arg exceptions_file "$DRIFT_EXCEPTIONS_FILE" \
