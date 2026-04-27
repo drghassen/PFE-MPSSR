@@ -95,13 +95,13 @@ command -v prowler >/dev/null 2>&1 || { log_err "prowler is required but not fou
 mkdir -p "${OUTPUT_DIR}" "${CLOUDSENTINEL_DIR}/dojo-responses"
 
 # ── Azure SDK credential mapping ──────────────────────────────────────────────
-# Prowler v4 --sp-env-auth reads AZURE_* env vars via the Azure Identity SDK.
+# Prowler --sp-env-auth reads AZURE_* env vars via the Azure Identity SDK.
 # Terraform uses ARM_* convention. Map here; never hardcode values.
 export AZURE_CLIENT_ID="${ARM_CLIENT_ID}"
 export AZURE_CLIENT_SECRET="${ARM_CLIENT_SECRET}"
 export AZURE_TENANT_ID="${ARM_TENANT_ID}"
 
-log_info "Prowler v4 compliance sensor starting"
+log_info "Prowler compliance sensor starting"
 log_info "Subscription : ${ARM_SUBSCRIPTION_ID}"
 log_info "Tenant       : ${ARM_TENANT_ID}"
 log_info "Output dir   : ${OUTPUT_DIR}"
@@ -112,10 +112,16 @@ log_info "Run ID       : ${TIMESTAMP}"
 # --sp-env-auth    : authenticate via AZURE_CLIENT_ID/SECRET/TENANT_ID
 # --compliance     : CIS Azure Foundations Benchmark 2.0
 # --severity       : Medium and above only (Info/Low excluded — too noisy for DefectDojo)
-# --output-formats : OCSF schema (Prowler v4 native); consumed by post-processing below
+# --output-formats : OCSF schema (Prowler native); consumed by post-processing below
 # --config-file    : check-level parameters (thresholds, trusted CIDRs, etc.)
 # --mutelist-file  : dynamic exception list generated from DefectDojo risk acceptances
 #                    (present only when fetch_prowler_exceptions.py ran successfully)
+#
+# IMPORTANT (Prowler v5.24.4):
+# Do NOT pass --tenant-id together with --sp-env-auth. Upstream argument
+# validation treats this combination as invalid and raises
+# AzureTenantIDNoBrowserAuthError before auth starts. The tenant is already
+# provided through AZURE_TENANT_ID.
 
 MUTELIST_FILE="shift-right/prowler/mutelist-azure.yaml"
 PROWLER_EXTRA_ARGS=()
@@ -129,7 +135,6 @@ fi
 set +e
 prowler azure \
   --subscription-ids "${ARM_SUBSCRIPTION_ID}" \
-  --tenant-id "${ARM_TENANT_ID}" \
   --sp-env-auth \
   --compliance cis_2.0_azure \
   --severity medium high critical \
