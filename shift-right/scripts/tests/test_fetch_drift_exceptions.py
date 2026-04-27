@@ -3,6 +3,7 @@ import os
 import pathlib
 import unittest
 from unittest.mock import patch
+from requests.exceptions import HTTPError
 
 
 MODULE_PATH = pathlib.Path(__file__).resolve().parents[1] / "fetch_drift_exceptions.py"
@@ -93,6 +94,68 @@ class FetchDriftExceptionsTests(unittest.TestCase):
         self.assertEqual(len(out), 1)
         _, kwargs = mocked_get.call_args
         self.assertEqual(kwargs["params"]["engagement"], "1234")
+
+    def test_fetch_risk_acceptances_drops_explicit_engagement_mismatch(self):
+        class _FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "results": [
+                        {"id": 1, "risk_accepted": True, "engagement": 1234},
+                        {"id": 2, "risk_accepted": True, "engagement": 9999},
+                        {"id": 3, "risk_accepted": True},
+                    ],
+                    "next": None,
+                }
+
+        with patch.object(
+            fetch_drift_exceptions.requests, "get", return_value=_FakeResponse()
+        ):
+            out = fetch_drift_exceptions.fetch_risk_acceptances(
+                base_url="http://dojo.local",
+                api_key="token",
+                engagement="1234",
+            )
+
+        self.assertEqual([f["id"] for f in out], [1, 3])
+
+    def test_fetch_risk_acceptances_fallback_mode_filters_strictly(self):
+        class _RejectedResponse:
+            status_code = 400
+
+        class _RejectedCall:
+            def raise_for_status(self):
+                raise HTTPError(response=_RejectedResponse())
+
+        class _FallbackCall:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "results": [
+                        {"id": 1, "risk_accepted": True, "engagement": "1234"},
+                        {"id": 2, "risk_accepted": True, "engagement": "8888"},
+                        {"id": 3, "risk_accepted": True},
+                    ],
+                    "next": None,
+                }
+
+        with patch.object(
+            fetch_drift_exceptions.requests,
+            "get",
+            side_effect=[_RejectedCall(), _FallbackCall()],
+        ) as mocked_get:
+            out = fetch_drift_exceptions.fetch_risk_acceptances(
+                base_url="http://dojo.local",
+                api_key="token",
+                engagement="1234",
+            )
+
+        self.assertEqual([f["id"] for f in out], [1])
+        self.assertEqual(mocked_get.call_count, 2)
 
 
 if __name__ == "__main__":

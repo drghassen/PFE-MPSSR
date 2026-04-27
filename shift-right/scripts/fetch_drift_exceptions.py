@@ -153,10 +153,24 @@ def _normalize_dojo_base_url(base_url: str) -> str:
 
 
 def _extract_engagement_id(finding: dict[str, Any]) -> str:
+    explicit = _clean_text(finding.get("engagement_id"))
+    if explicit:
+        return explicit
+
     raw = finding.get("engagement")
     if isinstance(raw, dict):
         return _clean_text(raw.get("id"))
-    return _clean_text(raw)
+    if raw is not None:
+        return _clean_text(raw)
+
+    test_obj = finding.get("test")
+    if isinstance(test_obj, dict):
+        nested = test_obj.get("engagement")
+        if isinstance(nested, dict):
+            return _clean_text(nested.get("id"))
+        return _clean_text(nested)
+
+    return ""
 
 
 def _matches_engagement(finding: dict[str, Any], engagement: str) -> bool:
@@ -299,6 +313,7 @@ def fetch_risk_acceptances(
     tried_signatures: set[tuple[tuple[str, str], ...]] = set()
     results: list[dict[str, Any]] = []
 
+    selected_mode = ""
     for label, params in attempts:
         signature = tuple(sorted((str(k), str(v)) for k, v in params.items()))
         if signature in tried_signatures:
@@ -307,6 +322,7 @@ def fetch_risk_acceptances(
 
         try:
             results = _paginate(params)
+            selected_mode = label
             if label != "engagement_only":
                 logger.warning(
                     "fetch_drift_exceptions_fallback_mode mode=%s", label
@@ -328,11 +344,46 @@ def fetch_risk_acceptances(
             raise last_http_error
         return []
 
-    return [
-        f
-        for f in results
-        if f.get("risk_accepted") and _matches_engagement(f, engagement)
-    ]
+    accepted = [f for f in results if f.get("risk_accepted")]
+    if not engagement:
+        return accepted
+
+    # Primary path: server-side engagement filter accepted. Some DefectDojo payloads
+    # omit the "engagement" field in finding objects, so we keep those and only drop
+    # explicit mismatches.
+    if selected_mode == "engagement_only":
+        filtered: list[dict[str, Any]] = []
+        dropped_mismatched = 0
+        missing_engagement_field = 0
+        engagement_clean = _clean_text(engagement)
+        for finding in accepted:
+            finding_engagement = _extract_engagement_id(finding)
+            if finding_engagement:
+                if finding_engagement == engagement_clean:
+                    filtered.append(finding)
+                else:
+                    dropped_mismatched += 1
+                continue
+            missing_engagement_field += 1
+            filtered.append(finding)
+
+        if missing_engagement_field > 0:
+            logger.warning(
+                "fetch_drift_exceptions_engagement_field_missing trusting_server_filter=true missing=%s total=%s",
+                missing_engagement_field,
+                len(accepted),
+            )
+        if dropped_mismatched > 0:
+            logger.warning(
+                "fetch_drift_exceptions_engagement_mismatch_dropped count=%s expected_engagement=%s",
+                dropped_mismatched,
+                engagement_clean,
+            )
+        return filtered
+
+    # Fallback path: if server-side engagement query is unavailable, enforce strict
+    # client-side engagement matching.
+    return [f for f in accepted if _matches_engagement(f, engagement)]
 
 
 # ---------------------------------------------------------------------------
