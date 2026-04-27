@@ -207,14 +207,21 @@ class TerraformRunner:
                 stderr="",
                 duration_ms=0,
             )
-        select = self._run(["workspace", "select", "-no-color", workspace])
-        if select.return_code == 0:
-            return select
-        return self._run(["workspace", "new", "-no-color", workspace])
+
+        for attempt in range(3):
+            select = self._run(["workspace", "select", "-no-color", workspace])
+            if select.return_code == 0:
+                return select
+            create = self._run(["workspace", "new", "-no-color", workspace])
+            if create.return_code == 0:
+                return create
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+        return select
 
     def plan_refresh_only(
         self,
-        plan_path: Path,
+        plan_path: Path,        
         lock_timeout: str = "60s",
         parallelism: int = 10,
     ) -> TerraformCommandResult:

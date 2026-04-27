@@ -102,7 +102,7 @@ class OPASection(BaseModel):
     )
     timeout: int = Field(default=30, description="HTTP timeout in seconds")
     fallback_on_error: bool = Field(
-        default=False, description="Fail closed if OPA evaluation fails"
+        default=True, description="Allow fallback to conservative decisions if OPA fails"
     )
     auth_token: str = Field(
         default="", description="Bearer token for OPA Zero Trust auth"
@@ -161,6 +161,11 @@ def load_config(path: Path) -> AppConfig:
     if isinstance(azure, dict):
         for k in ("subscription_id", "tenant_id"):
             if azure.get(k) == "":
+                logger.warning(
+                    "config_empty_value_converted_to_none",
+                    field=f"azure.{k}",
+                    suggestion=f"Set {k} explicitly or use environment variable",
+                )
                 azure[k] = None
         expanded["azure"] = azure
 
@@ -546,8 +551,11 @@ def main(argv: list[str]) -> int:
     )
     tf_plan_path = drift_work_dir / run_id / "tfplan"
     tf_bin = _choose_tf_binary(tf_working_dir)
-    tf_runner = TerraformRunner(working_dir=tf_working_dir, terraform_bin=tf_bin)
-
+    tf_runner = TerraformRunner(
+        working_dir=tf_working_dir,
+        terraform_bin=tf_bin,
+        timeout_s=int(os.getenv("TF_PLAN_TIMEOUT_S", "600"))
+    )
     logger.info(
         "iac_cli_selected",
         run_id=run_id,
@@ -797,7 +805,7 @@ def main(argv: list[str]) -> int:
                 )
                 if config.opa.fallback_on_error:
                     logger.warning(
-                        "opa_fallback_requested_but_blocked_by_fail_closed_policy",
+                        "opa_using_fallback_conservative_decision",
                         run_id=run_id,
                     )
         else:

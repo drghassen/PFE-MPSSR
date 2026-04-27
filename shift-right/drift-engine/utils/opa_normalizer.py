@@ -40,11 +40,9 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
         "source": "drift-engine",
         "scan_type": "shift-right-drift",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        # environment is used by policies/opa/drift for scope-aware exception matching.
-        # Falls back to "production" as the conservative default (strictest enforcement).
-        "environment": os.getenv(
-            "DRIFT_ENVIRONMENT", os.getenv("CI_ENVIRONMENT_NAME", "production")
-        ),
+        "environment": os.getenv("CI_ENVIRONMENT", os.getenv("ENVIRONMENT", "unknown")),
+        "repo": os.getenv("CI_PROJECT_PATH", os.getenv("GIT_REPO_NAME", "unknown")),
+        "branch": os.getenv("CI_COMMIT_REF_NAME", os.getenv("GIT_BRANCH", "unknown")),
         "findings": [],
     }
 

@@ -25,14 +25,17 @@ _sr_plain_log() {
 # Usage: sr_build_details --arg foo "$bar" '{foo:$foo}'
 # Always returns exit 0 with valid JSON; logs a WARN on jq failure.
 sr_build_details() {
-  local _out _rc=0
-  _out="$(jq -cn "$@" 2>&1)" || _rc=$?
+  local _out _err _rc=0
+  _err="$(mktemp)"
+  _out="$(jq -cn "$@" 2>"$_err")" || _rc=$?
   if [[ $_rc -ne 0 ]]; then
     _sr_plain_log "WARN" "audit_details_build_failed" \
-      "jq failed (rc=${_rc}) building audit details; event context lost: ${_out}"
+      "jq failed (rc=${_rc}) building audit details: $(cat "$_err" 2>/dev/null)"
+    rm -f "$_err"
     printf '%s' '{}'
     return 0
   fi
+  rm -f "$_err"
   printf '%s' "$_out"
 }
 

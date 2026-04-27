@@ -5,6 +5,7 @@ Utilise l'infrastructure OPA Server existante (docker-compose)
 
 from __future__ import annotations
 
+import json
 import requests
 import structlog
 from typing import Any
@@ -17,7 +18,7 @@ logger = structlog.get_logger(__name__)
 class OPAConfig:
     """Configuration OPA Server"""
 
-    server_url: str = "http://localhost:8181"
+    server_url: str = "http://localhost:8182"
     policy_path: str = "cloudsentinel.shiftright.drift"
     timeout: int = 30
     fallback_on_error: bool = True
@@ -104,7 +105,19 @@ class OPAClient:
             )
 
             response.raise_for_status()
-            result = response.json()
+            try:
+                result = response.json()
+            except json.JSONDecodeError as exc:
+                logger.error(
+                    "opa_response_not_json",
+                    url=url,
+                    status=response.status_code,
+                    body_preview=response.text[:200],
+                    error=str(exc),
+                )
+                if self.config.fallback_on_error:
+                    return self._fallback_decision(normalized_findings)
+                raise
 
             # OPA retourne {"result": {violations: [...], effective_violations: [...], compliant: [...], ...}}
             opa_decision = result.get("result", {})

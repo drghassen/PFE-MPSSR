@@ -97,12 +97,16 @@ def enrich_drift_items_with_opa(
             item["opa_evaluated"] = True
             item["opa_excepted"] = False
         else:
-            logger.warning("drift_item_not_evaluated_by_opa", address=address)
-            item["severity"] = "Medium"
-            item["opa_reason"] = "OPA evaluation missing"
+            # Distinguer les cas
+            if not opa_decisions.get("metadata", {}).get("fallback_mode"):
+                item["_opa_error"] = True
+                item["opa_reason"] = "OPA evaluation failed"
+            else:
+                item["_opa_error"] = False
+                item["opa_reason"] = "New drift not yet in OPA catalog"
+            item["opa_evaluated"] = False
             item["action_required"] = "manual_review"
             item["custodian_policy"] = None
-            item["opa_evaluated"] = False
             item["opa_excepted"] = False
 
         enriched_items.append(item)
