@@ -131,7 +131,7 @@ prowler azure \
   --subscription-ids "${ARM_SUBSCRIPTION_ID}" \
   --tenant-id "${ARM_TENANT_ID}" \
   --sp-env-auth \
-  --compliance cis_azure_2.0 \
+  --compliance cis_2.0_azure \
   --severity medium high critical \
   --output-formats json-ocsf \
   --output-path "${OUTPUT_DIR}" \
