@@ -21,14 +21,14 @@ resource "azurerm_subnet" "private" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "public" {
-  count = var.public_subnet_nsg_id != null ? 1 : 0
+  count = var.associate_public_nsg ? 1 : 0
 
   subnet_id                 = azurerm_subnet.public.id
   network_security_group_id = var.public_subnet_nsg_id
 }
 
 resource "azurerm_subnet_network_security_group_association" "private" {
-  count = var.private_subnet_nsg_id != null ? 1 : 0
+  count = var.associate_private_nsg ? 1 : 0
 
   subnet_id                 = azurerm_subnet.private.id
   network_security_group_id = var.private_subnet_nsg_id

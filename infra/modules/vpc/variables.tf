@@ -40,6 +40,18 @@ variable "private_subnet_nsg_id" {
   default     = null
 }
 
+variable "associate_public_nsg" {
+  description = "Whether to associate an NSG with the public subnet. Must be a static bool, not derived from a resource attribute."
+  type        = bool
+  default     = false
+}
+
+variable "associate_private_nsg" {
+  description = "Whether to associate an NSG with the private subnet. Must be a static bool, not derived from a resource attribute."
+  type        = bool
+  default     = false
+}
+
 variable "create_nat_gateway" {
   description = "Create a NAT gateway for private subnet outbound internet access."
   type        = bool
