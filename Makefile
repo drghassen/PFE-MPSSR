@@ -152,10 +152,6 @@ opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.dec
 
 ##@ Shift-Right (Monitoring Runtime)
 
-prowler: ## Exécuter un audit Prowler (CIS Benchmarks)
-	@echo "$(GREEN)🔍 Audit Prowler Azure...$(RESET)"
-	@cd shift-right/prowler && ./run-prowler.sh
-
 custodian-dryrun: ## Exécuter Cloud Custodian en mode dry-run
 	@echo "$(GREEN)☁️  Cloud Custodian (Dry-Run)...$(RESET)"
 	@custodian run -s custodian-output/ policies/custodian/azure/ --dryrun

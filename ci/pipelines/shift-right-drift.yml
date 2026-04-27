@@ -1,5 +1,5 @@
 # ============================================================================
-# CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline the drift engine v8 2 turbo in gitlab register container
+# CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline
 # ============================================================================
 default:
   tags:
@@ -10,126 +10,10 @@ default:
 # CLOUDSENTINEL_CUSTOM_CA_PEM_B64 -> base64 PEM chain used to trust private DefectDojo TLS certs.
 
 stages:
-  - sensor    # Prowler live compliance scan — independent of Terraform state
   - drift
   - decide
-  - correlate # Cross-signal correlation: Prowler findings × drift items (G6)
   - report
   - remediate
-
-prowler-audit:
-  stage: sensor
-  # Custom image built from shift-right/prowler/Dockerfile.
-  # Update the digest after each rebuild:
-  #   docker inspect registry.gitlab.com/.../prowler:latest --format '{{index .RepoDigests 0}}'
-  # Use @sha256: (digest) not :sha256: (tag) — only digest refs are truly immutable.
-  image:
-    name: registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler@sha256:f8101c3e1160aeda876ccc63607c992185108368e2b064d3eb429ee99bb0b3cf
-    entrypoint: [""]
-  before_script: []
-  variables:
-    GIT_STRATEGY: fetch
-    PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/shift-right/prowler/output"
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
-    - when: never
-  script:
-    - set -euo pipefail
-    - mkdir -p shift-right/prowler/output .cloudsentinel
-    # ── Prowler v5 venv PATH fix ──────────────────────────────────────────────
-    # prowlercloud/prowler:5.x may install Prowler in a virtualenv whose bin
-    # dir is not in $PATH when the container entrypoint is overridden to "".
-    # Use `find` to locate the binary wherever it actually lives in the image
-    # rather than hard-coding a path that can differ across upstream releases.
-    - |
-      if ! command -v prowler >/dev/null 2>&1; then
-        _prowler_bin="$(find /home /root /usr /opt -maxdepth 7 -name prowler \
-                         -type f -executable 2>/dev/null | head -1)"
-        if [ -n "${_prowler_bin}" ]; then
-          export PATH="$(dirname "${_prowler_bin}"):${PATH}"
-          echo "[prowler-audit] Located prowler at: ${_prowler_bin}"
-        else
-          echo "[prowler-audit][WARN] prowler binary not found anywhere — PATH=${PATH}"
-        fi
-      fi
-    # ── Custom CA for DefectDojo TLS (host.docker.internal self-signed cert) ──
-    # Set CLOUDSENTINEL_CUSTOM_CA_PEM_B64 in GitLab CI variables to trust the
-    # private CA. REQUESTS_CA_BUNDLE is exported so Python's requests library
-    # picks it up automatically for fetch_prowler_exceptions.py.
-    - source ci/scripts/setup-custom-ca.sh
-    - >
-      python shift-right/scripts/fetch_prowler_exceptions.py
-      --output-exceptions .cloudsentinel/prowler_exceptions.json
-      --output-mutelist shift-right/prowler/mutelist-azure.yaml
-    - bash shift-right/prowler/run-prowler.sh
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/prowler_generic_findings.json
-      - .cloudsentinel/prowler_exceptions.json
-      - .cloudsentinel/prowler_audit.jsonl
-      - shift-right/prowler/output/*.ocsf.json
-  # allow_failure: false (default) — sensor must complete successfully.
-  # An auth failure or network error here means the pipeline has no compliance
-  # signal and should stop, not silently continue with stale data.
-
-opa-prowler-decision:
-  stage: decide
-  # Reuse the same OPA image used by opa-drift-decision.
-  image:
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
-    entrypoint: [""]
-  before_script: []
-  needs:
-    - job: prowler-audit
-      artifacts: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
-    - when: never
-  script:
-    - set -euo pipefail
-    - bash ci/scripts/shift-right/opa-prowler-decision.sh
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/prowler_generic_findings.json
-      - .cloudsentinel/opa_prowler_decision.json
-      - .cloudsentinel/opa_prowler.env
-      - .cloudsentinel/prowler_opa_input.json
-      - .cloudsentinel/opa_prowler_server.log
-      - .cloudsentinel/opa_prowler_audit.jsonl
-    reports:
-      dotenv: .cloudsentinel/opa_prowler.env
-
-upload-prowler-to-defectdojo:
-  stage: report
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
-  before_script: []
-  needs:
-    - job: prowler-audit
-      artifacts: true
-    - job: opa-prowler-decision
-      artifacts: true
-    - job: correlate-signals
-      artifacts: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
-    - when: never
-  script:
-    - set -euo pipefail
-    - bash ci/scripts/shift-right/upload-prowler-to-defectdojo.sh
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/prowler_generic_findings.json
-      - .cloudsentinel/dojo-responses/prowler-compliance.json
-      - .cloudsentinel/upload_prowler_audit.jsonl
 
 drift-detect:
   stage: drift
@@ -198,32 +82,6 @@ opa-drift-decision:
     reports:
       dotenv: .cloudsentinel/opa_drift.env
 
-correlate-signals:
-  stage: correlate
-  # Same scan-tools image as the upload jobs — jq and sha256sum are present.
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
-  before_script: []
-  needs:
-    - job: opa-prowler-decision
-      artifacts: true
-    - job: opa-drift-decision
-      artifacts: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
-    - when: never
-  script:
-    - set -euo pipefail
-    - bash ci/scripts/shift-right/correlate-signals.sh
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/correlation_report.json
-      - .cloudsentinel/correlation_audit.jsonl
-    reports:
-      dotenv: .cloudsentinel/correlation.env
-
 upload-drift-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
@@ -248,34 +106,14 @@ upload-drift-to-defectdojo:
       - .cloudsentinel/dojo-responses/
       - .cloudsentinel/upload_drift_audit.jsonl
 
-# Remediation: Cloud Custodian is the sole remediation engine.
-# Trigger only when OPA drift gate signals actionable violations.
-#
-# ARCHITECTURAL NOTE (Gap #5 — Prowler observational):
-# Prowler produces CIS Azure 2.0 compliance violations (IAM over-privilege,
-# missing MFA, unencrypted disks). These violations now pass through the OPA
-# gate (opa-prowler-decision) and are tracked in DefectDojo, but they do NOT
-# currently trigger Cloud Custodian remediation.
-#
-# Rationale: Prowler checks describe configuration state, not Terraform-managed
-# resource drift. Custodian remediation policies for Prowler checks require
-# careful scoping per check family to avoid unintended side effects. This is a
-# deliberate phased rollout — Prowler is observational until per-check Custodian
-# policies are reviewed and approved. Wire OPA_PROWLER_BLOCK here when ready.
 enforce-shift-right:
   stage: remediate
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
-    - job: opa-prowler-decision
-      artifacts: true
     - job: opa-drift-decision
       artifacts: true
-    - job: upload-prowler-to-defectdojo
-      artifacts: true
     - job: upload-drift-to-defectdojo
-      artifacts: true
-    - job: correlate-signals
       artifacts: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

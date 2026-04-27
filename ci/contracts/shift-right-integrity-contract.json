@@ -1,29 +1,14 @@
 {
   "version": "1.0.0",
   "scope": "shift-right",
-  "description": "CloudSentinel shift-right pipeline integrity contract for detection, normalization, decision, correlation, reporting, and enforcement.",
+  "description": "CloudSentinel shift-right pipeline integrity contract for detection, normalization, decision, reporting, and enforcement.",
   "invariants": [
     "All required inputs must exist, be non-empty, and be valid JSON before processing.",
     "Any runtime error, malformed payload, or missing artifact fails the stage immediately.",
     "TLS verification for external APIs is mandatory; custom CAs must be installed instead of disabling verification.",
-    "Detection, normalization, decision, correlation, reporting, and enforcement must each emit machine-readable JSON audit events."
+    "Detection, normalization, decision, reporting, and enforcement must each emit machine-readable JSON audit events."
   ],
   "stages": {
-    "prowler_detection": {
-      "inputs": [
-        "shift-right/prowler/config-azure.yaml",
-        "shift-right/prowler/mutelist-azure.yaml (optional only when file exists and must then be valid/non-empty)"
-      ],
-      "outputs": [
-        ".cloudsentinel/prowler_generic_findings.json",
-        ".cloudsentinel/prowler_audit.jsonl"
-      ],
-      "invariants": [
-        "raw_record_count >= 1",
-        "raw_fail_count == normalized_findings_count",
-        "if raw_fail_count > 0 then normalized_findings_count > 0"
-      ]
-    },
     "drift_detection": {
       "inputs": [
         "/app/config/drift_config.yaml",
@@ -44,51 +29,25 @@
     },
     "decision": {
       "inputs": [
-        ".cloudsentinel/prowler_generic_findings.json",
-        ".cloudsentinel/prowler_exceptions.json",
         "shift-right/drift-engine/output/drift-report.json",
         ".cloudsentinel/drift_exceptions.json"
       ],
       "outputs": [
-        ".cloudsentinel/opa_prowler_decision.json",
-        ".cloudsentinel/opa_prowler.env",
         ".cloudsentinel/opa_drift_decision.json",
         ".cloudsentinel/opa_drift.env"
       ],
       "invariants": [
-        "opa_prowler.metrics.total == prowler_generic_findings.findings length",
         "opa_drift.violations length == drift.items length",
         "effective_violations <= violations",
         "actionable_violations <= effective_violations"
       ]
     },
-    "correlation": {
-      "inputs": [
-        ".cloudsentinel/prowler_generic_findings.json",
-        ".cloudsentinel/opa_prowler_decision.json",
-        "shift-right/drift-engine/output/drift-report.json",
-        ".cloudsentinel/opa_drift_decision.json",
-        "ci/scripts/shift-right/correlation_mappings.json"
-      ],
-      "outputs": [
-        ".cloudsentinel/correlation_report.json",
-        ".cloudsentinel/correlation.env",
-        ".cloudsentinel/correlation_audit.jsonl"
-      ],
-      "invariants": [
-        "OPA totals must match the source artifact counts before correlation starts",
-        "correlation_report.meta.correlations_found == correlation_report.correlations length"
-      ]
-    },
     "reporting": {
       "inputs": [
-        ".cloudsentinel/prowler_generic_findings.json",
-        ".cloudsentinel/correlation_report.json",
         "shift-right/drift-engine/output/drift-report.json",
         ".cloudsentinel/opa_drift_decision.json"
       ],
       "outputs": [
-        ".cloudsentinel/dojo-responses/prowler-compliance.json",
         ".cloudsentinel/dojo-responses/drift-engine.json"
       ],
       "invariants": [
@@ -99,17 +58,14 @@
     },
     "enforcement": {
       "inputs": [
-        ".cloudsentinel/opa_prowler.env",
-        ".cloudsentinel/opa_drift.env",
-        ".cloudsentinel/correlation.env"
+        ".cloudsentinel/opa_drift.env"
       ],
       "outputs": [
         ".cloudsentinel/shift_right_enforcement_audit.jsonl"
       ],
       "invariants": [
-        "CORRELATION_CRITICAL_CONFIRMED > 0 fails the pipeline",
-        "OPA_PROWLER_BLOCK == true fails the pipeline",
-        "OPA_DRIFT_BLOCK == true fails the pipeline"
+        "OPA_DRIFT_BLOCK == true fails the pipeline",
+        "OPA_DRIFT_DENY == true fails the pipeline"
       ]
     }
   }
