@@ -37,6 +37,27 @@ prowler-audit:
   script:
     - set -euo pipefail
     - mkdir -p shift-right/prowler/output .cloudsentinel
+    # ── Prowler v5 venv PATH fix ──────────────────────────────────────────────
+    # prowlercloud/prowler:5.x installs Prowler in /home/prowler/.venv/bin via
+    # pip. GitLab's Docker runner executes the container as root, so the
+    # prowler user's venv is not in root's PATH. Extend PATH before any script
+    # that calls `prowler` (including the check inside run-prowler.sh).
+    - |
+      if ! command -v prowler >/dev/null 2>&1; then
+        for _venv_dir in /home/prowler/.venv/bin /home/prowler/venv/bin \
+                         /root/.venv/bin /usr/local/bin; do
+          if [ -x "${_venv_dir}/prowler" ]; then
+            export PATH="${_venv_dir}:${PATH}"
+            echo "[prowler-audit] Found prowler in ${_venv_dir} — PATH updated"
+            break
+          fi
+        done
+      fi
+    # ── Custom CA for DefectDojo TLS (host.docker.internal self-signed cert) ──
+    # Set CLOUDSENTINEL_CUSTOM_CA_PEM_B64 in GitLab CI variables to trust the
+    # private CA. REQUESTS_CA_BUNDLE is exported so Python's requests library
+    # picks it up automatically for fetch_prowler_exceptions.py.
+    - source ci/scripts/setup-custom-ca.sh
     # Fetch Prowler exceptions from DefectDojo risk acceptances.
     # Generates shift-right/prowler/mutelist-azure.yaml (pre-scan filter) and
     # .cloudsentinel/prowler_exceptions.json (OPA gate input).
@@ -141,6 +162,10 @@ drift-detect:
   script:
     - set -euo pipefail
     - mkdir -p shift-right/drift-engine/output .cloudsentinel "${TF_PLUGIN_CACHE_DIR}"
+    # ── Custom CA for DefectDojo TLS (host.docker.internal self-signed cert) ──
+    # Exports REQUESTS_CA_BUNDLE so fetch_drift_exceptions.py trusts the cert.
+    # Requires CLOUDSENTINEL_CUSTOM_CA_PEM_B64 set in GitLab CI variables.
+    - source ci/scripts/setup-custom-ca.sh
     - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
     - set +e
     - python /app/drift-engine.py --config /app/config/drift_config.yaml
