@@ -266,14 +266,6 @@ def fetch_risk_acceptances(
     base_url: str, api_key: str, engagement: str
 ) -> list[dict[str, Any]]:
     """Fetch all accepted findings from DefectDojo for the given engagement."""
-    # DEFECTDOJO_VERIFY_SSL=false disables TLS verification for local/dev
-    # instances whose cert hostname does not match (e.g. host.docker.internal
-    # with a cert issued for 'localhost'). Never set this in production.
-    _verify: bool | str = os.environ.get("DEFECTDOJO_VERIFY_SSL", "true").lower() != "false"
-    if not _verify:
-        import urllib3  # noqa: PLC0415
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
     headers = {
         "Authorization": f"Token {api_key}",
         "Content-Type": "application/json",
@@ -286,7 +278,7 @@ def fetch_risk_acceptances(
         next_params: dict[str, Any] = params
         while url:
             resp = requests.get(
-                url, headers=headers, params=next_params, timeout=30, verify=_verify
+                url, headers=headers, params=next_params, timeout=30
             )
             resp.raise_for_status()
             data = resp.json()
@@ -416,22 +408,8 @@ def main(argv: list[str]) -> int:
         logger.info("drift_exceptions_written", path=str(out_path))
 
     if not args.engagement:
-        logger.warning("DOJO_ENGAGEMENT_ID_RIGHT is missing. Entering DEGRADED mode.")
-        write_output(
-            {
-                "cloudsentinel": {
-                    "drift_exceptions": {
-                        "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
-                        "generated_at": datetime.now(timezone.utc).isoformat(),
-                        "environment": args.environment,
-                        "source": "defectdojo",
-                        "meta": {"mode": "DEGRADED", "reason": "missing_engagement"},
-                        "exceptions": [],
-                    }
-                }
-            }
-        )
-        return 0
+        print("ERROR: DOJO_ENGAGEMENT_ID_RIGHT/DEFECTDOJO_ENGAGEMENT_ID_RIGHT not set", file=sys.stderr)
+        return 1
 
     try:
         raw_ras = fetch_risk_acceptances(
@@ -439,51 +417,17 @@ def main(argv: list[str]) -> int:
         )
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else None
-        reason = "defectdojo_forbidden" if status == 403 else "defectdojo_http_error"
         print(
             f"ERROR: Failed to fetch Risk Acceptances from DefectDojo (HTTP {status}): {exc}",
             file=sys.stderr,
         )
-        logger.warning("Network/API failure to DefectDojo. Entering DEGRADED mode.")
-        write_output(
-            {
-                "cloudsentinel": {
-                    "drift_exceptions": {
-                        "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
-                        "generated_at": datetime.now(timezone.utc).isoformat(),
-                        "environment": args.environment,
-                        "source": "defectdojo",
-                        "meta": {"mode": "DEGRADED", "reason": reason},
-                        "exceptions": [],
-                    }
-                }
-            }
-        )
-        return 0
+        return 1
     except Exception as exc:
         print(
             f"ERROR: Failed to fetch Risk Acceptances from DefectDojo: {exc}",
             file=sys.stderr,
         )
-        logger.warning("Network failure to DefectDojo. Entering DEGRADED mode.")
-        write_output(
-            {
-                "cloudsentinel": {
-                    "drift_exceptions": {
-                        "schema_version": DRIFT_EXCEPTION_SCHEMA_VERSION,
-                        "generated_at": datetime.now(timezone.utc).isoformat(),
-                        "environment": args.environment,
-                        "source": "defectdojo",
-                        "meta": {
-                            "mode": "DEGRADED",
-                            "reason": "defectdojo_unreachable",
-                        },
-                        "exceptions": [],
-                    }
-                }
-            }
-        )
-        return 0
+        return 1
 
     logger.info("risk_acceptances_fetched", count=len(raw_ras))
 
@@ -511,6 +455,12 @@ def main(argv: list[str]) -> int:
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "environment": args.environment,
                 "source": "defectdojo",
+                "meta": {
+                    "engagement_scope": "shift-right",
+                    "raw_risk_acceptances": len(raw_ras),
+                    "valid_exceptions": len(exceptions),
+                    "skipped_findings": skipped,
+                },
                 "exceptions": exceptions,
             }
         }

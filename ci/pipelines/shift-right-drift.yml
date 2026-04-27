@@ -30,9 +30,6 @@ prowler-audit:
   variables:
     GIT_STRATEGY: fetch
     PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/shift-right/prowler/output"
-    # host.docker.internal:8443 uses a self-signed cert in dev/PFE environments.
-    # Set to "true" in production once a trusted CA is in place.
-    DEFECTDOJO_VERIFY_SSL: "false"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -48,7 +45,7 @@ prowler-audit:
     - |
       if ! command -v prowler >/dev/null 2>&1; then
         _prowler_bin="$(find /home /root /usr /opt -maxdepth 7 -name prowler \
-                         -type f -executable 2>/dev/null | head -1 || true)"
+                         -type f -executable 2>/dev/null | head -1)"
         if [ -n "${_prowler_bin}" ]; then
           export PATH="$(dirname "${_prowler_bin}"):${PATH}"
           echo "[prowler-audit] Located prowler at: ${_prowler_bin}"
@@ -61,16 +58,10 @@ prowler-audit:
     # private CA. REQUESTS_CA_BUNDLE is exported so Python's requests library
     # picks it up automatically for fetch_prowler_exceptions.py.
     - source ci/scripts/setup-custom-ca.sh
-    # Fetch Prowler exceptions from DefectDojo risk acceptances.
-    # Generates shift-right/prowler/mutelist-azure.yaml (pre-scan filter) and
-    # .cloudsentinel/prowler_exceptions.json (OPA gate input).
-    # Non-blocking: if DefectDojo is unreachable, scan proceeds without exceptions.
-    - |
-      if ! python shift-right/scripts/fetch_prowler_exceptions.py \
-        --output-exceptions .cloudsentinel/prowler_exceptions.json \
-        --output-mutelist   shift-right/prowler/mutelist-azure.yaml; then
-        echo "[prowler-audit][WARN] Exception fetch failed — scan proceeds without exceptions"
-      fi
+    - >
+      python shift-right/scripts/fetch_prowler_exceptions.py
+      --output-exceptions .cloudsentinel/prowler_exceptions.json
+      --output-mutelist shift-right/prowler/mutelist-azure.yaml
     - bash shift-right/prowler/run-prowler.sh
   artifacts:
     when: always
@@ -78,6 +69,7 @@ prowler-audit:
     paths:
       - .cloudsentinel/prowler_generic_findings.json
       - .cloudsentinel/prowler_exceptions.json
+      - .cloudsentinel/prowler_audit.jsonl
       - shift-right/prowler/output/*.ocsf.json
   # allow_failure: false (default) — sensor must complete successfully.
   # An auth failure or network error here means the pipeline has no compliance
@@ -109,28 +101,21 @@ opa-prowler-decision:
       - .cloudsentinel/opa_prowler.env
       - .cloudsentinel/prowler_opa_input.json
       - .cloudsentinel/opa_prowler_server.log
+      - .cloudsentinel/opa_prowler_audit.jsonl
     reports:
       dotenv: .cloudsentinel/opa_prowler.env
-  # Non-blocking: the OPA gate produces a BLOCK signal for downstream jobs to
-  # act on, but a gate failure must not prevent findings from reaching DefectDojo.
-  allow_failure: true
 
 upload-prowler-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
-    # Pull raw findings artifact directly from sensor to guarantee upload input.
     - job: prowler-audit
       artifacts: true
-      optional: true
-    # Depend on OPA decision (not raw prowler-audit) so OPA_PROWLER_* env vars
-    # are available for upload metadata enrichment.
     - job: opa-prowler-decision
       artifacts: true
     - job: correlate-signals
       artifacts: true
-      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -144,8 +129,7 @@ upload-prowler-to-defectdojo:
     paths:
       - .cloudsentinel/prowler_generic_findings.json
       - .cloudsentinel/dojo-responses/prowler-compliance.json
-  # Non-blocking: a DefectDojo outage must not stop drift detection or remediation.
-  allow_failure: true
+      - .cloudsentinel/upload_prowler_audit.jsonl
 
 drift-detect:
   stage: drift
@@ -163,39 +147,14 @@ drift-detect:
     TF_PLUGIN_CACHE_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/tf-plugin-cache"
     # Upload to DefectDojo is handled by dedicated job `upload-drift-to-defectdojo`.
     DRIFT_PUSH_TO_DEFECTDOJO: "false"
+    OPA_ENABLED: "false"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
     - when: never
   script:
     - set -euo pipefail
-    - mkdir -p shift-right/drift-engine/output .cloudsentinel "${TF_PLUGIN_CACHE_DIR}"
-    # ── Custom CA for DefectDojo TLS (host.docker.internal self-signed cert) ──
-    # Exports REQUESTS_CA_BUNDLE so fetch_drift_exceptions.py trusts the cert.
-    # Requires CLOUDSENTINEL_CUSTOM_CA_PEM_B64 set in GitLab CI variables.
-    - source ci/scripts/setup-custom-ca.sh
-    - export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
-    - set +e
-    - python /app/drift-engine.py --config /app/config/drift_config.yaml
-    - rc="$?"
-    - set -e
-    - echo "DRIFT_ENGINE_EXIT_CODE=${rc}" > .cloudsentinel/drift_engine.env
-    - if [ "${rc}" -eq 2 ]; then echo "DRIFT_DETECTED=true" >> .cloudsentinel/drift_engine.env; else echo "DRIFT_DETECTED=false" >> .cloudsentinel/drift_engine.env; fi
-    - |
-      if ! python shift-right/scripts/fetch_drift_exceptions.py \
-        --output .cloudsentinel/drift_exceptions.json \
-        --environment "${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}"; then
-        if [ "${CLOUDSENTINEL_FAIL_CLOSED:-true}" = "true" ]; then
-          echo "[drift-detect][ERROR] Drift exceptions fetch failed and CLOUDSENTINEL_FAIL_CLOSED=true. Halting pipeline." >&2
-          exit 1
-        else
-          echo "[drift-detect][WARN] Drift exceptions fetch failed. Using DEGRADED exception set."
-          printf '%s\n' '{"cloudsentinel":{"drift_exceptions":{"schema_version":"1.0.0","generated_at":"2099-01-01T00:00:00Z","environment":"production","source":"ci-fallback","meta":{"mode":"DEGRADED","reason":"defectdojo_unreachable","component":"drift-engine"},"exceptions":[]}}}' > .cloudsentinel/drift_exceptions.json
-        fi
-      fi
-    - test -f shift-right/drift-engine/output/drift-report.json
-    - if [ "${rc}" -eq 1 ]; then exit 1; fi
-    - exit 0
+    - bash ci/scripts/shift-right/drift-detect.sh
   cache:
     key: shift-right-drift-tf-plugin-cache
     paths:
@@ -207,6 +166,7 @@ drift-detect:
       - shift-right/drift-engine/output/drift-report.json
       - .cloudsentinel/drift_engine.env
       - .cloudsentinel/drift_exceptions.json
+      - .cloudsentinel/drift_detect_audit.jsonl
     reports:
       dotenv: .cloudsentinel/drift_engine.env
 
@@ -234,6 +194,7 @@ opa-drift-decision:
       - .cloudsentinel/opa_drift.env
       - .cloudsentinel/drift_opa_input.json
       - .cloudsentinel/opa_drift_server.log
+      - .cloudsentinel/opa_drift_audit.jsonl
     reports:
       dotenv: .cloudsentinel/opa_drift.env
 
@@ -259,10 +220,9 @@ correlate-signals:
     expire_in: 30 days
     paths:
       - .cloudsentinel/correlation_report.json
+      - .cloudsentinel/correlation_audit.jsonl
     reports:
       dotenv: .cloudsentinel/correlation.env
-  # Enrichment only — a failure here must never block DefectDojo uploads.
-  allow_failure: true
 
 upload-drift-to-defectdojo:
   stage: report
@@ -271,9 +231,8 @@ upload-drift-to-defectdojo:
   needs:
     - job: drift-detect
       artifacts: true
-    - job: correlate-signals
+    - job: opa-drift-decision
       artifacts: true
-      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -287,7 +246,7 @@ upload-drift-to-defectdojo:
     paths:
       - .cloudsentinel/drift_generic_findings.json
       - .cloudsentinel/dojo-responses/
-  allow_failure: true
+      - .cloudsentinel/upload_drift_audit.jsonl
 
 # Remediation: Cloud Custodian is the sole remediation engine.
 # Trigger only when OPA drift gate signals actionable violations.
@@ -303,35 +262,30 @@ upload-drift-to-defectdojo:
 # careful scoping per check family to avoid unintended side effects. This is a
 # deliberate phased rollout — Prowler is observational until per-check Custodian
 # policies are reviewed and approved. Wire OPA_PROWLER_BLOCK here when ready.
-custodian-remediate:
+enforce-shift-right:
   stage: remediate
-  image: alpine:3.20
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
+    - job: opa-prowler-decision
+      artifacts: true
     - job: opa-drift-decision
       artifacts: true
-    - job: drift-detect
+    - job: upload-prowler-to-defectdojo
       artifacts: true
     - job: upload-drift-to-defectdojo
       artifacts: true
     - job: correlate-signals
       artifacts: true
-      optional: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
     - when: never
   script:
-    - |
-      set -euo pipefail
-      echo "DRIFT_ENGINE_EXIT_CODE=${DRIFT_ENGINE_EXIT_CODE:-}"
-      echo "OPA_DRIFT_BLOCK=${OPA_DRIFT_BLOCK:-false}"
-      echo "OPA_EFFECTIVE_VIOLATIONS=${OPA_EFFECTIVE_VIOLATIONS:-0}"
-      echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS:-0}"
-      if [ "${OPA_DRIFT_BLOCK:-false}" != "true" ]; then
-        echo "OPA decision: no actionable drift -> skip remediation"
-        exit 0
-      fi
-      echo "OPA decision: remediation required"
-      echo "Custodian policies to apply: ${OPA_CUSTODIAN_POLICIES:-<none>}"
-      echo "Trigger Cloud Custodian remediation here"
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/enforce-gates.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/shift_right_enforcement_audit.jsonl

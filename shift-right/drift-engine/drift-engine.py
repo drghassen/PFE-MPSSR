@@ -102,7 +102,7 @@ class OPASection(BaseModel):
     )
     timeout: int = Field(default=30, description="HTTP timeout in seconds")
     fallback_on_error: bool = Field(
-        default=True, description="Use fallback if OPA fails"
+        default=False, description="Fail closed if OPA evaluation fails"
     )
     auth_token: str = Field(
         default="", description="Bearer token for OPA Zero Trust auth"
@@ -788,19 +788,17 @@ def main(argv: list[str]) -> int:
 
             except Exception as exc:
                 logger.error("opa_evaluation_failed", run_id=run_id, error=str(exc))
-
-                if not config.opa.fallback_on_error:
-                    errors.append(
-                        {
-                            "type": "OPAEvaluationError",
-                            "message": f"OPA evaluation failed: {exc}",
-                            "remediation": "Check OPA server connectivity and policy validity.",
-                        }
-                    )
-                    # Continue sans OPA (drift_items non enrichis)
-                else:
+                errors.append(
+                    {
+                        "type": "OPAEvaluationError",
+                        "message": f"OPA evaluation failed: {exc}",
+                        "remediation": "Check OPA server connectivity and policy validity.",
+                    }
+                )
+                if config.opa.fallback_on_error:
                     logger.warning(
-                        "opa_fallback_drift_items_not_enriched", run_id=run_id
+                        "opa_fallback_requested_but_blocked_by_fail_closed_policy",
+                        run_id=run_id,
                     )
         else:
             if not config.opa.enabled:

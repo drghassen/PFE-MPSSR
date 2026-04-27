@@ -1,48 +1,87 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source ci/scripts/shift-right/lib/pipeline-guard.sh
+
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_RIGHT_EFF="${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}"
 DOJO_BASE_URL="${DOJO_URL_EFF%/}"
-if [[ "${DOJO_BASE_URL}" =~ /api/v2$ ]]; then
+if [[ "$DOJO_BASE_URL" =~ /api/v2$ ]]; then
   IMPORT_SCAN_URL="${DOJO_BASE_URL}/import-scan/"
 else
   IMPORT_SCAN_URL="${DOJO_BASE_URL}/api/v2/import-scan/"
 fi
-# Optional enterprise PKI bootstrap for DefectDojo TLS.
+
 source ci/scripts/setup-custom-ca.sh
 
 REPORT_PATH="${DRIFT_REPORT_PATH:-shift-right/drift-engine/output/drift-report.json}"
+OPA_DECISION_PATH="${OPA_DRIFT_DECISION_PATH:-.cloudsentinel/opa_drift_decision.json}"
 OUTPUT_DIR=".cloudsentinel"
 GENERIC_FINDINGS_FILE="${OUTPUT_DIR}/drift_generic_findings.json"
 DOJO_RESPONSE_FILE="${OUTPUT_DIR}/dojo-responses/drift-engine.json"
-
-if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_RIGHT_EFF}" ]; then
-  echo "[dojo-drift] Missing Dojo vars. Accepted names:"
-  echo "[dojo-drift] URL: DOJO_URL or DEFECTDOJO_URL"
-  echo "[dojo-drift] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
-  echo "[dojo-drift] Engagement: DOJO_ENGAGEMENT_ID_RIGHT or DEFECTDOJO_ENGAGEMENT_ID_RIGHT"
-  echo "[dojo-drift] Skipping upload."
-  exit 0
-fi
-
-if [ ! -f "${REPORT_PATH}" ]; then
-  echo "[dojo-drift][ERROR] Drift report not found: ${REPORT_PATH}"
-  exit 1
-fi
-
-command -v jq >/dev/null 2>&1 || { echo "[dojo-drift][ERROR] jq is required"; exit 1; }
-command -v curl >/dev/null 2>&1 || { echo "[dojo-drift][ERROR] curl is required"; exit 1; }
+AUDIT_FILE="${OUTPUT_DIR}/upload_drift_audit.jsonl"
 
 mkdir -p "${OUTPUT_DIR}/dojo-responses"
 
-SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // .ocsf.time // now | tostring | .[0:10]' "${REPORT_PATH}")"
-RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "${REPORT_PATH}")"
+sr_init_guard "shift-right/drift-report" "$AUDIT_FILE"
+sr_require_command jq curl
+sr_require_env DOJO_URL_EFF DOJO_API_KEY_EFF DOJO_ENGAGEMENT_ID_RIGHT_EFF
+sr_require_nonempty_file "$REPORT_PATH" "drift report"
+sr_require_nonempty_file "$OPA_DECISION_PATH" "OPA drift decision"
+
+sr_require_json "$REPORT_PATH" '
+  type == "object"
+  and (.cloudsentinel | type == "object")
+  and (.drift | type == "object")
+  and (.drift.items | type == "array")
+  and (.errors | type == "array")
+' "drift report"
+sr_require_json "$OPA_DECISION_PATH" '
+  type == "object"
+  and (.result | type == "object")
+  and ((.result.violations // null) | type == "array")
+' "OPA drift decision"
+
+REPORT_ERROR_COUNT="$(sr_json_number "$REPORT_PATH" '.errors | length' 'drift report')"
+DRIFT_COUNT="$(sr_json_number "$REPORT_PATH" '.drift.items | length' 'drift report')"
+OPA_RAW_VIOLATIONS="$(sr_json_number "$OPA_DECISION_PATH" '(.result.violations | length)' 'OPA drift decision')"
+OPA_EFFECTIVE_VIOLATIONS="$(sr_json_number "$OPA_DECISION_PATH" '((.result.effective_violations // .result.violations) | length)' 'OPA drift decision')"
+
+if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
+  sr_fail "drift report contains errors; refusing DefectDojo upload" 1 "$(jq -cn --argjson report_error_count "$REPORT_ERROR_COUNT" '{report_error_count:$report_error_count}')"
+fi
+sr_assert_eq "$OPA_RAW_VIOLATIONS" "$DRIFT_COUNT" "drift upload input mismatch between report and OPA decision"
+
+SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // .ocsf.time | tostring | .[0:10]' "$REPORT_PATH")"
+RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
+VIOLATION_MAP="$(jq '
+  (.result.violations // [])
+  | map(select(.resource_id != null and .resource_id != ""))
+  | map({ key: .resource_id, value: . })
+  | from_entries
+' "$OPA_DECISION_PATH")"
+EFFECTIVE_MAP="$(jq '
+  (.result.effective_violations // .result.violations // [])
+  | map(select(.resource_id != null and .resource_id != ""))
+  | map({ key: .resource_id, value: true })
+  | from_entries
+' "$OPA_DECISION_PATH")"
+
+sr_audit "INFO" "stage_start" "starting DefectDojo upload for drift findings" "$(jq -cn \
+  --arg report_path "$REPORT_PATH" \
+  --arg opa_decision_path "$OPA_DECISION_PATH" \
+  --arg import_scan_url "$IMPORT_SCAN_URL" \
+  --argjson drift_count "$DRIFT_COUNT" \
+  --argjson opa_raw_violations "$OPA_RAW_VIOLATIONS" \
+  --argjson opa_effective_violations "$OPA_EFFECTIVE_VIOLATIONS" \
+  '{report_path:$report_path,opa_decision_path:$opa_decision_path,import_scan_url:$import_scan_url,drift_count:$drift_count,opa_raw_violations:$opa_raw_violations,opa_effective_violations:$opa_effective_violations}')"
 
 jq -c \
-  --arg scan_date "${SCAN_DATE}" \
-  --arg run_id "${RUN_ID}" \
+  --arg scan_date "$SCAN_DATE" \
+  --arg run_id "$RUN_ID" \
+  --argjson violations "$VIOLATION_MAP" \
+  --argjson effective_map "$EFFECTIVE_MAP" \
   '
   def normalize_severity($s):
     if ($s // "" | ascii_downcase) == "critical" then "Critical"
@@ -54,30 +93,41 @@ jq -c \
     end;
   {
     findings: [
-      (.drift.items // [])[] |
+      (.drift.items // [])[] as $item |
+      ($violations[$item.address] // error("missing_opa_violation:" + ($item.address // "unknown"))) as $decision |
       {
-        title: ("Terraform drift detected: " + ((.address // "unknown") | tostring)),
-        vuln_id_from_tool: ("drift_type:" + ((.type // "unknown") | tostring)),
-        component_name: ((.address // "unknown") | tostring),
-        unique_id_from_tool: ("cloudsentinel-drift:" + ((.type // "unknown") | tostring) + ":" + ((.address // "unknown") | tostring)),
-        severity: normalize_severity(.severity),
+        title: ("Terraform drift detected: " + (($item.address // "unknown") | tostring)),
+        vuln_id_from_tool: ("drift_type:" + (($item.type // "unknown") | tostring)),
+        component_name: (($item.address // "unknown") | tostring),
+        unique_id_from_tool: ("cloudsentinel-drift:" + (($item.type // "unknown") | tostring) + ":" + (($item.address // "unknown") | tostring)),
+        severity: normalize_severity($decision.severity),
         date: $scan_date,
         description:
           ("CloudSentinel shift-right drift finding\n"
           + "- Run ID: " + $run_id + "\n"
-          + "- Address: " + ((.address // "unknown") | tostring) + "\n"
-          + "- Resource type: " + ((.type // "unknown") | tostring) + "\n"
-          + "- Actions: " + (((.actions // []) | tostring)) + "\n"
-          + "- Action required: " + ((.action_required // "none") | tostring) + "\n"
-          + "- Changed paths: " + (((.changed_paths // []) | tostring))),
+          + "- Address: " + (($item.address // "unknown") | tostring) + "\n"
+          + "- Resource type: " + (($item.type // "unknown") | tostring) + "\n"
+          + "- Actions: " + ((($item.actions // []) | tostring)) + "\n"
+          + "- Changed paths: " + ((($item.changed_paths // []) | tostring)) + "\n"
+          + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
+          + "- OPA action_required: " + (($decision.action_required // "unknown") | tostring) + "\n"
+          + "- OPA effective: " + ((if $effective_map[$item.address] then "true" else "false" end)) + "\n"
+          + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Reconcile Terraform state and cloud state or apply approved exception.",
         references: ("CloudSentinel Drift Report run_id=" + $run_id)
       }
     ]
-  }' "${REPORT_PATH}" > "${GENERIC_FINDINGS_FILE}"
+  }' "$REPORT_PATH" > "$GENERIC_FINDINGS_FILE"
 
-HTTP_CODE="$(curl -sS -L --post301 --post302 -o "${DOJO_RESPONSE_FILE}" -w "%{http_code}" \
-  -X POST "${IMPORT_SCAN_URL}" \
+sr_require_json "$GENERIC_FINDINGS_FILE" 'type == "object" and (.findings | type == "array")' "drift generic findings"
+GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 'drift generic findings')"
+sr_assert_eq "$GENERATED_COUNT" "$DRIFT_COUNT" "drift upload lost findings during report conversion"
+sr_assert_positive_if_expected "$DRIFT_COUNT" "$GENERATED_COUNT" "drift upload generated zero findings from non-empty drift input"
+
+HTTP_CODE="$(curl -sS -L --post301 --post302 \
+  -o "$DOJO_RESPONSE_FILE" \
+  -w "%{http_code}" \
+  -X POST "$IMPORT_SCAN_URL" \
   -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
   -F "file=@${GENERIC_FINDINGS_FILE}" \
   -F "scan_type=Generic Findings Import" \
@@ -91,10 +141,13 @@ HTTP_CODE="$(curl -sS -L --post301 --post302 -o "${DOJO_RESPONSE_FILE}" -w "%{ht
   --form-string "deduplication_on_engagement=true" \
   --form-string "minimum_severity=Info")"
 
-if [ "${HTTP_CODE}" = "201" ]; then
-  echo "[dojo-drift] Drift report uploaded HTTP=201"
-else
-  echo "[dojo-drift][ERROR] Upload failed HTTP=${HTTP_CODE}"
-  cat "${DOJO_RESPONSE_FILE}" || true
-  exit 1
+if [[ "$HTTP_CODE" != "201" ]]; then
+  sr_fail "DefectDojo rejected drift upload" 1 "$(jq -cn --arg http_code "$HTTP_CODE" --arg response_file "$DOJO_RESPONSE_FILE" '{http_code:$http_code,response_file:$response_file}')"
 fi
+
+sr_audit "INFO" "stage_complete" "DefectDojo upload for drift findings completed" "$(jq -cn \
+  --arg response_file "$DOJO_RESPONSE_FILE" \
+  --arg generic_findings_file "$GENERIC_FINDINGS_FILE" \
+  --argjson drift_count "$DRIFT_COUNT" \
+  --argjson generated_count "$GENERATED_COUNT" \
+  '{response_file:$response_file,generic_findings_file:$generic_findings_file,drift_count:$drift_count,generated_count:$generated_count}')"

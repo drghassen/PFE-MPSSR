@@ -55,6 +55,7 @@ except ImportError:
 
 
 _PROWLER_PREFIX = "prowler:"
+_SCHEMA_VERSION = "1.0.0"
 
 
 def _clean(v: Any) -> str:
@@ -129,14 +130,6 @@ def _parse_ra_dates(finding: dict[str, Any]) -> tuple[str, str | None]:
 def fetch_accepted_prowler_findings(
     base_url: str, api_key: str, engagement: str
 ) -> list[dict[str, Any]]:
-    # DEFECTDOJO_VERIFY_SSL=false disables TLS verification for local/dev
-    # instances whose cert hostname does not match (e.g. host.docker.internal
-    # with a cert issued for 'localhost'). Never set this in production.
-    _verify: bool | str = os.environ.get("DEFECTDOJO_VERIFY_SSL", "true").lower() != "false"
-    if not _verify:
-        import urllib3  # noqa: PLC0415
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
     base_endpoint = f"{_normalize_dojo_base_url(base_url)}/api/v2/findings/"
 
@@ -145,7 +138,7 @@ def fetch_accepted_prowler_findings(
         url: str | None = base_endpoint
         next_params: dict[str, Any] = params
         while url:
-            resp = requests.get(url, headers=headers, params=next_params, timeout=30, verify=_verify)
+            resp = requests.get(url, headers=headers, params=next_params, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             results.extend(data.get("results", []))
@@ -281,20 +274,35 @@ def build_mutelist_yaml(findings: list[dict[str, Any]]) -> str:
             lines.append(f'          - "{safe_r}"')
     return "\n".join(lines) + "\n"
 
-
-def _write_degraded(output_exceptions: str, reason: str) -> None:
-    doc = {
+def _write_outputs(
+    output_exceptions: str,
+    output_mutelist: str,
+    findings: list[dict[str, Any]],
+    exceptions: list[dict[str, Any]],
+) -> None:
+    opa_doc = {
         "cloudsentinel": {
             "prowler_exceptions": {
+                "schema_version": _SCHEMA_VERSION,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "source": "defectdojo",
-                "meta": {"mode": "DEGRADED", "reason": reason},
-                "exceptions": [],
+                "meta": {
+                    "engagement_scope": "shift-right",
+                    "fetched_findings_count": len(findings),
+                    "exception_count": len(exceptions),
+                },
+                "exceptions": exceptions,
             }
         }
     }
-    pathlib.Path(output_exceptions).parent.mkdir(parents=True, exist_ok=True)
-    pathlib.Path(output_exceptions).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+    exc_path = pathlib.Path(output_exceptions)
+    exc_path.parent.mkdir(parents=True, exist_ok=True)
+    exc_path.write_text(json.dumps(opa_doc, indent=2) + "\n", encoding="utf-8")
+
+    ml_path = pathlib.Path(output_mutelist)
+    ml_path.parent.mkdir(parents=True, exist_ok=True)
+    ml_path.write_text(build_mutelist_yaml(findings), encoding="utf-8")
 
 
 def main(argv: list[str]) -> int:
@@ -327,64 +335,63 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--dry-run", action="store_true", help="Print outputs without writing files")
     args = parser.parse_args(argv)
 
-    if not args.base_url or not args.api_key:
-        print("[fetch-prowler-exc][WARN] DOJO_URL or DOJO_API_KEY not set — writing empty exception set.", file=sys.stderr)
-        _write_degraded(args.output_exceptions, "missing_defectdojo_credentials")
-        return 0
+    if not args.base_url:
+        print("[fetch-prowler-exc][ERROR] DOJO_URL/DEFECTDOJO_URL is required.", file=sys.stderr)
+        return 1
+    if not args.api_key:
+        print("[fetch-prowler-exc][ERROR] DOJO_API_KEY/DEFECTDOJO_API_KEY is required.", file=sys.stderr)
+        return 1
+    if not args.engagement:
+        print(
+            "[fetch-prowler-exc][ERROR] DOJO_ENGAGEMENT_ID_RIGHT/DEFECTDOJO_ENGAGEMENT_ID_RIGHT is required.",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         findings = fetch_accepted_prowler_findings(args.base_url, args.api_key, args.engagement)
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else None
-        if status == 403:
-            print(
-                f"[fetch-prowler-exc][WARN] DefectDojo access forbidden (HTTP 403): {exc} "
-                f"— writing empty exception set.",
-                file=sys.stderr,
-            )
-            _write_degraded(args.output_exceptions, "defectdojo_forbidden")
-        else:
-            print(
-                f"[fetch-prowler-exc][WARN] DefectDojo HTTP error: {exc} "
-                f"— writing empty exception set.",
-                file=sys.stderr,
-            )
-            _write_degraded(args.output_exceptions, "defectdojo_http_error")
-        return 0
+        print(
+            f"[fetch-prowler-exc][ERROR] DefectDojo HTTP error (status={status}): {exc}",
+            file=sys.stderr,
+        )
+        return 1
     except Exception as exc:
-        print(f"[fetch-prowler-exc][WARN] DefectDojo unreachable: {exc} — writing empty exception set.", file=sys.stderr)
-        _write_degraded(args.output_exceptions, "defectdojo_unreachable")
-        return 0
+        print(f"[fetch-prowler-exc][ERROR] DefectDojo fetch failed: {exc}", file=sys.stderr)
+        return 1
 
     exceptions = build_opa_exceptions(findings)
-    mutelist_yaml = build_mutelist_yaml(findings)
-
-    opa_doc = {
-        "cloudsentinel": {
-            "prowler_exceptions": {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "source": "defectdojo",
-                "exceptions": exceptions,
-            }
-        }
-    }
 
     if args.dry_run:
         print("=== OPA exceptions ===")
-        print(json.dumps(opa_doc, indent=2))
+        print(
+            json.dumps(
+                {
+                    "cloudsentinel": {
+                        "prowler_exceptions": {
+                            "schema_version": _SCHEMA_VERSION,
+                            "generated_at": datetime.now(timezone.utc).isoformat(),
+                            "source": "defectdojo",
+                            "meta": {
+                                "engagement_scope": "shift-right",
+                                "fetched_findings_count": len(findings),
+                                "exception_count": len(exceptions),
+                            },
+                            "exceptions": exceptions,
+                        }
+                    }
+                },
+                indent=2,
+            )
+        )
         print("=== Mutelist YAML ===")
-        print(mutelist_yaml)
+        print(build_mutelist_yaml(findings))
         return 0
 
-    exc_path = pathlib.Path(args.output_exceptions)
-    exc_path.parent.mkdir(parents=True, exist_ok=True)
-    exc_path.write_text(json.dumps(opa_doc, indent=2) + "\n", encoding="utf-8")
-    print(f"[fetch-prowler-exc] Written {len(exceptions)} exception(s) → {exc_path}")
-
-    ml_path = pathlib.Path(args.output_mutelist)
-    ml_path.parent.mkdir(parents=True, exist_ok=True)
-    ml_path.write_text(mutelist_yaml, encoding="utf-8")
-    print(f"[fetch-prowler-exc] Written mutelist ({len(findings)} check(s)) → {ml_path}")
+    _write_outputs(args.output_exceptions, args.output_mutelist, findings, exceptions)
+    print(f"[fetch-prowler-exc] Written {len(exceptions)} exception(s) → {args.output_exceptions}")
+    print(f"[fetch-prowler-exc] Written mutelist ({len(findings)} accepted finding(s)) → {args.output_mutelist}")
 
     return 0
 

@@ -1,150 +1,104 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# =============================================================================
-# CloudSentinel CI — Upload Prowler Compliance Findings to DefectDojo
-#
-# Reads .cloudsentinel/prowler_generic_findings.json (written by run-prowler.sh)
-# and posts it to DefectDojo via Generic Findings Import.
-#
-# Deduplication key: unique_id_from_tool = "prowler:{check_id}:{resource_uid}"
-# close_old_findings=true closes findings whose resources no longer exist in Azure.
-#
-# This job mirrors upload-drift-to-defectdojo.sh and runs in the same CI stage
-# (report). The two uploads are independent and can run in parallel.
-# =============================================================================
+source ci/scripts/shift-right/lib/pipeline-guard.sh
 
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_RIGHT_EFF="${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}"
 DOJO_BASE_URL="${DOJO_URL_EFF%/}"
-if [[ "${DOJO_BASE_URL}" =~ /api/v2$ ]]; then
+if [[ "$DOJO_BASE_URL" =~ /api/v2$ ]]; then
   IMPORT_SCAN_URL="${DOJO_BASE_URL}/import-scan/"
 else
   IMPORT_SCAN_URL="${DOJO_BASE_URL}/api/v2/import-scan/"
 fi
 
-# Enterprise PKI bootstrap — trusts private DefectDojo TLS certificates.
-# Reads CLOUDSENTINEL_CUSTOM_CA_PEM_B64 or CLOUDSENTINEL_CUSTOM_CA_PEM if set.
 source ci/scripts/setup-custom-ca.sh
 
-GENERIC_FINDINGS_FILE=".cloudsentinel/prowler_generic_findings.json"
 OUTPUT_DIR=".cloudsentinel"
+GENERIC_FINDINGS_FILE="${OUTPUT_DIR}/prowler_generic_findings.json"
+CORRELATION_REPORT="${OUTPUT_DIR}/correlation_report.json"
 DOJO_RESPONSE_FILE="${OUTPUT_DIR}/dojo-responses/prowler-compliance.json"
-
-# ── Guard: missing DefectDojo config ──────────────────────────────────────────
-# Warn and skip (exit 0) rather than exit 1 so a missing DOJO var doesn't
-# fail a job that is already allow_failure: true. Mirrors drift upload pattern.
-if [[ -z "${DOJO_URL_EFF}" || -z "${DOJO_API_KEY_EFF}" || -z "${DOJO_ENGAGEMENT_ID_RIGHT_EFF}" ]]; then
-  echo "[dojo-prowler] Missing DefectDojo connection vars. Accepted names:"
-  echo "[dojo-prowler]   URL       : DOJO_URL or DEFECTDOJO_URL"
-  echo "[dojo-prowler]   API key   : DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
-  echo "[dojo-prowler]   Engagement: DOJO_ENGAGEMENT_ID_RIGHT or DEFECTDOJO_ENGAGEMENT_ID_RIGHT"
-  echo "[dojo-prowler] Skipping upload."
-  exit 0
-fi
-
-command -v jq  >/dev/null 2>&1 || { echo "[dojo-prowler][ERROR] jq is required"; exit 1; }
-command -v curl >/dev/null 2>&1 || { echo "[dojo-prowler][ERROR] curl is required"; exit 1; }
+AUDIT_FILE="${OUTPUT_DIR}/upload_prowler_audit.jsonl"
+ENRICHED_FILE="${GENERIC_FINDINGS_FILE}.enriched"
 
 mkdir -p "${OUTPUT_DIR}/dojo-responses"
 
-# ── Guard: missing findings file ──────────────────────────────────────────────
-# Reporting jobs are non-blocking by design. If the artifact is missing, publish
-# a DEGRADED empty payload and preserve existing DefectDojo history.
-if [[ ! -f "${GENERIC_FINDINGS_FILE}" ]]; then
-  echo "[dojo-prowler][WARN] Findings file not found: ${GENERIC_FINDINGS_FILE}"
-  echo "[dojo-prowler][WARN] Writing DEGRADED empty payload (artifact-missing) and continuing."
-  jq -n \
-    --arg reason "artifact_missing" \
-    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{meta:{mode:"DEGRADED",reason:$reason,timestamp:$ts,tool:"prowler"},findings:[]}' \
-    > "${GENERIC_FINDINGS_FILE}"
-fi
+sr_init_guard "shift-right/prowler-report" "$AUDIT_FILE"
+sr_require_command jq curl
+sr_require_env DOJO_URL_EFF DOJO_API_KEY_EFF DOJO_ENGAGEMENT_ID_RIGHT_EFF
+sr_require_nonempty_file "$GENERIC_FINDINGS_FILE" "prowler generic findings"
+sr_require_nonempty_file "$CORRELATION_REPORT" "correlation report"
 
-# ── DEGRADED mode: upload empty findings WITHOUT closing existing records ──────
-# If run-prowler.sh wrote a DEGRADED payload (auth failure, network error, etc.),
-# we still upload to keep DefectDojo informed, but we MUST NOT close existing
-# findings: a transient Azure AD outage must not erase compliance history.
-# close_old_findings=false is safe here — findings that were genuinely fixed
-# will be closed on the next successful scan.
-DEGRADED_MODE="$(jq -r '.meta.mode // "NORMAL"' "${GENERIC_FINDINGS_FILE}")"
-CLOSE_OLD_FINDINGS="true"
-if [[ "${DEGRADED_MODE}" == "DEGRADED" ]]; then
-  DEGRADED_REASON="$(jq -r '.meta.reason // "unknown"' "${GENERIC_FINDINGS_FILE}")"
-  echo "[dojo-prowler][WARN] Findings file is in DEGRADED mode (reason: ${DEGRADED_REASON})."
-  echo "[dojo-prowler][WARN] Uploading empty findings with close_old_findings=false to preserve history."
-  CLOSE_OLD_FINDINGS="false"
-  # Rewrite as a valid Generic Findings payload with zero findings.
-  jq -n '{findings: []}' > "${GENERIC_FINDINGS_FILE}.upload"
-  UPLOAD_FILE="${GENERIC_FINDINGS_FILE}.upload"
-else
-  UPLOAD_FILE="${GENERIC_FINDINGS_FILE}"
-fi
+sr_require_json "$GENERIC_FINDINGS_FILE" '
+  type == "object"
+  and (.meta | type == "object")
+  and (.findings | type == "array")
+  and ((.meta.raw_fail_count // null) | type == "number")
+  and ((.meta.normalized_findings_count // null) | type == "number")
+' "prowler generic findings"
+sr_require_json "$CORRELATION_REPORT" '
+  type == "object"
+  and (.meta | type == "object")
+  and (.correlations | type == "array")
+' "correlation report"
 
-SCAN_DATE="$(date -u +"%Y-%m-%d")"
+FINDING_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 'prowler generic findings')"
+RAW_FAIL_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.meta.raw_fail_count' 'prowler generic findings')"
+META_NORMALIZED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.meta.normalized_findings_count' 'prowler generic findings')"
+CORRELATION_COUNT="$(sr_json_number "$CORRELATION_REPORT" '.meta.correlations_found' 'correlation report')"
 
-# ── Correlation enrichment ─────────────────────────────────────────────────────
-# If correlate-signals produced a report, annotate each finding whose
-# unique_id_from_tool appears in a correlation record. The description field
-# receives a drift-correlation note so DefectDojo operators can triage faster.
-# This enrichment is best-effort: any error here skips the annotation silently.
-CORRELATION_REPORT="${OUTPUT_DIR}/correlation_report.json"
-ENRICHED_FILE="${UPLOAD_FILE}.enriched"
+sr_assert_eq "$FINDING_COUNT" "$RAW_FAIL_COUNT" "prowler upload input lost FAIL findings"
+sr_assert_eq "$FINDING_COUNT" "$META_NORMALIZED_COUNT" "prowler upload input metadata mismatch"
 
-if [[ -f "${CORRELATION_REPORT}" ]]; then
-  CORR_COUNT="$(jq '.correlations | length' "${CORRELATION_REPORT}" 2>/dev/null || echo 0)"
-  if [[ "${CORR_COUNT}" -gt 0 ]]; then
-    echo "[dojo-prowler] Applying ${CORR_COUNT} correlation annotation(s) to findings"
-    # Build a lookup map: unique_id_from_tool → first matching correlation record.
-    # If multiple drift items correlate to the same Prowler finding, take the
-    # highest combined_risk (CRITICAL_CONFIRMED > HIGH_CONFIRMED > CORRELATED).
-    CORR_MAP="$(jq '
-      [.correlations[] | {key: .prowler_uid, value: .}]
-      | sort_by(
-          if .value.combined_risk == "CRITICAL_CONFIRMED" then 0
-          elif .value.combined_risk == "HIGH_CONFIRMED"   then 1
-          else 2
-          end
-        )
-      | unique_by(.key)
-      | from_entries
-    ' "${CORRELATION_REPORT}" 2>/dev/null || echo "{}")"
+sr_audit "INFO" "stage_start" "starting DefectDojo upload for prowler findings" "$(jq -cn \
+  --arg findings_file "$GENERIC_FINDINGS_FILE" \
+  --arg correlation_report "$CORRELATION_REPORT" \
+  --arg import_scan_url "$IMPORT_SCAN_URL" \
+  --argjson finding_count "$FINDING_COUNT" \
+  --argjson correlation_count "$CORRELATION_COUNT" \
+  '{findings_file:$findings_file,correlation_report:$correlation_report,import_scan_url:$import_scan_url,finding_count:$finding_count,correlation_count:$correlation_count}')"
 
-    jq \
-      --argjson corr_map "${CORR_MAP}" \
-      '
-      .findings |= map(
-        . as $f |
-        ($corr_map[$f.unique_id_from_tool]) as $c |
-        if $c != null then
-          .description += (
-            "\n\n**⚠ Drift Correlation**: This resource also has an active drift "
-            + "finding (address: " + $c.drift_address
-            + ", severity: " + $c.drift_severity
-            + "). Combined risk: " + $c.combined_risk + "."
-          )
-        else . end
+if [[ "$CORRELATION_COUNT" -gt 0 ]]; then
+  CORR_MAP="$(jq '
+    [.correlations[] | {key: .prowler_uid, value: .}]
+    | sort_by(
+        if .value.combined_risk == "CRITICAL_CONFIRMED" then 0
+        elif .value.combined_risk == "HIGH_CONFIRMED" then 1
+        else 2
+        end
       )
-      ' "${UPLOAD_FILE}" > "${ENRICHED_FILE}" 2>/dev/null \
-      && UPLOAD_FILE="${ENRICHED_FILE}" \
-      || echo "[dojo-prowler][WARN] Correlation annotation failed — uploading without enrichment"
-  fi
+    | unique_by(.key)
+    | from_entries
+  ' "$CORRELATION_REPORT")"
+
+  jq \
+    --argjson corr_map "$CORR_MAP" \
+    '
+    .findings |= map(
+      . as $f |
+      ($corr_map[$f.unique_id_from_tool]) as $c |
+      if $c != null then
+        .description += (
+          "\n\nDrift correlation: resource also has active drift "
+          + "(address: " + $c.drift_address
+          + ", severity: " + $c.drift_severity
+          + ", combined_risk: " + $c.combined_risk + ")."
+        )
+      else . end
+    )
+    ' "$GENERIC_FINDINGS_FILE" > "$ENRICHED_FILE"
+  UPLOAD_FILE="$ENRICHED_FILE"
+else
+  UPLOAD_FILE="$GENERIC_FINDINGS_FILE"
 fi
 
-FINDING_COUNT="$(jq '.findings | length' "${UPLOAD_FILE}")"
-echo "[dojo-prowler] Uploading ${FINDING_COUNT} finding(s) to DefectDojo engagement ${DOJO_ENGAGEMENT_ID_RIGHT_EFF}"
-
-# ── POST to DefectDojo ─────────────────────────────────────────────────────────
-# scan_type=Generic Findings Import is the only scan type that accepts our
-# custom finding schema with unique_id_from_tool for deduplication.
-# close_old_findings=true + deduplication_on_engagement=true ensures that
-# resolved misconfigurations (fixed resources) are closed automatically.
-
+sr_require_json "$UPLOAD_FILE" 'type == "object" and (.findings | type == "array")' "prowler DefectDojo upload payload"
+SCAN_DATE="$(date -u +"%Y-%m-%d")"
 HTTP_CODE="$(curl -sS -L --post301 --post302 \
-  -o "${DOJO_RESPONSE_FILE}" \
+  -o "$DOJO_RESPONSE_FILE" \
   -w "%{http_code}" \
-  -X POST "${IMPORT_SCAN_URL}" \
+  -X POST "$IMPORT_SCAN_URL" \
   -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
   -F "file=@${UPLOAD_FILE}" \
   -F "scan_type=Generic Findings Import" \
@@ -153,20 +107,18 @@ HTTP_CODE="$(curl -sS -L --post301 --post302 \
   --form-string "scan_date=${SCAN_DATE}" \
   --form-string "active=true" \
   --form-string "verified=true" \
-  --form-string "close_old_findings=${CLOSE_OLD_FINDINGS}" \
+  --form-string "close_old_findings=true" \
   --form-string "close_old_findings_product_scope=false" \
   --form-string "deduplication_on_engagement=true" \
   --form-string "minimum_severity=Info")"
 
-if [[ "${HTTP_CODE}" == "201" ]]; then
-  echo "[dojo-prowler] Upload successful HTTP=201 (${FINDING_COUNT} finding(s))"
-elif [[ "${HTTP_CODE}" == "400" ]]; then
-  echo "[dojo-prowler][ERROR] DefectDojo rejected the payload (HTTP 400 — bad request)."
-  echo "[dojo-prowler][ERROR] Response body:"
-  cat "${DOJO_RESPONSE_FILE}" || true
-  exit 1
-else
-  echo "[dojo-prowler][ERROR] Unexpected HTTP response: ${HTTP_CODE}"
-  cat "${DOJO_RESPONSE_FILE}" || true
-  exit 1
+if [[ "$HTTP_CODE" != "201" ]]; then
+  sr_fail "DefectDojo rejected prowler upload" 1 "$(jq -cn --arg http_code "$HTTP_CODE" --arg response_file "$DOJO_RESPONSE_FILE" '{http_code:$http_code,response_file:$response_file}')"
 fi
+
+sr_audit "INFO" "stage_complete" "DefectDojo upload for prowler findings completed" "$(jq -cn \
+  --arg response_file "$DOJO_RESPONSE_FILE" \
+  --arg upload_file "$UPLOAD_FILE" \
+  --argjson finding_count "$FINDING_COUNT" \
+  --argjson correlation_count "$CORRELATION_COUNT" \
+  '{response_file:$response_file,upload_file:$upload_file,finding_count:$finding_count,correlation_count:$correlation_count}')"
