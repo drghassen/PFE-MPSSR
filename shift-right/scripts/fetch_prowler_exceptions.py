@@ -26,15 +26,60 @@ except ImportError:
     )
     sys.exit(1)
 
+
+class _StructuredLogger:
+    """
+    Stdlib-only fallback that emits one JSON line per event to stderr.
+    API mirrors structlog's bound-logger so the same call pattern works
+    whether or not structlog is installed.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def _emit(self, level: str, event: str, **fields: Any) -> None:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        record: dict[str, Any] = {
+            "timestamp": ts,
+            "logger": self._name,
+            "level": level,
+            "event": event,
+        }
+        if fields:
+            record["details"] = fields
+        try:
+            line = json.dumps(record, default=str)
+        except Exception:
+            # Fields contained an unserializable value (e.g. circular reference).
+            # Emit a safe envelope so the logger never crashes the caller.
+            line = json.dumps({
+                "timestamp": ts,
+                "logger": self._name,
+                "level": level,
+                "event": event,
+                "details": {"_serialization_error": True},
+            })
+        print(line, file=sys.stderr, flush=True)
+
+    def info(self, event: str, **fields: Any) -> None:
+        self._emit("INFO", event, **fields)
+
+    def warning(self, event: str, **fields: Any) -> None:
+        self._emit("WARNING", event, **fields)
+
+    def error(self, event: str, **fields: Any) -> None:
+        self._emit("ERROR", event, **fields)
+
+    def debug(self, event: str, **fields: Any) -> None:
+        self._emit("DEBUG", event, **fields)
+
+
 try:
     import structlog
 
     logger = structlog.get_logger(__name__)
 except ImportError:
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)  # type: ignore[assignment]
+    logger = _StructuredLogger(__name__)  # type: ignore[assignment]
 
 
 PROWLER_EXCEPTION_SCHEMA_VERSION = "1.0.0"
@@ -273,16 +318,16 @@ def fetch_risk_acceptances(
             results = _paginate(params)
             selected_mode = label
             if label != "engagement_only":
-                logger.warning("fetch_prowler_exceptions_fallback_mode mode=%s", label)
+                logger.warning("fetch_prowler_exceptions_fallback_mode", mode=label)
             break
         except requests.exceptions.HTTPError as exc:
             last_http_error = exc
             status = exc.response.status_code if exc.response is not None else None
             if status in (400, 403):
                 logger.warning(
-                    "fetch_prowler_exceptions_query_rejected mode=%s status=%s",
-                    label,
-                    status,
+                    "fetch_prowler_exceptions_query_rejected",
+                    mode=label,
+                    status=status,
                 )
                 continue
             raise
@@ -313,15 +358,16 @@ def fetch_risk_acceptances(
 
         if missing_engagement_field > 0:
             logger.warning(
-                "fetch_prowler_exceptions_engagement_field_missing trusting_server_filter=true missing=%s total=%s",
-                missing_engagement_field,
-                len(accepted),
+                "fetch_prowler_exceptions_engagement_field_missing",
+                trusting_server_filter=True,
+                missing=missing_engagement_field,
+                total=len(accepted),
             )
         if dropped_mismatched > 0:
             logger.warning(
-                "fetch_prowler_exceptions_engagement_mismatch_dropped count=%s expected_engagement=%s",
-                dropped_mismatched,
-                engagement_clean,
+                "fetch_prowler_exceptions_engagement_mismatch_dropped",
+                count=dropped_mismatched,
+                expected_engagement=engagement_clean,
             )
         return filtered
 

@@ -25,6 +25,19 @@ PROWLER_FETCH_EXCEPTIONS="${PROWLER_FETCH_EXCEPTIONS:-true}"
 
 mkdir -p "$OUTPUT_DIR" "$PROWLER_OUTPUT_DIR" "$(dirname "$PROWLER_REPORT_PATH")"
 
+# Fail-safe: guarantee both artifact files exist on any exit path so GitLab
+# artifact upload never errors with "no matching files". The exit code of the
+# job is preserved; only the file presence is guaranteed.
+_ensure_artifacts_on_exit() {
+  local _rc=$?
+  trap - EXIT
+  set +e  # cleanup must not abort on error; original exit code is restored below
+  [[ -f "$PROWLER_ENGINE_ENV_FILE" ]] || touch "$PROWLER_ENGINE_ENV_FILE" 2>/dev/null
+  [[ -f "$PROWLER_EXCEPTIONS_FILE" ]] || touch "$PROWLER_EXCEPTIONS_FILE" 2>/dev/null
+  exit "$_rc"
+}
+trap _ensure_artifacts_on_exit EXIT
+
 sr_init_guard "shift-right/prowler-detection" "$AUDIT_FILE"
 sr_require_command jq python
 
