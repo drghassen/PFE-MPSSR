@@ -165,6 +165,10 @@ drift-detect: ## Détecter les drifts de configuration
 	@echo "$(GREEN)🔄 Détection de drift...$(RESET)"
 	@cd shift-right/drift-engine && python detect-drift.py
 
+prowler-azure-local: ## Scanner Azure runtime avec Prowler (local only)
+	@echo "$(GREEN)🛰️  Prowler Azure (local)...$(RESET)"
+	@bash shift-right/prowler/run-prowler-azure.sh
+
 fetch-drift-exceptions: ## Récupérer les exceptions drift depuis DefectDojo (shift-right OPA)
 	@echo "$(GREEN)📥 Fetch drift exceptions from DefectDojo...$(RESET)"
 	@python shift-right/scripts/fetch_drift_exceptions.py \

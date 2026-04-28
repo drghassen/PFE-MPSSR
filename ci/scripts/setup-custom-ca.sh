@@ -17,7 +17,6 @@ set -euo pipefail
 log()  { echo "[custom-ca] $*"; }
 warn() { echo "[custom-ca][WARN] $*" >&2; }
 err()  { echo "[custom-ca][ERROR] $*" >&2; }
-_finish() { return "$1" 2>/dev/null || exit "$1"; }
 
 custom_ca_b64="${CLOUDSENTINEL_CUSTOM_CA_PEM_B64:-}"
 custom_ca_pem="${CLOUDSENTINEL_CUSTOM_CA_PEM:-}"
@@ -26,19 +25,19 @@ explicit_bundle="${CLOUDSENTINEL_CA_BUNDLE:-}"
 if [[ -n "${explicit_bundle}" ]]; then
   if [[ ! -s "${explicit_bundle}" ]]; then
     err "CLOUDSENTINEL_CA_BUNDLE is set but file is missing/empty: ${explicit_bundle}"
-    _finish 2
+    return 2 2>/dev/null || exit 2
   fi
   export SSL_CERT_FILE="${explicit_bundle}"
   export REQUESTS_CA_BUNDLE="${explicit_bundle}"
   export CURL_CA_BUNDLE="${explicit_bundle}"
   export GIT_SSL_CAINFO="${explicit_bundle}"
   log "Using explicit CA bundle: ${explicit_bundle}"
-  _finish 0
+  return 0 2>/dev/null || exit 0
 fi
 
 if [[ -z "${custom_ca_b64}" && -z "${custom_ca_pem}" ]]; then
   log "No custom CA provided (CLOUDSENTINEL_CUSTOM_CA_PEM_B64/CLOUDSENTINEL_CUSTOM_CA_PEM). Using image trust store."
-  _finish 0
+  return 0 2>/dev/null || exit 0
 fi
 
 out_dir=".cloudsentinel/tls"
@@ -49,7 +48,7 @@ mkdir -p "${out_dir}"
 if [[ -n "${custom_ca_b64}" ]]; then
   if ! printf '%s' "${custom_ca_b64}" | base64 -d > "${custom_ca_file}" 2>/dev/null; then
     err "Failed to decode CLOUDSENTINEL_CUSTOM_CA_PEM_B64."
-    _finish 2
+    return 2 2>/dev/null || exit 2
   fi
 else
   printf '%s\n' "${custom_ca_pem}" > "${custom_ca_file}"
@@ -57,7 +56,7 @@ fi
 
 if ! grep -q "BEGIN CERTIFICATE" "${custom_ca_file}"; then
   err "Custom CA payload is not a valid PEM certificate chain."
-  _finish 2
+  return 2 2>/dev/null || exit 2
 fi
 
 python3 - "${custom_ca_file}" <<'PY'
@@ -104,4 +103,4 @@ export CURL_CA_BUNDLE="${bundle_file}"
 export GIT_SSL_CAINFO="${bundle_file}"
 
 log "Custom CA bundle initialized: ${bundle_file}"
-_finish 0
+return 0 2>/dev/null || exit 0

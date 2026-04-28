@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source ci/scripts/shift-right/lib/pipeline-guard.sh
+source ci/scripts/setup-custom-ca.sh
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+OUTPUT_DIR=".cloudsentinel"
+PROWLER_OUTPUT_DIR="${PROWLER_OUTPUT_DIR:-${REPO_ROOT}/.cloudsentinel/prowler/output}"
+PROWLER_REPORT_PATH="${PROWLER_REPORT_PATH:-${REPO_ROOT}/shift-right/prowler/output/prowler-report.json}"
+PROWLER_ENGINE_ENV_FILE="${OUTPUT_DIR}/prowler_engine.env"
+PROWLER_EXCEPTIONS_FILE="${PROWLER_EXCEPTIONS_PATH:-${OUTPUT_DIR}/prowler_exceptions.json}"
+AUDIT_FILE="${OUTPUT_DIR}/prowler_detect_audit.jsonl"
+ENVIRONMENT="${PROWLER_ENVIRONMENT:-${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}}"
+SUBSCRIPTION_IDS="${PROWLER_AZURE_SUBSCRIPTION_IDS:-${ARM_SUBSCRIPTION_ID:-}}"
+AUTH_MODE="${PROWLER_AZURE_AUTH_MODE:-sp-env}"
+IGNORE_EXIT_CODE_3="${PROWLER_IGNORE_EXIT_CODE_3:-true}"
+OUTPUT_FORMATS="${PROWLER_OUTPUT_FORMATS:-csv json-ocsf html}"
+PROWLER_DETECT_SKIP_SCAN="${PROWLER_DETECT_SKIP_SCAN:-false}"
+PROWLER_OCSF_INPUT_PATH="${PROWLER_OCSF_INPUT_PATH:-}"
+PROWLER_FETCH_EXCEPTIONS="${PROWLER_FETCH_EXCEPTIONS:-true}"
+
+mkdir -p "$OUTPUT_DIR" "$PROWLER_OUTPUT_DIR" "$(dirname "$PROWLER_REPORT_PATH")"
+
+sr_init_guard "shift-right/prowler-detection" "$AUDIT_FILE"
+sr_require_command jq python
+
+if [[ "$PROWLER_DETECT_SKIP_SCAN" != "true" ]]; then
+  sr_require_command prowler
+fi
+
+if [[ -z "$SUBSCRIPTION_IDS" ]]; then
+  sr_fail "Prowler subscription scope is missing" 1 '{}'
+fi
+
+if [[ "$AUTH_MODE" == "sp-env" ]]; then
+  sr_require_env AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_CLIENT_SECRET
+fi
+
+sr_audit "INFO" "stage_start" "starting prowler detection" "$(sr_build_details \
+  --arg environment "$ENVIRONMENT" \
+  --arg subscriptions "$SUBSCRIPTION_IDS" \
+  --arg auth_mode "$AUTH_MODE" \
+  --arg output_dir "$PROWLER_OUTPUT_DIR" \
+  --arg report_path "$PROWLER_REPORT_PATH" \
+  --arg fetch_exceptions "$PROWLER_FETCH_EXCEPTIONS" \
+  '{
+    scan_target: {
+      environment: $environment,
+      subscriptions: $subscriptions,
+      auth_mode: $auth_mode
+    },
+    output: {
+      prowler_output_dir: $output_dir,
+      normalized_report: $report_path
+    },
+    governance: {
+      fetch_exceptions: ($fetch_exceptions == "true")
+    }
+  }')"
+
+PROWLER_CMD_EXIT_CODE=0
+OCSF_PATH=""
+
+if [[ "$PROWLER_DETECT_SKIP_SCAN" == "true" ]]; then
+  sr_require_nonempty_file "$PROWLER_OCSF_INPUT_PATH" "prowler ocsf input"
+  OCSF_PATH="$PROWLER_OCSF_INPUT_PATH"
+else
+  marker_file="$(mktemp)"
+  touch "$marker_file"
+
+  read -r -a output_formats_argv <<< "$OUTPUT_FORMATS"
+  prowler_cmd=(
+    prowler azure
+    --subscription-ids "$SUBSCRIPTION_IDS"
+    --output-formats "${output_formats_argv[@]}"
+    --output-directory "$PROWLER_OUTPUT_DIR"
+  )
+
+  if [[ "$IGNORE_EXIT_CODE_3" == "true" ]]; then
+    prowler_cmd+=(--ignore-exit-code-3)
+  fi
+
+  case "$AUTH_MODE" in
+    sp-env)
+      prowler_cmd+=(--sp-env-auth)
+      ;;
+    az-cli)
+      prowler_cmd+=(--az-cli-auth)
+      ;;
+    managed-identity)
+      prowler_cmd+=(--managed-identity-auth)
+      ;;
+    browser)
+      prowler_cmd+=(--browser-auth)
+      ;;
+    *)
+      sr_fail "invalid PROWLER_AZURE_AUTH_MODE" 1 "$(jq -cn --arg auth_mode "$AUTH_MODE" '{auth_mode:$auth_mode,allowed:["sp-env","az-cli","managed-identity","browser"]}')"
+      ;;
+  esac
+
+  if "${prowler_cmd[@]}"; then
+    PROWLER_CMD_EXIT_CODE=0
+  else
+    PROWLER_CMD_EXIT_CODE=$?
+  fi
+
+  # Prowler may return code 3 when FAIL findings exist.
+  if [[ "$PROWLER_CMD_EXIT_CODE" -ne 0 && "$PROWLER_CMD_EXIT_CODE" -ne 3 ]]; then
+    sr_fail "prowler execution failed" 1 "$(jq -cn --argjson exit_code "$PROWLER_CMD_EXIT_CODE" '{exit_code:$exit_code}')"
+  fi
+
+  OCSF_PATH="$(find "$PROWLER_OUTPUT_DIR" -maxdepth 1 -type f -name 'prowler-output-*.ocsf.json' -newer "$marker_file" -print | sort | tail -n1)"
+  if [[ -z "$OCSF_PATH" ]]; then
+    OCSF_PATH="$(ls -1t "$PROWLER_OUTPUT_DIR"/prowler-output-*.ocsf.json 2>/dev/null | head -n1 || true)"
+  fi
+
+  rm -f "$marker_file"
+  sr_require_nonempty_file "$OCSF_PATH" "prowler ocsf report"
+fi
+
+sr_require_json "$OCSF_PATH" '
+  type == "array"
+  and all(.[]; type == "object")
+' "prowler ocsf report"
+
+TOTAL_FINDINGS="$(sr_json_number "$OCSF_PATH" 'length' 'prowler ocsf report')"
+FAIL_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "FAIL")] | length' 'prowler ocsf report')"
+PASS_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "PASS")] | length' 'prowler ocsf report')"
+MUTED_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "MUTED")] | length' 'prowler ocsf report')"
+
+RUN_ID="$(python - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
+FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+jq -c \
+  --arg run_id "$RUN_ID" \
+  --arg environment "$ENVIRONMENT" \
+  --arg finished_at "$FINISHED_AT" \
+  --argjson total_findings "$TOTAL_FINDINGS" \
+  --argjson fail_count "$FAIL_COUNT" \
+  --argjson pass_count "$PASS_COUNT" \
+  --argjson muted_count "$MUTED_COUNT" \
+  '
+  def parse_check_id:
+    (.finding_info.uid // "") as $uid
+    | if $uid == "" then "unknown"
+      else (try ($uid
+        | capture("^prowler-azure-(?<check>.+)-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-.+$").check) catch $uid)
+      end;
+
+  def norm_severity:
+    (.severity // "LOW" | ascii_upcase) as $s
+    | if ($s == "CRITICAL" or $s == "HIGH" or $s == "MEDIUM" or $s == "LOW" or $s == "INFO")
+      then $s
+      else "LOW"
+      end;
+
+  {
+    cloudsentinel: {
+      run_id: $run_id,
+      engine: "cloudsentinel-prowler-engine",
+      version: "0.1.0",
+      source: "prowler",
+      finished_at: $finished_at,
+      environment: $environment
+    },
+    prowler: {
+      detected: ($fail_count > 0),
+      summary: {
+        total_findings: $total_findings,
+        fail_count: $fail_count,
+        pass_count: $pass_count,
+        muted_count: $muted_count
+      },
+      items: [
+        .[]
+        | select((.status_code // "" | ascii_upcase) == "FAIL")
+        | {
+            check_id: parse_check_id,
+            check_uid: (.finding_info.uid // ""),
+            title: (.finding_info.title // "Prowler finding"),
+            resource_id: (.resources[0].uid // .cloud.account.uid // "unknown"),
+            resource_type: (.resources[0].type // "unknown"),
+            region: (.resources[0].region // "global"),
+            severity: norm_severity,
+            status_code: ((.status_code // "FAIL") | ascii_upcase),
+            status_detail: (.status_detail // ""),
+            provider: "azure"
+          }
+      ]
+    },
+    errors: []
+  }
+' "$OCSF_PATH" > "$PROWLER_REPORT_PATH"
+
+sr_require_json "$PROWLER_REPORT_PATH" '
+  type == "object"
+  and (.cloudsentinel | type == "object")
+  and (.prowler | type == "object")
+  and (.prowler.summary | type == "object")
+  and (.prowler.items | type == "array")
+  and (.errors | type == "array")
+  and ((.prowler.detected // null) | type == "boolean")
+' "prowler normalized report"
+
+REPORT_ERROR_COUNT="$(sr_json_number "$PROWLER_REPORT_PATH" '.errors | length' 'prowler normalized report')"
+REPORT_ITEM_COUNT="$(sr_json_number "$PROWLER_REPORT_PATH" '.prowler.items | length' 'prowler normalized report')"
+REPORT_DETECTED="$(jq -r '.prowler.detected' "$PROWLER_REPORT_PATH")"
+
+sr_assert_eq "$REPORT_ITEM_COUNT" "$FAIL_COUNT" "prowler normalized report item count mismatch"
+if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
+  sr_fail "prowler normalized report contains embedded errors" 1 "$(jq -cn --argjson report_error_count "$REPORT_ERROR_COUNT" '{report_error_count:$report_error_count}')"
+fi
+if [[ "$REPORT_DETECTED" == "true" && "$REPORT_ITEM_COUNT" -eq 0 ]]; then
+  sr_fail "prowler report indicates findings but contains zero items" 1 "$(jq -cn --argjson report_item_count "$REPORT_ITEM_COUNT" '{report_item_count:$report_item_count}')"
+fi
+if [[ "$REPORT_DETECTED" == "false" && "$REPORT_ITEM_COUNT" -gt 0 ]]; then
+  sr_fail "prowler report contains items while detected=false" 1 "$(jq -cn --argjson report_item_count "$REPORT_ITEM_COUNT" '{report_item_count:$report_item_count}')"
+fi
+
+if [[ "$PROWLER_FETCH_EXCEPTIONS" == "true" ]]; then
+  python shift-right/scripts/fetch_prowler_exceptions.py \
+    --output "$PROWLER_EXCEPTIONS_FILE" \
+    --environment "$ENVIRONMENT"
+else
+  jq -cn \
+    --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg environment "$ENVIRONMENT" \
+    '{
+      cloudsentinel: {
+        prowler_exceptions: {
+          schema_version: "1.0.0",
+          generated_at: $generated_at,
+          environment: $environment,
+          source: "disabled",
+          meta: {
+            engagement_scope: "shift-right",
+            raw_risk_acceptances: 0,
+            valid_exceptions: 0,
+            skipped_findings: 0,
+            disabled: true
+          },
+          exceptions: []
+        }
+      }
+    }' > "$PROWLER_EXCEPTIONS_FILE"
+fi
+
+sr_require_nonempty_file "$PROWLER_EXCEPTIONS_FILE" "prowler exceptions"
+sr_require_json "$PROWLER_EXCEPTIONS_FILE" '
+  type == "object"
+  and (.cloudsentinel | type == "object")
+  and (.cloudsentinel.prowler_exceptions | type == "object")
+  and (.cloudsentinel.prowler_exceptions.exceptions | type == "array")
+' "prowler exceptions"
+
+PROWLER_EXCEPTION_COUNT="$(sr_json_number "$PROWLER_EXCEPTIONS_FILE" '.cloudsentinel.prowler_exceptions.exceptions | length' 'prowler exceptions')"
+
+{
+  echo "PROWLER_DETECT_EXIT_CODE=${PROWLER_CMD_EXIT_CODE}"
+  if [[ "$REPORT_DETECTED" == "true" ]]; then
+    echo "PROWLER_DETECTED=true"
+  else
+    echo "PROWLER_DETECTED=false"
+  fi
+  echo "PROWLER_TOTAL_FINDINGS=${TOTAL_FINDINGS}"
+  echo "PROWLER_FAIL_COUNT=${FAIL_COUNT}"
+  echo "PROWLER_PASS_COUNT=${PASS_COUNT}"
+  echo "PROWLER_MUTED_COUNT=${MUTED_COUNT}"
+  echo "PROWLER_EXCEPTION_COUNT=${PROWLER_EXCEPTION_COUNT}"
+} > "$PROWLER_ENGINE_ENV_FILE"
+
+# ── Prowler Detection Summary Table ──────────────────────────────────────────
+_status="$([ "$REPORT_DETECTED" == "true" ] && echo "FAILED_CHECKS" || echo "CLEAN")"
+{
+  printf '┌────────────────────────────────────────────────────────────────────────────────┐\n'
+  printf '│ %-78s │\n' "CloudSentinel Prowler — Azure Runtime Posture"
+  printf '│ %-78s │\n' "Env: ${ENVIRONMENT}  |  Status: ${_status}  |  Total: ${TOTAL_FINDINGS}"
+  printf '├──────────────────────────────────────────┬──────────────┬──────────────────────┤\n'
+  printf '│ %-40s │ %-12s │ %-20s │\n' "Metric" "Value" "Notes"
+  printf '├──────────────────────────────────────────┼──────────────┼──────────────────────┤\n'
+  printf '│ %-40s │ %-12s │ %-20s │\n' "Findings FAIL" "${FAIL_COUNT}" "input to OPA"
+  printf '│ %-40s │ %-12s │ %-20s │\n' "Findings PASS" "${PASS_COUNT}" "non-blocking"
+  printf '│ %-40s │ %-12s │ %-20s │\n' "Findings MUTED" "${MUTED_COUNT}" "mutelist applied"
+  printf '│ %-40s │ %-12s │ %-20s │\n' "Exceptions available" "${PROWLER_EXCEPTION_COUNT}" "DefectDojo RA"
+  printf '└──────────────────────────────────────────┴──────────────┴──────────────────────┘\n'
+} >&2
+
+sr_audit "INFO" "stage_complete" "prowler detection completed" "$(sr_build_details \
+  --arg  environment "$ENVIRONMENT" \
+  --argjson total_findings "$TOTAL_FINDINGS" \
+  --argjson fail_count "$FAIL_COUNT" \
+  --argjson pass_count "$PASS_COUNT" \
+  --argjson muted_count "$MUTED_COUNT" \
+  --argjson exception_count "$PROWLER_EXCEPTION_COUNT" \
+  --arg  report_path "$PROWLER_REPORT_PATH" \
+  --arg  ocsf_path "$OCSF_PATH" \
+  --arg  env_file "$PROWLER_ENGINE_ENV_FILE" \
+  '{
+    result: {
+      environment: $environment,
+      total_findings: $total_findings,
+      fail_count: $fail_count,
+      pass_count: $pass_count,
+      muted_count: $muted_count,
+      exception_count: $exception_count
+    },
+    artifacts: {
+      normalized_report: $report_path,
+      ocsf_report: $ocsf_path,
+      env_file: $env_file
+    }
+  }')"

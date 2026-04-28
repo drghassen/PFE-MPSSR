@@ -52,15 +52,30 @@
 - **Actions**: Notify → Tag → Isolate → Auto-remediate
 - **Policies**: `policies/custodian/azure/`
 
+### 4. Prowler (Local Runtime Posture)
+- **Type**: Cloud posture & compliance scan on deployed Azure subscription
+- **Mode**: Local only (not wired into CI gate yet)
+- **Auth**: Azure CLI session or Service Principal env vars
+- **Entry point**: `shift-right/prowler/run-prowler-azure.sh`
+
 ## File Structure
 
 ```
 shift-right/
 ├── drift-engine/               # Python drift detection engine (containerised)
+├── prowler/                    # Local Azure posture scan wrapper
 │
 └── scripts/
     └── fetch_drift_exceptions.py      # Drift exception fetch from DefectDojo
 ```
+
+## Local Runtime Scan (Prowler)
+
+```bash
+make prowler-azure-local
+```
+
+See: [./prowler/README.md](./prowler/README.md)
 
 ## CI Pipeline Stages
 

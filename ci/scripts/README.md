@@ -12,6 +12,7 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `policies-immutability.sh` | enforce policy immutability guard | bash, `shift-left/ci/enforce-policies-immutability.sh` | n/a |
 | `build-scan-tools-image.sh` | build/push scan-tools image | `/kaniko/executor` | n/a |
 | `build-deploy-tools-image.sh` | build/push deploy-tools image | `/kaniko/executor` | n/a |
+| `build-prowler-tools-image.sh` | build/push prowler-tools image | `/kaniko/executor` | n/a |
 | `gitleaks-scan.sh` | run gitleaks wrapper and emit summary | gitleaks, jq, `shift-left/gitleaks/run-gitleaks.sh` | n/a |
 | `checkov-scan.sh` | run checkov wrapper and emit summary | checkov, jq, `shift-left/checkov/run-checkov.sh` | n/a |
 | `trivy-fs-scan.sh` | run trivy fs wrapper and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
@@ -25,7 +26,10 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `verify-db-ports-sync.sh` | fail if `DB_PORTS` (Python) and `db_ports` (Rego) drift | bash, grep, sed | n/a |
 | `opa-decision.sh` | execute OPA tests + enforce decision | opa, curl, `shift-left/opa/run-opa.sh` | n/a |
 | `opa-drift-decision.sh` | evaluate shift-right drift report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |
+| `prowler-detect.sh` | run shift-right Prowler runtime scan and normalize OCSF report | prowler, jq, python3 | n/a |
+| `opa-prowler-decision.sh` | evaluate shift-right prowler report with OPA and export remediation gate variables | opa, curl, jq, git | n/a |
 | `upload-drift-to-defectdojo.sh` | upload shift-right drift report to DefectDojo (`Generic Findings Import`) | curl, jq | n/a |
+| `upload-prowler-to-defectdojo.sh` | upload shift-right prowler report to DefectDojo (`Generic Findings Import`) | curl, jq | n/a |
 | `upload-to-defectdojo.sh` | upload scanner raw reports to DefectDojo | curl, scanner artifacts | n/a |
 | `deploy-infrastructure.sh` | run fail-closed OpenTofu deploy | tofu, cosign | n/a |
 

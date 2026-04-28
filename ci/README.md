@@ -15,7 +15,8 @@ ci/
 ├── scripts/         # Wrappers CI minces (appelent libs + shift-left)
 └── images/
     ├── opa/            # Image OPA durcie (pinning par digest)
-    └── scan-tools/     # Image multi-outils optimisée (Alpine/Slim)
+    ├── scan-tools/     # Image multi-outils optimisée (Alpine/Slim)
+    └── prowler-tools/  # Image dédiée scan runtime Prowler (shift-right)
 ```
 
 ## 🛡️ Supply Chain Security (V5.0)

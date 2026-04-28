@@ -54,6 +54,40 @@ drift-detect:
     reports:
       dotenv: .cloudsentinel/drift_engine.env
 
+prowler-detect:
+  stage: drift
+  image:
+    # TODO: Replace tag with pinned digest after first image-factory build.
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler-tools:1.0.0"
+    entrypoint: [""]
+  before_script: []
+  variables:
+    GIT_STRATEGY: fetch
+    PROWLER_AZURE_AUTH_MODE: "sp-env"
+    PROWLER_AZURE_SUBSCRIPTION_IDS: "${ARM_SUBSCRIPTION_ID}"
+    PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/prowler/output"
+    PROWLER_REPORT_PATH: "${CI_PROJECT_DIR}/shift-right/prowler/output/prowler-report.json"
+    PROWLER_IGNORE_EXIT_CODE_3: "true"
+    PROWLER_OUTPUT_FORMATS: "csv json-ocsf html"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/prowler-detect.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - shift-right/prowler/output/prowler-report.json
+      - .cloudsentinel/prowler/output/
+      - .cloudsentinel/prowler_engine.env
+      - .cloudsentinel/prowler_exceptions.json
+      - .cloudsentinel/prowler_detect_audit.jsonl
+    reports:
+      dotenv: .cloudsentinel/prowler_engine.env
+
 opa-drift-decision:
   stage: decide
   image:
@@ -82,6 +116,34 @@ opa-drift-decision:
     reports:
       dotenv: .cloudsentinel/opa_drift.env
 
+opa-prowler-decision:
+  stage: decide
+  image:
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d"
+    entrypoint: [""]
+  before_script: []
+  needs:
+    - job: prowler-detect
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/opa-prowler-decision.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/opa_prowler_decision.json
+      - .cloudsentinel/opa_prowler.env
+      - .cloudsentinel/prowler_opa_input.json
+      - .cloudsentinel/opa_prowler_server.log
+      - .cloudsentinel/opa_prowler_audit.jsonl
+    reports:
+      dotenv: .cloudsentinel/opa_prowler.env
+
 upload-drift-to-defectdojo:
   stage: report
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
@@ -106,6 +168,30 @@ upload-drift-to-defectdojo:
       - .cloudsentinel/dojo-responses/
       - .cloudsentinel/upload_drift_audit.jsonl
 
+upload-prowler-to-defectdojo:
+  stage: report
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: prowler-detect
+      artifacts: true
+    - job: opa-prowler-decision
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/upload-prowler-to-defectdojo.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/prowler_generic_findings.json
+      - .cloudsentinel/dojo-responses/prowler.json
+      - .cloudsentinel/upload_prowler_audit.jsonl
+
 enforce-shift-right:
   stage: remediate
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
@@ -113,7 +199,11 @@ enforce-shift-right:
   needs:
     - job: opa-drift-decision
       artifacts: true
+    - job: opa-prowler-decision
+      artifacts: true
     - job: upload-drift-to-defectdojo
+      artifacts: true
+    - job: upload-prowler-to-defectdojo
       artifacts: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

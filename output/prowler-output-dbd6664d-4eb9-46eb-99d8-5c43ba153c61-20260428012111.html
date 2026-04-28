@@ -1,0 +1,2984 @@
+<!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <!-- Required meta tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <style>
+        .read-more {color: #00f;}
+
+        .bg-success-custom {background-color: #98dea7 !important;}
+
+        .bg-danger {background-color: #f28484 !important;}
+    </style>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+        integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous" />
+    <!-- https://datatables.net/download/index with jQuery, DataTables, Buttons, SearchPanes, and Select //-->
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.10.25/b-1.7.1/sp-1.4.0/sl-1.3.3/datatables.min.css" />
+    <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css"
+        integrity="sha384-AYmEC3Yw5cVb3ZcuHtOA93w35dYTsvhLPVnYs9eStHfGJvOvKxVfELGroGkvsg+p" crossorigin="anonymous" />
+    <style>
+        .show-read-more .more-text {display: none;}
+
+        .dataTable {font-size: 14px;}
+
+        .container-fluid {font-size: 14px;}
+
+        .float-left { float: left !important; max-width: 100%; }
+    </style>
+    <title>Prowler - The Handy Cloud Security Tool</title>
+    </head>
+    <body>
+    <div class="container-fluid">
+        <div class="row mt-3">
+        <div class="col-md-4">
+            <a href="https://github.com/prowler-cloud/prowler/"><img class="float-left card-img-left mt-4 mr-4 ml-4"
+                        src=https://raw.githubusercontent.com/prowler-cloud/prowler/dc7d2d5aeb92fdf12e8604f42ef6472cd3e8e889/docs/img/prowler-logo-black.png
+                        alt="prowler-logo"
+                        style="width: 15rem; height:auto;"/></a>
+            <div class="card">
+            <div class="card-header">
+                Report Information
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                <div class="row">
+                    <div class="col-md-auto">
+                    <b>Version:</b> 5.24.4
+                    </div>
+                </div>
+                </li>
+                <li class="list-group-item">
+                <b>Parameters used:</b> azure --sp-env-auth --subscription-ids 8eef52e8-b918-4aec-8a36-fb2218e65f77 --ignore-exit-code-3
+                </li>
+                <li class="list-group-item">
+                <b>Date:</b> 2026-04-28T01:21:11.393465
+                </li>
+            </ul>
+            </div>
+        </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-header">
+                            Azure Assessment Summary
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <b>Azure Tenant IDs:</b> dbd6664d-4eb9-46eb-99d8-5c43ba153c61
+                            </li>
+                            <li class="list-group-item">
+                                <b>Azure Tenant Domain:</b> Unknown tenant domain (missing AAD permissions)
+                            </li>
+                            <li class="list-group-item">
+                                <b>Azure Subscriptions:</b> Azure for Students : 8eef52e8-b918-4aec-8a36-fb2218e65f77
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        Azure Credentials
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <b>Azure Identity Type:</b> Service Principal
+                            </li>
+                            <li class="list-group-item">
+                                <b>Azure Identity ID:</b> 2b76bb1b-f692-490c-ab81-d49aa0fd912d
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            <div class="col-md-2">
+            <div class="card">
+                <div class="card-header">
+                    Assessment Overview
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item">
+                        <b>Total Findings:</b> 61
+                    </li>
+                    <li class="list-group-item">
+                        <b>Passed:</b> 15
+                    </li>
+                    <li class="list-group-item">
+                        <b>Passed (Muted):</b> 0
+                    </li>
+                    <li class="list-group-item">
+                        <b>Failed:</b> 46
+                    </li>
+                    <li class="list-group-item">
+                        <b>Failed (Muted):</b> 0
+                    </li>
+                    <li class="list-group-item">
+                        <b>Total Resources:</b> 27
+                    </li>
+                </ul>
+            </div>
+        </div>
+        </div>
+        </div>
+        <div class="row-mt-3">
+        <div class="col-md-12">
+            <table class="table compact stripe row-border ordering" id="findingsTable" data-order='[[ 5, "asc" ]]' data-page-length='100'>
+            <thead class="thead-light">
+                <tr>
+                    <th scope="col">Status</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Service Name</th>
+                    <th scope="col">Region</th>
+                    <th style="width:20%" scope="col">Check ID</th>
+                    <th style="width:20%" scope="col">Check Title</th>
+                    <th scope="col">Resource ID</th>
+                    <th scope="col">Resource Tags</th>
+                    <th scope="col">Status Extended</th>
+                    <th scope="col">Risk</th>
+                    <th scope="col">Recommendation</th>
+                    <th scope="col">Compliance</th>
+                </tr>
+            </thead>
+            <tbody>
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>low</td>
+                            <td>appinsights</td>
+                            <td>global</td>
+                            <td>appinsights<wbr />_ensure<wbr />_is<wbr />_configured</td>
+                            <td>Subscription has at least one Application Insights resource configured</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There are no AppInsight configured in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">If <strong>Application Insights</strong> is missing, applications run with reduced <strong>observability</strong>, limiting detection of anomalies and attacks.<br />
+<br />
+This undermines <strong>integrity</strong> and accountability (fewer traces), degrades <strong>availability</strong> by slowing troubleshooting, and increases exposure to undetected data exfiltration or injection at the app layer.</p></td>
+                            <td><p class="show-read-more">Deploy <strong>Application Insights</strong> for all critical workloads and centralize data in a <strong>Log Analytics workspace</strong>. Configure actionable alerts and dashboards, enforce <strong>least privilege</strong> on telemetry, and set retention/export policies. Use private connectivity and appropriate sampling, and integrate with SIEM for <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/appinsights_ensure_is_configured"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-2.1: 5.3.1
+
+&#x2022;CIS-4.0: 7.1.3.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_312_b
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_1
+
+&#x2022;NIS2: 3.2.3.h, 5.1.2.a
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.2
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-mla
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.13
+
+&#x2022;CSA-CCM-4.0: LOG-07, LOG-08
+
+&#x2022;PCI-4.0: 10.2.1.1.3, 10.2.1.2.3, 10.2.1.3.3, 10.2.1.4.3, 10.2.1.5.3, 10.2.1.6.3, 10.2.1.7.3, 10.2.1.3, 10.2.2.3, 10.4.1.1.1, 10.4.1.1, 10.4.2.1, 10.6.3.3, 10.7.1.1, 10.7.2.1, 5.3.4.3, A1.2.1.3, A3.3.1.1, A3.5.1.1
+
+&#x2022;CIS-3.0: 6.3.1
+
+&#x2022;CIS-5.0: 6.1.3.1
+
+&#x2022;CIS-2.0: 5.3.1
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_auto<wbr />_provisioning<wbr />_log<wbr />_analytics<wbr />_agent<wbr />_vms<wbr />_on</td>
+                            <td>Defender auto-provisioning of Log Analytics agent for Azure VMs is enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/autoProvisioningSettings/default</td>
+                            <td></td>
+                            <td>Defender Auto Provisioning Log Analytics Agents from subscription Azure for Students is set to OFF.</td>
+                            <td><p class="show-read-more">Without automatic agent deployment, some VMs lack security telemetry, creating <strong>blind spots</strong> for vulnerabilities, missing patches, and threats.<br />
+<br />
+Attackers can persist or move laterally unnoticed, undermining <strong>confidentiality</strong> and <strong>integrity</strong>, while delayed detection hampers effective response.</p></td>
+                            <td><p class="show-read-more">Set <strong>Defender for Cloud auto-provisioning</strong> to <code>On</code> so all VMs receive the monitoring agent consistently.<br />
+<br />
+Apply <strong>defense in depth</strong> by enforcing coverage for new and existing machines, standardizing workspaces, and auditing enrollment. Use <strong>least privilege</strong> for data access and integrate with endpoint protection and vulnerability assessment.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_auto_provisioning_log_analytics_agent_vms_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.15
+
+&#x2022;CIS-2.1: 2.1.14
+
+&#x2022;C5-2025: AM-01.01AC, OPS-04.01B, OPS-11.02AC, OPS-15.01B, OPS-15.02B, OPS-15.03B, OPS-15.01AC, OPS-23.01B, OPS-26.05B, DEV-08.02B, SIM-03.01B, SIM-03.06B, SIM-03.07B, PSS-04.01B
+
+&#x2022;NIS2: 2.1.2.h, 3.1.2.d, 3.2.3.c, 3.2.3.e, 3.2.3.g, 3.6.2, 6.9.2, 11.2.2.f
+
+&#x2022;MITRE-ATTACK: T1190
+
+&#x2022;ENS-RD2022: op.mon.3.r2.az.de.1, mp.s.4.r1.az.nt.5
+
+&#x2022;SOC2: cc_3_2, cc_4_2, cc_6_8, cc_7_1, cc_7_2, cc_7_3, cc_a_1_1, pi_1_3
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-mla
+
+&#x2022;CSA-CCM-4.0: TVM-02
+
+&#x2022;CIS-3.0: 3.1.1.1
+
+&#x2022;CIS-2.0: 2.1.15
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_container<wbr />_images<wbr />_scan<wbr />_enabled</td>
+                            <td>Subscription has container image vulnerability scanning enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/Containers</td>
+                            <td></td>
+                            <td>Container image scan is disabled in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without registry scanning, <strong>known CVEs</strong> in images can reach runtime, enabling <strong>RCE</strong>, privilege escalation, and lateral movement. This undermines data confidentiality and integrity and can reduce availability through cryptomining or service disruption.</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for Cloud</strong> image assessment for registries and adopt <strong>shift-left scanning</strong>.<br />
+- Block deployment of images with high-severity findings<br />
+- Rebuild from patched base images regularly<br />
+- Enforce <strong>least privilege</strong> on registry access<br />
+- Use image signing and admission controls</p> <a class="read-more" href="https://hub.prowler.com/check/defender_container_images_scan_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.19, A.5.21, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;HIPAA: 164_308_a_5_ii_b
+
+&#x2022;C5-2025: OPS-04.01B, OPS-05.01B, OPS-26.03B, OPS-32.01B, PSS-11.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 2.2.1, 3.1.2.d, 3.6.2, 5.1.4.f, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1525
+
+&#x2022;SOC2: cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr, ksi-tpr
+
+&#x2022;CSA-CCM-4.0: AIS-05, AIS-07, TVM-04, TVM-05, TVM-07
+
+&#x2022;PCI-4.0: 11.3.1.2.1, 11.3.1.3.3, 11.3.1.3
+
+&#x2022;SecNumCloud-3.2: 12.4, 12.11, 14.6
+
+&#x2022;CCC-v2025.10: CCC.CntrReg.CN01.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_app<wbr />_services<wbr />_is<wbr />_on</td>
+                            <td>Defender for App Services is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/AppServices</td>
+                            <td></td>
+                            <td>Defender plan Defender for App Services from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without this coverage, malicious traffic and runtime anomalies may go unseen, enabling:<br />
+- Confidentiality loss via data exfiltration<br />
+- Integrity compromise through web shells or code tampering<br />
+- Availability impact from takeover and resource abuse</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for App Service</strong> at subscription scope with tier <code>Standard</code>. Integrate alerts with SOC tooling, tune rules to reduce noise, and review findings regularly. Apply <strong>defense in depth</strong> and <strong>least privilege</strong>, and automate responses to contain threats quickly.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_app_services_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.19, A.5.21, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.2
+
+&#x2022;CIS-4.0: 9.1.6.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1059, T1204, T1552, T1486, T1499, T1496, T1087
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: A&A-02, A&A-04, CCC-07, GRC-05, LOG-03, SEF-06
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.6.1
+
+&#x2022;CIS-5.0: 8.1.2.1, 8.1.6.1
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_arm<wbr />_is<wbr />_on</td>
+                            <td>Defender for Azure Resource Manager is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/Arm</td>
+                            <td></td>
+                            <td>Defender plan Defender for ARM from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without this protection, malicious or misconfigured ARM deployments can go unnoticed. Adversaries could create high-privilege roles, disable logging, or deploy exfiltration paths and crypto workloads, degrading <strong>integrity</strong>, <strong>confidentiality</strong>, and <strong>availability</strong> of Azure resources.</p></td>
+                            <td><p class="show-read-more">Enable Microsoft Defender for <strong>Azure Resource Manager</strong> at the <code>Standard</code> tier across all subscriptions. Apply least privilege to deployment principals, enforce the plan via policy for new subscriptions, and route alerts to centralized monitoring to support defense-in-depth and rapid response.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_arm_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.19, A.5.21, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.11
+
+&#x2022;CIS-4.0: 9.1.9.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1562, T1486, T1499, T1087, T1580, T1538, T1526, T1069
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: GRC-05, IVS-09
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.9.1
+
+&#x2022;CIS-5.0: 8.1.9.1
+
+&#x2022;CIS-2.0: 2.1.12
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_azure<wbr />_sql<wbr />_databases<wbr />_is<wbr />_on</td>
+                            <td>Defender for Azure SQL databases is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/SqlServers</td>
+                            <td></td>
+                            <td>Defender plan Defender for Azure SQL DB Servers from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for SQL</strong>, attacks like <strong>SQL injection</strong>, brute-force logins, and anomalous queries may go <strong>undetected</strong>, enabling data exfiltration and tampering. Limited telemetry delays <strong>incident response</strong>, risking loss of confidentiality and integrity and aiding lateral movement.</p></td>
+                            <td><p class="show-read-more">Enable the <strong>Microsoft Defender</strong> plan for Azure SQL databases with <code>pricing_tier: Standard</code> across applicable subscriptions. Integrate alerts with SIEM, enforce <strong>least privilege</strong> and <strong>separation of duties</strong>, and apply <strong>defense in depth</strong> (network controls, MFA) to prevent and promptly detect misuse.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_azure_sql_databases_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.19, A.5.21, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.3
+
+&#x2022;CIS-4.0: 9.1.7.3
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.4
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: A&A-02, A&A-04, CCC-07, GRC-05, LOG-03, SEF-06
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.7.3
+
+&#x2022;CIS-5.0: 8.1.7.3
+
+&#x2022;CIS-2.0: 2.1.4
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_containers<wbr />_is<wbr />_on</td>
+                            <td>Defender for Containers is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/Containers</td>
+                            <td></td>
+                            <td>Defender plan Defender for Containers from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for Containers</strong>, images and runtimes lack continuous <strong>threat detection</strong> and <strong>vulnerability assessment</strong>. Adversaries can ship malicious images, run <strong>cryptomining</strong>, exfiltrate secrets, and <strong>move laterally</strong>, degrading <strong>confidentiality</strong> and <strong>availability</strong> of container workloads.</p></td>
+                            <td><p class="show-read-more">Enable the <strong>Defender for Containers</strong> plan at <code>Standard</code> for all relevant subscriptions. Apply <strong>least privilege</strong>, integrate alerts with response workflows, and use <strong>defense in depth</strong>: signed images, private registries, RBAC, network policies, and periodic reviews to maintain consistent coverage.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_containers_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.8
+
+&#x2022;CIS-4.0: 9.1.4.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B, OPS-32.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1525, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: AIS-05, AIS-07, TVM-04, TVM-05, TVM-07
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.4.1
+
+&#x2022;CIS-5.0: 8.1.4.1
+
+&#x2022;CIS-2.0: 2.1.8
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_cosmosdb<wbr />_is<wbr />_on</td>
+                            <td>Defender for Cosmos DB is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/CosmosDbs</td>
+                            <td></td>
+                            <td>Defender plan Defender for Cosmos DB from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without this protection, Cosmos DB activity lacks advanced threat detection and telemetry. Attacks such as <strong>SQL injection</strong>, credential abuse, and <strong>anomalous access patterns</strong> may go unnoticed, enabling data exfiltration and unauthorized changes, degrading <strong>confidentiality</strong> and <strong>integrity</strong>.</p></td>
+                            <td><p class="show-read-more">Enable the <code>Standard</code> plan for <strong>Microsoft Defender for Azure Cosmos DB</strong> at the subscription to ensure full coverage. Enforce <strong>least privilege</strong>, route alerts to your SIEM, and tune detections. Use policy to require the plan across environments and regularly review findings to strengthen <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_cosmosdb_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.6
+
+&#x2022;CIS-4.0: 9.1.7.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.4
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: TVM-04
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.7.1
+
+&#x2022;CIS-5.0: 8.1.7.1
+
+&#x2022;CIS-2.0: 2.1.9
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_databases<wbr />_is<wbr />_on</td>
+                            <td>Defender for Databases is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/SqlServers</td>
+                            <td></td>
+                            <td>Defender plan Defender for Databases from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without this coverage, database workloads lack <strong>advanced threat detection</strong>, <strong>vulnerability assessment</strong>, and <strong>behavior analytics</strong>.<br />
+<br />
+Attacks like credential brute force, SQL injection, privilege abuse, and data exfiltration can go <strong>undetected</strong>, threatening <strong>confidentiality, integrity</strong>, and <strong>availability</strong>.</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for Databases</strong> at the <code>Standard</code> tier for all supported database types across subscriptions. Integrate alerts with monitoring, automate response, and enforce <strong>least privilege</strong> and <strong>network segmentation</strong> for defense in depth. Use policy to maintain continuous coverage for new resources.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_databases_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.4
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: A&A-02, A&A-04, GRC-05, SEF-06
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-2.0: 2.1.3
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_dns<wbr />_is<wbr />_on</td>
+                            <td>Defender for DNS is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/Dns</td>
+                            <td></td>
+                            <td>Defender plan Defender for DNS from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Absent <strong>Defender for DNS</strong>, query telemetry isn't inspected, allowing <strong>C2 callbacks</strong>, <strong>DNS tunneling</strong>, and <strong>malicious domains</strong> to bypass detection. This increases risks to <strong>confidentiality</strong> (exfiltration), <strong>integrity</strong> (malware/DGA), and <strong>availability</strong> (poisoned or hijacked resolution).</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for DNS</strong> at the <code>Standard</code> tier across applicable subscriptions. Apply <strong>defense in depth</strong>: restrict outbound DNS, use private DNS where feasible, and log/monitor query activity. Route alerts to centralized monitoring. Enforce <strong>least privilege</strong> on security settings and review exclusions regularly.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_dns_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.10
+
+&#x2022;CIS-4.0: 9.1.17
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.7.2.i, 6.7.2.l, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.21
+
+&#x2022;CSA-CCM-4.0: GRC-05, IVS-09
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.16
+
+&#x2022;CIS-2.0: 2.1.11
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_keyvault<wbr />_is<wbr />_on</td>
+                            <td>Defender for Key Vaults is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/KeyVaults</td>
+                            <td></td>
+                            <td>Defender plan Defender for KeyVaults from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for Key Vaults</strong>, anomalous access and mass secret retrievals can go undetected, enabling:<br />
+- Secret exfiltration (confidentiality)<br />
+- Key/secret tampering (integrity)<br />
+- Destructive actions like purge/delete (availability)<br />
+<br />
+Lack of signals delays response and facilitates lateral movement.</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for Key Vaults</strong> at the <code>Standard</code> tier across all subscriptions. Integrate alerts with monitoring and tune noise. Apply <strong>least privilege</strong> with <strong>RBAC</strong>, enforce purge protection and logging, and use <strong>defense in depth</strong> (private access and network restrictions) to prevent abuse and accelerate detection.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_keyvault_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.9
+
+&#x2022;CIS-4.0: 9.1.8.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B, CRY-10.01B, CRY-10.01AC, PSS-07.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2, 9.2.c, 9.2.c.iv
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499, T1580
+
+&#x2022;ENS-RD2022: op.acc.6.r1.az.eid.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: A&A-02, GRC-05, SEF-06
+
+&#x2022;PCI-4.0: 3.5.1.31, 3.5.1.32, 8.3.2.50, 8.3.2.51
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.8.1
+
+&#x2022;CIS-5.0: 8.1.8.1
+
+&#x2022;CIS-2.0: 2.1.10
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_os<wbr />_relational<wbr />_databases<wbr />_is<wbr />_on</td>
+                            <td>Defender for Open-Source Relational Databases is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/OpenSourceRelationalDatabases</td>
+                            <td></td>
+                            <td>Defender plan Defender for Open-Source Relational Databases from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Absent the <code>Standard</code> plan, open-source databases lack <strong>threat detection</strong> and <strong>behavior analytics</strong>, reducing <strong>confidentiality</strong> and <strong>integrity</strong>. SQL injection, brute-force logins, and data exfiltration may go unnoticed, delaying response and enabling <strong>lateral movement</strong>.</p></td>
+                            <td><p class="show-read-more">Enable the plan at the <code>Standard</code> tier across relevant subscriptions. Apply <strong>defense in depth</strong>: enforce <strong>least privilege</strong>, isolate databases on private networks, require strong authentication, and route alerts to centralized monitoring for rapid triage. <em>Review coverage regularly</em>.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_os_relational_databases_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.5
+
+&#x2022;CIS-4.0: 9.1.7.2
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.4
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: TVM-04
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.7.2
+
+&#x2022;CIS-5.0: 8.1.7.2
+
+&#x2022;CIS-2.0: 2.1.6
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_server<wbr />_is<wbr />_on</td>
+                            <td>Defender for Servers is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/VirtualMachines</td>
+                            <td></td>
+                            <td>Defender plan Defender for Servers from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for Servers</strong>, endpoints lack unified EDR, hardening, and threat analytics. This enables silent malware, credential theft, and lateral movement, driving data exfiltration (C), ransomware/tampering (I), and outages or cryptomining abuse (A).</p></td>
+                            <td><p class="show-read-more">Enable the <strong>Defender for Servers</strong> plan at the <strong>subscription</strong> scope with tier <code>Standard</code>, choosing P1 or P2 per asset risk. Ensure all Azure VMs and Arc-enabled servers are covered for EDR integration. Apply <strong>defense in depth</strong> and <strong>least privilege</strong>, and continuously monitor and tune alerts.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_server_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.1
+
+&#x2022;CIS-4.0: 9.1.3.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a, 164_308_a_5_ii_b, 164_308_a_5_ii_c, 164_308_a_6_i, 164_308_a_6_ii, 164_308_a_8, 164_312_e_2_i
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: op.mon.3.r1.az.ev.1, mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: A&A-02, A&A-04, BCR-09, CCC-07, GRC-05, IVS-09, LOG-03, LOG-13, SEF-03, SEF-06, TVM-02, TVM-04, TVM-07
+
+&#x2022;SecNumCloud-3.2: 12.4, 12.9, 13.3, 16.2, 16.3, 18.4
+
+&#x2022;CIS-3.0: 3.1.3.1
+
+&#x2022;CIS-5.0: 8.1.3.1
+
+&#x2022;CIS-2.0: 2.1.1, 2.1.2
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_sql<wbr />_servers<wbr />_is<wbr />_on</td>
+                            <td>Defender for SQL servers on machines is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/SqlServerVirtualMachines</td>
+                            <td></td>
+                            <td>Defender plan Defender for SQL Server VMs from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for SQL Server on Machines</strong>, attacks on SQL Server VMs can go <strong>undetected</strong>-including SQL injection, brute-force logons, and privilege abuse.<br />
+<br />
+This risks data exfiltration (C), schema or record tampering (I), and outages or ransomware impact (A), while reducing visibility and delaying response.</p></td>
+                            <td><p class="show-read-more">Enable the <strong>Defender for SQL Server on Machines</strong> plan at the <code>Standard</code> tier for subscriptions hosting SQL Server VMs.<br />
+<br />
+Apply defense-in-depth: enforce least privilege and strong authentication, segment networks, keep SQL patched, enable auditing, and route alerts to a SIEM for rapid containment.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_sql_servers_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.4
+
+&#x2022;CIS-4.0: 9.1.7.4
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.4
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: TVM-04
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.7.4
+
+&#x2022;CIS-5.0: 8.1.7.4
+
+&#x2022;CIS-2.0: 2.1.5
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_defender<wbr />_for<wbr />_storage<wbr />_is<wbr />_on</td>
+                            <td>Defender for Storage is set to On (Standard pricing tier)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/pricings/StorageAccounts</td>
+                            <td></td>
+                            <td>Defender plan Defender for Storage Accounts from subscription Azure for Students is set to OFF (pricing tier not standard).</td>
+                            <td><p class="show-read-more">Without <strong>Defender for Storage</strong>, suspicious access to blobs, files, and queues may go undetected. Compromised keys or <code>SAS</code> tokens can enable data exfiltration (<strong>confidentiality</strong>), object tampering (<strong>integrity</strong>), and mass deletion or ransomware-like encryption (<strong>availability</strong>).</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for Storage</strong> at the <code>Standard</code> tier for subscriptions with storage workloads. Apply <strong>defense in depth</strong>: restrict network exposure, enforce <strong>least privilege</strong> on keys and <code>SAS</code>, use short-lived tokens and rotation, and route alerts to centralized monitoring for rapid response.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_defender_for_storage_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.19, A.5.21, A.5.22, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.1.7
+
+&#x2022;CIS-4.0: 9.1.5.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_a
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_6
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1537, T1530, T1485, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.5
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: DSP-03, DSP-04, DSP-17, UEM-11
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-3.0: 3.1.5.1
+
+&#x2022;CIS-5.0: 8.1.5.1
+
+&#x2022;CIS-2.0: 2.1.7
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_iot<wbr />_hub<wbr />_defender<wbr />_is<wbr />_on</td>
+                            <td>Defender for IoT Hub is set to On</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>No IoT Security Solutions found in the subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without <strong>Defender for IoT</strong>, device activity lacks telemetry and alerting, degrading CIA:<br />
+- Compromised devices join botnets and exfiltrate data<br />
+- Abused device identities alter cloud twins and commands<br />
+- Lateral movement from IoT networks to Azure workloads<br />
+This blind spot increases dwell time and blast radius.</p></td>
+                            <td><p class="show-read-more">Enable <strong>Defender for IoT</strong> on all IoT Hubs and keep it <code>Enabled</code>. Route security data to a central workspace and your SIEM. Apply <strong>least privilege</strong> to IoT identities, enforce <strong>network segmentation</strong> and private access, and use <strong>defense in depth</strong> with continuous monitoring, alert tuning, and periodic coverage reviews.</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_iot_hub_defender_is_on"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.19, A.5.21, A.5.25, A.5.28, A.5.29, A.8.7, A.8.9
+
+&#x2022;CIS-2.1: 2.2.1
+
+&#x2022;CIS-4.0: 9.2.1
+
+&#x2022;C5-2025: OPS-04.01B
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486, T1499
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: IVS-09
+
+&#x2022;CIS-3.0: 3.2.1
+
+&#x2022;CIS-5.0: 8.2.1
+
+&#x2022;CIS-2.0: 2.2.1
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>medium</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_mcas<wbr />_is<wbr />_enabled</td>
+                            <td>Defender for Cloud Apps is enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/settings/MCAS</td>
+                            <td></td>
+                            <td>Microsoft Defender for Cloud Apps is enabled for subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Missing integration leaves <strong>Defender for Cloud</strong> blind to SaaS context, weakening correlation of control-plane activity with app usage. Attackers can hide data exfiltration via cloud apps, abuse OAuth grants, or mask unauthorized ARM changes-impacting confidentiality and integrity and slowing incident response.</p></td>
+                            <td><p class="show-read-more">Enable and keep the <code>MCAS</code> integration consistent across subscriptions.<br />
+- Apply <strong>least privilege</strong> to integration roles and data access<br />
+- Use policy to enforce the setting and prevent drift<br />
+- Practice <strong>defense in depth</strong> by correlating SaaS and cloud signals<br />
+- Review licensing and validate alert coverage regularly</p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_mcas_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.22
+
+&#x2022;CIS-2.1: 2.1.20
+
+&#x2022;HIPAA: 164_308_a_1_ii_a, 164_308_a_5_ii_c, 164_308_a_8
+
+&#x2022;C5-2025: OPS-04.01B, OPS-05.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190, T1486
+
+&#x2022;ENS-RD2022: mp.s.4.r1.az.nt.3
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;CSA-CCM-4.0: A&A-04, DCS-06, DSP-03, GRC-05, SEF-06, UEM-11
+
+&#x2022;PCI-4.0: 11.5.1.1.2, 11.5.1.2
+
+&#x2022;SecNumCloud-3.2: 12.9, 18.3
+
+&#x2022;CIS-3.0: 3.1.1.2
+
+&#x2022;CIS-2.0: 2.1.21
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>defender</td>
+                            <td>global</td>
+                            <td>defender<wbr />_ensure<wbr />_wdatp<wbr />_is<wbr />_enabled</td>
+                            <td>Defender for Endpoint is enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Security/settings/WDATP</td>
+                            <td></td>
+                            <td>Microsoft Defender for Endpoint integration is enabled for subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without this integration, servers lack <strong>EDR telemetry</strong>, automated onboarding, and unified alerts, shrinking visibility. Hands-on-keyboard intrusions, ransomware, and credential theft can persist unnoticed, enabling data exfiltration (<strong>confidentiality</strong>), unauthorized changes (<strong>integrity</strong>), and outages (<strong>availability</strong>).</p></td>
+                            <td><p class="show-read-more">Enable the <strong>Defender for Endpoint</strong> integration in <strong>Defender for Cloud</strong> at the subscription scope and ensure agents are deployed on supported machines.
+<ul>
+<li>Apply <strong>least privilege</strong> to onboarding roles</li>
+<li>Centralize alerting and response</li>
+<li>Use <strong>defense in depth</strong> with hardening and network controls to reduce attack surface</li>
+</ul></p> <a class="read-more" href="https://hub.prowler.com/check/defender_ensure_wdatp_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-2.1: 2.1.21
+
+&#x2022;HIPAA: 164_308_a_5_ii_b
+
+&#x2022;C5-2025: OPS-04.01B, OPS-23.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 3.6.2, 6.9.2
+
+&#x2022;MITRE-ATTACK: T1190
+
+&#x2022;ENS-RD2022: op.mon.3.r3.az.de.2
+
+&#x2022;SOC2: cc_3_1, cc_3_2, cc_4_2, cc_6_8, cc_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-inr
+
+&#x2022;CSA-CCM-4.0: CCC-07, GRC-05, IVS-09, LOG-03, LOG-13, SEF-06, TVM-02, TVM-04, TVM-07
+
+&#x2022;SecNumCloud-3.2: 12.4
+
+&#x2022;CIS-2.0: 2.1.22
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/providers/Microsoft.Authorization/roleAssignments/c90a27b7-049c-4eca-ab7d-aa1d1d85aff4</td>
+                            <td></td>
+                            <td>Role assignment c90a27b7-049c-4eca-ab7d-aa1d1d85aff4 in subscription Azure for Students grants User Access Administrator role to User 0d42e8dc-8442-4e18-bd7f-585f1558cd3a.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/providers/Microsoft.Authorization/roleAssignments/befee0f8-7c4e-451f-96a2-b3657cb58be6</td>
+                            <td></td>
+                            <td>Role assignment befee0f8-7c4e-451f-96a2-b3657cb58be6 in subscription Azure for Students grants User Access Administrator role to User 07efb741-3779-4047-b815-9049d6bc30c0.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Authorization/roleAssignments/4670d9e2-33b5-431e-86e6-46b8f8e2a689</td>
+                            <td></td>
+                            <td>Role assignment 4670d9e2-33b5-431e-86e6-46b8f8e2a689 in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Authorization/roleAssignments/afa07eb0-4d74-4932-8b01-8baa6088f109</td>
+                            <td></td>
+                            <td>Role assignment afa07eb0-4d74-4932-8b01-8baa6088f109 in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Authorization/roleAssignments/164d1e56-c735-48f6-9c81-20a6a75c96ae</td>
+                            <td></td>
+                            <td>Role assignment 164d1e56-c735-48f6-9c81-20a6a75c96ae in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/providers/Microsoft.Management/managementGroups/dbd6664d-4eb9-46eb-99d8-5c43ba153c61/providers/Microsoft.Authorization/roleAssignments/ad2213eb-9367-4c92-760d-fce6bc5c8dd8</td>
+                            <td></td>
+                            <td>Role assignment ad2213eb-9367-4c92-760d-fce6bc5c8dd8 in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/providers/Microsoft.Management/managementGroups/dbd6664d-4eb9-46eb-99d8-5c43ba153c61/providers/Microsoft.Authorization/roleAssignments/abbad544-0e37-4453-b44b-87cdbbbf3bef</td>
+                            <td></td>
+                            <td>Role assignment abbad544-0e37-4453-b44b-87cdbbbf3bef in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>iam</td>
+                            <td>global</td>
+                            <td>iam<wbr />_role<wbr />_user<wbr />_access<wbr />_admin<wbr />_restricted</td>
+                            <td>Role assignment does not grant the User Access Administrator role</td>
+                            <td>/providers/Microsoft.Management/managementGroups/dbd6664d-4eb9-46eb-99d8-5c43ba153c61/providers/Microsoft.Authorization/roleAssignments/bdc892dc-1b3a-4efa-abfb-76e6b2b4a03d</td>
+                            <td></td>
+                            <td>Role assignment bdc892dc-1b3a-4efa-abfb-76e6b2b4a03d in subscription Azure for Students does not grant User Access Administrator role.</td>
+                            <td><p class="show-read-more">Persistent <code>User Access Administrator</code> enables assigning high-privilege roles and reading control-plane data, enabling privilege escalation and unauthorized access. Impact: <strong>confidentiality</strong> (data exposure), <strong>integrity</strong> (unauthorized changes), <strong>availability</strong> (service disruption).</p></td>
+                            <td><p class="show-read-more">Enforce <strong>least privilege</strong>:<br />
+- Avoid standing <code>User Access Administrator</code>; use time-bound, approval-based elevation (PIM)<br />
+- Scope access to only required subscriptions/resource groups<br />
+- Require MFA and monitor role activity<br />
+- Review regularly and remove unused grants</p> <a class="read-more" href="https://hub.prowler.com/check/iam_role_user_access_admin_restricted"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 6.3.3
+
+&#x2022;HIPAA: 164_308_a_3_i, 164_308_a_3_ii_b, 164_308_a_4_i, 164_308_a_4_ii_b, 164_308_a_4_ii_c, 164_312_a_1
+
+&#x2022;C5-2025: OIS-02.01B, OIS-02.02B, OIS-04.01B, SP-01.04B, PS-03.02B, OPS-16.01B, IAM-01.01B, IAM-04.06B, IAM-06.01B, IAM-06.02B, IAM-08.02B, IAM-10.01B, IAM-10.02B, PSS-09.01AC
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-iam, ksi-iam-07
+
+&#x2022;CSA-CCM-4.0: IAM-04, IAM-10
+
+&#x2022;SecNumCloud-3.2: 9.1, 9.3
+
+&#x2022;CIS-5.0: 5.3.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR01, CCC.Core.CN05.AR02, CCC.Core.CN05.AR06, CCC.IAM.CN02.AR01, CCC.IAM.CN02.AR02, CCC.IAM.CN03.AR01, CCC.IAM.CN03.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_create<wbr />_policy<wbr />_assignment</td>
+                            <td>Subscription has an Azure Monitor activity log alert for policy assignment creation</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for creating Policy Assignments in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Absent alerts on new policy assignments, unauthorized or accidental changes can silently weaken governance. Adversaries could assign permissive policies or replace deny rules, enabling misconfigurations, privilege expansion, and data exposure-degrading <strong>integrity</strong> and threatening <strong>confidentiality</strong> and <strong>availability</strong>.</p></td>
+                            <td><p class="show-read-more">Implement an <strong>activity log alert</strong> for <code>Microsoft.Authorization/policyAssignments/write</code> and route to an action group for timely response.<br />
+<br />
+Apply across all subscriptions, restrict assignment rights (<strong>least privilege</strong>), require change approval, and integrate notifications with your SIEM for <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_create_policy_assignment"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.1
+
+&#x2022;CIS-4.0: 7.1.2.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_312_b
+
+&#x2022;C5-2025: OIS-04.02AC, OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B, PSS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.b, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1496
+
+&#x2022;ENS-RD2022: op.mon.2.r1.az.ma.1
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.3
+
+&#x2022;CSA-CCM-4.0: CCC-04, CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.1
+
+&#x2022;CIS-5.0: 6.1.2.1
+
+&#x2022;CIS-2.0: 5.2.1
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_create<wbr />_update<wbr />_nsg</td>
+                            <td>Subscription has an Activity Log alert for Network Security Group create or update operations</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for creating/updating Network Security Groups in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Lack of alerting on NSG changes allows <strong>unauthorized network policy modifications</strong> to go unnoticed. Adversaries or mistakes could open ports, reduce segmentation, and enable <strong>lateral movement</strong>, impacting data <strong>confidentiality</strong> and service <strong>availability</strong> through exposure or disruption of critical traffic</p></td>
+                            <td><p class="show-read-more">Implement a subscription-wide <strong>Activity Log alert</strong> for NSG change operations and route notifications to an <strong>action group</strong> for rapid triage.<br />
+<br />
+Apply <strong>least privilege</strong> for change tooling, enforce <strong>change management</strong>, and add complementary alerts for <code>Microsoft.Network/networkSecurityGroups/securityRules/write</code> and <code>.../delete</code>. <em>Integrate with SIEM for correlation</em></p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_create_update_nsg"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.3
+
+&#x2022;CIS-4.0: 7.1.2.3
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_6_i, 164_308_a_6_ii, 164_312_b
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.a, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;ENS-RD2022: op.mon.2.r1.az.ma.1
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.5
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;PCI-4.0: 10.2.1.1.8, 10.4.2.2, 10.4.3.1, 10.6.3.8, 10.7.1.3, 10.7.2.3, 11.5.2.2, 11.6.1.2, 12.10.5.2, A3.3.1.3, A3.5.1.3
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.3
+
+&#x2022;CIS-5.0: 6.1.2.3
+
+&#x2022;CIS-2.0: 5.2.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_create<wbr />_update<wbr />_public<wbr />_ip<wbr />_address<wbr />_rule</td>
+                            <td>Subscription has an Activity Log Alert for Public IP address create or update operations</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for creating/updating Public IP address rule in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without this alert, unauthorized or mistaken public IP changes can go unnoticed, exposing workloads to the Internet.<br />
+- Confidentiality: unexpected ingress paths<br />
+- Integrity: shadow endpoints for control<br />
+- Availability: larger DDoS surface and outages</p></td>
+                            <td><p class="show-read-more">Create a subscription-wide <strong>activity log alert</strong> on <code>Microsoft.Network/publicIPAddresses/write</code> and route it to an <strong>action group</strong>.<br />
+<br />
+Enforce <strong>least privilege</strong> for IP management, apply <strong>change control</strong>, and use <strong>defense in depth</strong> (private endpoints, bastions, VPN) to minimize public exposure and speed response.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_create_update_public_ip_address_rule"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.1, A.8.16
+
+&#x2022;CIS-2.1: 5.2.9
+
+&#x2022;CIS-4.0: 7.1.2.9
+
+&#x2022;C5-2025: OIS-04.02AC, OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-12.01B, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B, COS-03.02B, DEV-08.02B, SIM-03.06B, SIM-03.07B, PSS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.a, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1496
+
+&#x2022;ENS-RD2022: op.mon.2.r1.az.ma.1
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.11
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.9
+
+&#x2022;CIS-5.0: 6.1.2.9
+
+&#x2022;CIS-2.0: 5.2.9
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_create<wbr />_update<wbr />_security<wbr />_solution</td>
+                            <td>Subscription has Activity Log alert for Security Solution create or update</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for creating/updating Security Solution in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without this alert, <strong>unauthorized or mistaken changes</strong> to security tooling can go undetected. Attackers could disable defenses, alter integrations, or weaken policies, eroding the <strong>integrity</strong> of controls, creating blind spots that threaten <strong>confidentiality</strong>, and delaying incident response.</p></td>
+                            <td><p class="show-read-more">Configure an <strong>activity log alert</strong> for <code>Microsoft.Security/securitySolutions/write</code> and route it to action groups for prompt notification/automation.<br />
+<br />
+Apply <strong>least privilege</strong>, require <strong>change control</strong>, and forward alerts to a central SIEM to strengthen <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_create_update_security_solution"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.5.16, A.5.22, A.8.16
+
+&#x2022;CIS-2.1: 5.2.5
+
+&#x2022;CIS-4.0: 7.1.2.5
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_6_i
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1496
+
+&#x2022;ENS-RD2022: op.mon.2.r1.az.ma.1, op.mon.3.r6.az.ma.1
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.7
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-03, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.5
+
+&#x2022;CIS-5.0: 6.1.2.5
+
+&#x2022;CIS-2.0: 5.2.5
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_create<wbr />_update<wbr />_sqlserver<wbr />_fr</td>
+                            <td>Subscription has an Activity Log alert for SQL Server firewall rule create or update events</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for creating/updating SQL Server firewall rule in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without alerting on firewall rule changes, unauthorized or accidental openings can remain unnoticed, exposing databases to untrusted networks.<br />
+<br />
+This harms <strong>confidentiality</strong> (data exfiltration via widened IP ranges) and <strong>integrity</strong> (unauthorized queries), while increasing attacker dwell time.</p></td>
+                            <td><p class="show-read-more">Enable an activity log alert for <code>Microsoft.Sql/servers/firewallRules/write</code> and route it to responsive action groups.<br />
+<br />
+Apply <strong>least privilege</strong> for firewall management, enforce change approvals, and use <strong>defense in depth</strong>: prefer <strong>private endpoints</strong> and avoid broad public network access.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_create_update_sqlserver_fr"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.7
+
+&#x2022;CIS-4.0: 7.1.2.7
+
+&#x2022;HIPAA: 164_312_b
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B, COS-03.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.a, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1496
+
+&#x2022;ENS-RD2022: op.mon.2.r1.az.ma.1
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.9
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;PCI-4.0: 10.2.1.1.9, 10.2.1.1.10, 10.2.1.1.22, 10.2.1.2.8, 10.2.1.2.19, 10.2.1.3.8, 10.2.1.3.19, 10.2.1.4.8, 10.2.1.4.19, 10.2.1.5.8, 10.2.1.5.19, 10.2.1.6.8, 10.2.1.6.19, 10.2.1.7.8, 10.2.1.7.19, 10.2.1.8, 10.2.1.19, 10.2.2.8, 10.2.2.19, 10.3.1.8, 10.3.1.19, 10.4.1.1.2, 10.4.1.2, 10.4.2.3, 10.6.3.9, 10.6.3.10, 10.6.3.24, 10.7.1.4, 10.7.2.4, 5.3.4.9, 5.3.4.22, A1.2.1.10, A1.2.1.23, A3.3.1.4, A3.5.1.4
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.7
+
+&#x2022;CIS-5.0: 6.1.2.7
+
+&#x2022;CIS-2.0: 5.2.7
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_delete<wbr />_nsg</td>
+                            <td>Subscription has an Activity Log alert for Network Security Group delete operations</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for deleting Network Security Groups in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without alerting on <strong>NSG deletions</strong>, network segmentation can be removed unnoticed, exposing services to broad ingress/egress. Malicious actors or automation may delete NSGs to enable <strong>lateral movement</strong> and <strong>data exfiltration</strong>. Missing alerts delay response, impacting confidentiality and availability.</p></td>
+                            <td><p class="show-read-more">Configure a subscription-wide <strong>activity log alert</strong> for the NSG delete operation (<code>Microsoft.Network/networkSecurityGroups/delete</code>; include Classic if applicable) and route notifications via <strong>action groups</strong>. Enforce <strong>least privilege</strong> for NSG changes, require <strong>change control</strong>, and integrate with your <strong>SIEM</strong> for correlation.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_delete_nsg"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.4
+
+&#x2022;CIS-4.0: 7.1.2.4
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_6_i, 164_308_a_6_ii, 164_312_b
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B, COS-03.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.a, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1485, T1496
+
+&#x2022;ENS-RD2022: op.acc.6.r5.az.eid.2
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.6
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.4
+
+&#x2022;CIS-5.0: 6.1.2.4
+
+&#x2022;CIS-2.0: 5.2.4
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_delete<wbr />_policy<wbr />_assignment</td>
+                            <td>Subscription has an Activity Log alert for policy assignment deletion</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for deleting policy assignment in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without this alert, <strong>policy assignment deletions</strong> can go unnoticed, eroding configuration <strong>integrity</strong> and enabling governance drift. Malicious or accidental changes may remove guardrails, increasing exposure and threatening <strong>confidentiality</strong> of protected resources.</p></td>
+                            <td><p class="show-read-more"><ul>
+<li>Configure an activity log alert for <code>Microsoft.Authorization/policyAssignments/delete</code> and route to an action group.</li>
+<li>Enforce <strong>least privilege</strong> and <strong>separation of duties</strong> for policy changes and require approvals.</li>
+<li>Integrate alerts with your SIEM and define playbooks for rapid response.</li>
+</ul></p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_delete_policy_assignment"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.2
+
+&#x2022;CIS-4.0: 7.1.2.2
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_312_b
+
+&#x2022;C5-2025: OIS-04.02AC, OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-26.01AS, OPS-26.06B, IAM-03.01AC, IAM-06.05B, IAM-06.06B, DEV-08.02B, SIM-03.06B, SIM-03.07B, PSS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.b, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1485, T1496
+
+&#x2022;ENS-RD2022: op.acc.6.r5.az.eid.2
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.4
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.2
+
+&#x2022;CIS-5.0: 6.1.2.2
+
+&#x2022;CIS-2.0: 5.2.2
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_delete<wbr />_public<wbr />_ip<wbr />_address<wbr />_rule</td>
+                            <td>Azure subscription has an Activity Log alert for public IP address deletion</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for deleting public IP address rule in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Unmonitored deletion of Public IPs can abruptly sever ingress/egress, break DNS and allowlists, and take services offline (<strong>availability</strong>). Attackers or misconfigurations can delete IPs to cause <strong>DoS</strong> or evade controls, and delayed visibility hinders <strong>incident response</strong> and <strong>forensics</strong>.</p></td>
+                            <td><p class="show-read-more">Implement an activity log alert for <code>Microsoft.Network/publicIPAddresses/delete</code> and route it to an action group for rapid response.<br />
+- Apply <strong>least privilege</strong> and change approval for IP deletions<br />
+- Use <strong>resource locks</strong> on critical IPs<br />
+- Centralize alerts in your SIEM and define runbooks for containment</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_delete_public_ip_address_rule"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.1, A.8.16
+
+&#x2022;CIS-2.1: 5.2.10
+
+&#x2022;CIS-4.0: 7.1.2.10
+
+&#x2022;C5-2025: OIS-04.02AC, OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, PS-03.02B, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B, COS-03.02B, DEV-08.02B, SIM-03.06B, SIM-03.07B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.a, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1485, T1496
+
+&#x2022;ENS-RD2022: op.acc.6.r5.az.eid.2
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.12
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.10
+
+&#x2022;CIS-5.0: 6.1.2.10
+
+&#x2022;CIS-2.0: 5.2.10
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_delete<wbr />_security<wbr />_solution</td>
+                            <td>Subscription has an Azure Monitor Activity Log alert for Microsoft.Security/securitySolutions delete operations</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for deleting Security Solution in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without this alert, <strong>unauthorized or accidental deletions</strong> of security tooling may go <strong>unnoticed</strong>, reducing the <strong>availability</strong> of protections and the <strong>integrity</strong> of monitoring. Adversaries can evade defenses, prolong dwell time, and enable <strong>data exfiltration</strong> under reduced visibility.</p></td>
+                            <td><p class="show-read-more">Configure a <strong>dedicated activity log alert</strong> for <code>Microsoft.Security/securitySolutions/delete</code> and route it to resilient <strong>action groups</strong> (email, chat, ticketing, SIEM). Apply <strong>least privilege</strong> and <strong>resource locks</strong> to deter tampering. Test alerting routinely and integrate it into <strong>defense-in-depth</strong> monitoring.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_delete_security_solution"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.5.16, A.5.22, A.8.16
+
+&#x2022;CIS-2.1: 5.2.6
+
+&#x2022;CIS-4.0: 7.1.2.6
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_6_i
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1485, T1496
+
+&#x2022;ENS-RD2022: op.acc.6.r5.az.eid.2
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.8
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.6
+
+&#x2022;CIS-5.0: 6.1.2.6
+
+&#x2022;CIS-2.0: 5.2.6
+
+&#x2022;CCC-v2025.10: CCC.Core.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_delete<wbr />_sqlserver<wbr />_fr</td>
+                            <td>Subscription has an Activity Log Alert for SQL Server firewall rule deletions</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is not an alert for deleting SQL Server firewall rule in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without alerting on firewall rule deletions, unexpected changes to SQL network allowlists can go unnoticed, causing <strong>availability</strong> loss for apps and masking <strong>unauthorized tampering</strong>. A compromised admin could remove rules to disrupt service, erode control <strong>integrity</strong>, and delay response.</p></td>
+                            <td><p class="show-read-more">Create an <strong>activity log alert</strong> for <code>Microsoft.Sql/servers/firewallRules/delete</code> and route it via an <strong>action group</strong> for rapid triage.<br />
+<br />
+Enforce <strong>least privilege</strong> and <strong>separation of duties</strong> on SQL admins, add alerts for related create/update operations, integrate with <strong>SIEM</strong>, and require <em>change approval</em> to strengthen defense in depth.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_delete_sqlserver_fr"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.7, A.8.16
+
+&#x2022;CIS-2.1: 5.2.8
+
+&#x2022;CIS-4.0: 7.1.2.8
+
+&#x2022;HIPAA: 164_312_b
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-13.01B, OPS-13.02B, OPS-13.03AC, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.f, 3.2.4, 3.4.1, 3.5.4, 4.3.2.c, 6.4.1, 7.2.b, 11.3.1, 11.5.2.d
+
+&#x2022;MITRE-ATTACK: T1485, T1496
+
+&#x2022;ENS-RD2022: op.acc.6.r5.az.eid.2
+
+&#x2022;SOC2: cc_2_1, cc_5_2, cc_7_3, cc_7_4, cc_8_1
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.10
+
+&#x2022;CSA-CCM-4.0: CCC-07, LOG-05
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-3.0: 6.2.8
+
+&#x2022;CIS-5.0: 6.1.2.8
+
+&#x2022;CIS-2.0: 5.2.8
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_alert<wbr />_service<wbr />_health<wbr />_exists</td>
+                            <td>Azure subscription has an enabled Activity Log alert for Service Health incidents</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>There is no activity log alert for Service Health in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without alerts for <strong>Service Health incidents</strong>, teams may miss Azure outages or degradations, harming <strong>availability</strong> and delaying failover. Unseen incidents can cause cascading errors, timeouts, deployment failures, and SLA breaches across dependent workloads.</p></td>
+                            <td><p class="show-read-more">Create and maintain an enabled <strong>Activity Log alert</strong> for <strong>Service Health Incident</strong> events.<br />
+- Route via <strong>Action Groups</strong> to on-call channels<br />
+- Filter to critical services/regions<br />
+- Test routing and refine recipients regularly<br />
+- Integrate with <strong>incident response</strong> and <strong>defense-in-depth</strong> monitoring</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_alert_service_health_exists"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 7.1.2.11
+
+&#x2022;HIPAA: 164_308_a_6_i
+
+&#x2022;C5-2025: OIS-05.01B, OIS-05.03B, OIS-08.07B, OIS-08.08B, HR-03.02AC, AM-09.03AC, AM-09.04AC, OPS-05.01B, OPS-05.03AC, OPS-11.02AC, OPS-12.01B, OPS-13.01B, OPS-13.02B, OPS-26.01AS, OPS-26.06B, IAM-06.05B, IAM-06.06B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;CSA-CCM-4.0: LOG-03, LOG-05, LOG-13
+
+&#x2022;SecNumCloud-3.2: 12.9
+
+&#x2022;CIS-5.0: 6.1.2.11
+
+&#x2022;CCC-v2025.10: CCC.LB.CN06.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_diagnostic<wbr />_setting<wbr />_with<wbr />_appropriate<wbr />_categories</td>
+                            <td>Subscription has a diagnostic setting capturing Administrative, Security, Alert, and Policy categories</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>No diagnostic setting captures all appropriate categories (Administrative, Security, Alert, Policy) in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without these categories, critical control-plane actions may go unrecorded. Attackers could change policies, roles, or alerts unnoticed, enabling privilege escalation and resource tampering. This erodes <strong>integrity</strong>, threatens <strong>confidentiality</strong>, and weakens <strong>availability</strong> and <strong>incident response</strong>.</p></td>
+                            <td><p class="show-read-more">Collect <code>Administrative</code>, <code>Security</code>, <code>Policy</code>, and <code>Alert</code> via a subscription diagnostic setting and route them to a centralized, tamper-resistant destination. Enforce <strong>least privilege</strong> on log access, set retention, and create <strong>alerts</strong> for high-risk changes as part of <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_diagnostic_setting_with_appropriate_categories"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.22
+
+&#x2022;CIS-2.1: 5.1.2
+
+&#x2022;CIS-4.0: 7.1.1.2
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_3_ii_a, 164_308_a_5_ii_c, 164_308_a_6_ii, 164_312_b, 164_312_e_2_i
+
+&#x2022;C5-2025: HR-04.01B, OPS-05.03AC, OPS-11.02AC, OPS-12.01B, OPS-26.01AS, IAM-06.05B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.c, 3.2.3.f, 3.4.1
+
+&#x2022;ENS-RD2022: op.exp.8.az.md.1, op.mon.2.az.md.1
+
+&#x2022;SOC2: cc_8_1, pi_1_3
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.2
+
+&#x2022;CSA-CCM-4.0: CCC-04, IAM-12, LOG-02, LOG-07, LOG-08, LOG-09, LOG-11
+
+&#x2022;PCI-4.0: 10.2.1.1.7, 10.2.1.1.15, 10.2.1.2.7, 10.2.1.3.7, 10.2.1.4.7, 10.2.1.5.7, 10.2.1.6.7, 10.2.1.7.7, 10.2.1.7, 10.2.2.7, 10.3.1.7, 10.3.2.2, 10.3.3.4, 10.3.4.3, 10.4.1.1.3, 10.4.1.1.4, 10.4.1.3, 10.4.2.4, 10.5.1.3, 10.6.3.7, 10.6.3.15, 10.7.1.5, 10.7.2.5, 11.5.2.4, 11.6.1.4, 12.10.5.4, 5.3.4.7, 5.3.4.8, A1.2.1.7, A1.2.1.8, A3.3.1.6, A3.3.1.7, A3.5.1.6, A3.5.1.7
+
+&#x2022;SecNumCloud-3.2: 12.2, 12.6, 14.2, 16.6
+
+&#x2022;CIS-3.0: 6.1.2
+
+&#x2022;CIS-5.0: 6.1.1.2
+
+&#x2022;CIS-2.0: 5.1.2
+
+&#x2022;CCC-v2025.10: CCC.Core.CN09.AR02, CCC.Core.CN04.AR01, CCC.Core.CN04.AR02, CCC.Core.CN04.AR03, CCC.AuditLog.CN02.AR01, CCC.AuditLog.CN05.AR01, CCC.Logging.CN01.AR02, CCC.IAM.CN10.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>monitor</td>
+                            <td>global</td>
+                            <td>monitor<wbr />_diagnostic<wbr />_settings<wbr />_exists</td>
+                            <td>Subscription has an Activity Log diagnostic setting</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>No diagnostic settings found in subscription Azure for Students.</td>
+                            <td><p class="show-read-more">Without exporting the <strong>Activity Log</strong>, control-plane events lack <strong>centralization and retention</strong>.<br />
+<br />
+Undetected RBAC changes, policy updates, and resource deletions reduce <strong>detectability</strong>, hinder <strong>forensics</strong>, and weaken incident response and audit evidence.</p></td>
+                            <td><p class="show-read-more">Enable <strong>subscription Diagnostic Settings</strong> to send the <strong>Activity Log</strong> to a trusted destination.<br />
+<br />
+Use <strong>immutable storage</strong> or a <strong>SIEM</strong>, enforce coverage with <strong>Azure Policy</strong>, apply <strong>least privilege</strong> to log access, include essential categories, and set retention aligned to regulatory needs.</p> <a class="read-more" href="https://hub.prowler.com/check/monitor_diagnostic_settings_exists"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.16, A.5.22
+
+&#x2022;CIS-2.1: 5.1.1
+
+&#x2022;CIS-4.0: 7.1.1.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_3_ii_a, 164_308_a_6_ii, 164_312_b
+
+&#x2022;C5-2025: HR-04.01B, OPS-05.03AC, OPS-11.02AC, OPS-26.01AS, IAM-06.05B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_7_4
+
+&#x2022;NIS2: 2.2.3, 3.2.1, 3.2.2, 3.2.3.b, 3.2.3.c, 3.2.3.f, 3.2.3.h, 3.4.1
+
+&#x2022;ENS-RD2022: op.exp.8.r5.az.ds.1, op.mon.2.r2.az.ma.1
+
+&#x2022;SOC2: cc_8_1, pi_1_2, pi_1_3
+
+&#x2022;ProwlerThreatScore-1.0: 3.2.3
+
+&#x2022;CSA-CCM-4.0: A&A-04, CCC-04, CCC-07, DCS-06, DSP-03, LOG-07, LOG-08, LOG-11
+
+&#x2022;SecNumCloud-3.2: 10.4, 12.2, 12.6, 14.2, 16.6
+
+&#x2022;CIS-3.0: 6.1.1
+
+&#x2022;CIS-5.0: 6.1.1.1, 6.1.1.8, 6.1.1.9, 6.1.4
+
+&#x2022;CIS-2.0: 5.1.1
+
+&#x2022;CCC-v2025.10: CCC.Core.CN09.AR02, CCC.Core.CN09.AR03, CCC.Core.CN04.AR01, CCC.Core.CN04.AR02, CCC.Core.CN04.AR03, CCC.AuditLog.CN02.AR01, CCC.AuditLog.CN04.AR01, CCC.AuditLog.CN05.AR01, CCC.Logging.CN01.AR01, CCC.Logging.CN01.AR02, CCC.LB.CN01.AR02, CCC.LB.CN04.AR01, CCC.IAM.CN10.AR01, CCC.IAM.CN10.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>network</td>
+                            <td>global</td>
+                            <td>network<wbr />_bastion<wbr />_host<wbr />_exists</td>
+                            <td>Azure subscription has at least one Bastion Host</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>Bastion Host from subscription Azure for Students does not exist</td>
+                            <td><p class="show-read-more">Absent <strong>Bastion</strong>, admins often assign public IPs or open <code>22/3389</code>, expanding attack surface.<br />
+<br />
+This enables Internet brute force, credential stuffing, and RDP/SSH exploits, leading to unauthorized access, data exfiltration, and lateral movement. CIA impact: confidentiality/integrity loss and potential downtime from ransomware.</p></td>
+                            <td><p class="show-read-more">Standardize on <strong>Azure Bastion</strong> for admin access.<br />
+<br />
+Remove VM public IPs and deny inbound <code>22</code>/<code>3389</code> via perimeter controls and NSGs. Apply <strong>least privilege</strong> and just-in-time access, integrate <strong>Entra ID</strong> with <strong>MFA</strong> and conditional access, monitor sessions/logs, and segment networks so only Bastion can reach management ports.</p> <a class="read-more" href="https://hub.prowler.com/check/network_bastion_host_exists"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.14, A.8.20, A.8.21, A.8.22
+
+&#x2022;CIS-2.1: 7.1
+
+&#x2022;CIS-4.0: 9.4.1
+
+&#x2022;HIPAA: 164_310_a_1
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_5_1, annex_i_7_3
+
+&#x2022;NIS2: 2.3.1, 6.7.2.b, 6.7.2.l, 11.1.1
+
+&#x2022;ENS-RD2022: mp.com.4.r4.az.nt.1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-cna
+
+&#x2022;ProwlerThreatScore-1.0: 2.1.5
+
+&#x2022;CSA-CCM-4.0: IVS-03
+
+&#x2022;SecNumCloud-3.2: 12.12
+
+&#x2022;CIS-3.0: 8.1
+
+&#x2022;CIS-5.0: 8.4.1
+
+&#x2022;CIS-2.0: 7.1
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>network</td>
+                            <td>norwayeast</td>
+                            <td>network<wbr />_flow<wbr />_log<wbr />_captured<wbr />_sent</td>
+                            <td>Network Watcher has flow logs enabled and sent to a Log Analytics workspace</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/NetworkWatcher<wbr />_norwayeast</td>
+                            <td></td>
+                            <td>Network Watcher NetworkWatcher<wbr />_norwayeast from subscription Azure for Students has no flow logs</td>
+                            <td><p class="show-read-more">Missing or disabled flow logging blinds visibility into network behavior, hindering detection of:<br />
+- <strong>Lateral movement</strong> and internal scanning<br />
+- <strong>C2 beacons</strong> and exfiltration patterns<br />
+This degrades incident response and correlation, impacting <strong>confidentiality</strong> and <strong>integrity</strong>.</p></td>
+                            <td><p class="show-read-more">Enable and centrally aggregate <strong>NSG flow logs</strong> to a <strong>Log Analytics workspace</strong>.
+<ul>
+<li>Enforce least privilege on log data</li>
+<li>Define retention and secure storage</li>
+<li>Use layered monitoring (e.g., Traffic Analytics)</li>
+<li>Ensure coverage across regions/subscriptions and critical NSGs</li>
+</ul></p> <a class="read-more" href="https://hub.prowler.com/check/network_flow_log_captured_sent"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.14, A.8.15, A.8.20, A.8.21, A.8.22
+
+&#x2022;CIS-2.1: 5.1.5
+
+&#x2022;CIS-4.0: 7.1.1.5
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_308_a_3_ii_a, 164_308_a_6_ii, 164_312_b, 164_312_c_2, 164_312_e_2_i
+
+&#x2022;C5-2025: AM-01.01AC, OPS-11.02AC, OPS-15.01B, OPS-15.02B, OPS-15.03B, OPS-15.01AC, OPS-26.05B, DEV-08.02B, SIM-03.06B, SIM-03.07B, PSS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_5_1
+
+&#x2022;NIS2: 2.1.2.h, 2.3.1, 3.2.3.a, 3.2.3.d, 3.2.3.g, 6.7.2.b, 6.7.2.l, 11.1.1, 11.2.2.f
+
+&#x2022;MITRE-ATTACK: T1048, T1499
+
+&#x2022;ENS-RD2022: op.mon.1.r1.az.nf.1, op.mon.3.az.nw.1, mp.s.4.r1.az.nt.1
+
+&#x2022;SOC2: cc_7_2, cc_7_3, cc_a_1_1, pi_1_2
+
+&#x2022;ProwlerThreatScore-1.0: 3.1.8
+
+&#x2022;CSA-CCM-4.0: IVS-03, IVS-09, LOG-07, LOG-08
+
+&#x2022;SecNumCloud-3.2: 12.6, 12.14, 13.1, 13.3
+
+&#x2022;CIS-3.0: 6.1.5
+
+&#x2022;CIS-5.0: 6.1.1.5, 6.1.1.7
+
+&#x2022;CIS-2.0: 5.1.6
+
+&#x2022;CCC-v2025.10: CCC.Logging.CN01.AR01, CCC.VPC.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>network</td>
+                            <td>norwayeast</td>
+                            <td>network<wbr />_flow<wbr />_log<wbr />_more<wbr />_than<wbr />_90<wbr />_days</td>
+                            <td>Network Watcher has all flow logs enabled with retention set to 0 or at least 90 days</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/NetworkWatcher<wbr />_norwayeast</td>
+                            <td></td>
+                            <td>Network Watcher NetworkWatcher<wbr />_norwayeast from subscription Azure for Students has no flow logs</td>
+                            <td><p class="show-read-more">Absent or short-retained <strong>NSG flow logs</strong> reduce visibility into IP flows, delaying detection of port scans, brute force, data exfiltration, and lateral movement.<br />
+<br />
+Forensics and accountability degrade, threatening <strong>confidentiality</strong> and <strong>integrity</strong>.</p></td>
+                            <td><p class="show-read-more">Enable <strong>NSG flow logs</strong> and keep retention  <code>90</code> days (<code>0</code> for unlimited). Restrict and monitor access to logs, store immutably, and stream to a SIEM to detect anomalies. Apply <strong>defense in depth</strong> and <strong>least privilege</strong>. Plan migration to <strong>Virtual network flow logs</strong> as NSG flow logs are being retired.</p> <a class="read-more" href="https://hub.prowler.com/check/network_flow_log_more_than_90_days"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.15, A.8.20, A.8.21, A.8.22
+
+&#x2022;CIS-2.1: 6.5
+
+&#x2022;CIS-4.0: 8.8, 8.5
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_312_b
+
+&#x2022;C5-2025: OPS-12.01B, OPS-14.02B, OPS-15.03B, OPS-15.01AC, DEV-08.02B, SIM-03.06B, SIM-03.07B, PSS-04.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_5_1
+
+&#x2022;NIS2: 1.1.1.c, 2.1.2.h, 2.3.1, 3.2.3.a, 3.2.3.g, 3.2.5, 4.1.2.g, 4.1.4, 4.2.2.f, 6.1.2.b, 6.7.2.b, 6.7.2.l, 11.1.1, 11.2.2.f, 12.2.2.a
+
+&#x2022;MITRE-ATTACK: T1499
+
+&#x2022;ENS-RD2022: op.exp.8.r3.az.nt.1, op.mon.3.az.nw.1
+
+&#x2022;SOC2: cc_7_2, cc_7_3, cc_a_1_1, cc_c_1_2, pi_1_3
+
+&#x2022;ProwlerThreatScore-1.0: 3.2.1
+
+&#x2022;CSA-CCM-4.0: IVS-03, LOG-07, LOG-08
+
+&#x2022;PCI-4.0: 10.2.1.1.34, 10.2.1.2.29, 10.2.1.3.29, 10.2.1.4.29, 10.2.1.5.29, 10.2.1.6.29, 10.2.1.7.29, 10.2.1.29, 10.2.2.29, 10.3.1.29, 10.6.3.39, 5.3.4.34, A1.2.1.34
+
+&#x2022;SecNumCloud-3.2: 12.6
+
+&#x2022;CIS-3.0: 7.5
+
+&#x2022;CIS-5.0: 7.5, 7.8
+
+&#x2022;CIS-2.0: 6.5
+
+&#x2022;CCC-v2025.10: CCC.Logging.CN02.AR01, CCC.Logging.CN02.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>network</td>
+                            <td>global</td>
+                            <td>network<wbr />_watcher<wbr />_enabled</td>
+                            <td>Network Watcher is enabled for all locations in the subscription</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77</td>
+                            <td></td>
+                            <td>Network Watcher is not enabled for the following locations in subscription 'Azure for Students': australiacentral, japaneast, eastus2, francesouth, belgiumcentral, switzerlandwest, switzerlandnorth, uksouth, westus2, westus3, westeurope, brazilsouth, koreasouth, southafricanorth, northeurope, koreacentral, chilecentral, eastus, israelcentral, southcentralus, uaenorth, mexicocentral, qatarcentral, southindia, westindia, polandcentral, canadacentral, northcentralus, centralindia, japanwest, germanynorth, jioindiacentral, norwaywest, southeastasia, malaysiawest, austriaeast, indonesiacentral, francecentral, denmarkeast, westus, swedencentral, centralus, australiasoutheast, canadaeast, australiacentral2, newzealandnorth, germanywestcentral, jioindiawest, westcentralus, ukwest, brazilsoutheast, southafricawest, spaincentral, eastasia, australiaeast, italynorth, uaecentral.</td>
+                            <td><p class="show-read-more">Absent <strong>Network Watcher</strong> in a region creates blind spots in <strong>network telemetry and diagnostics</strong>, hindering detection of anomalies. Attackers can exploit unnoticed NSG or routing issues for lateral movement or data exfiltration, degrading <strong>confidentiality</strong> and <strong>availability</strong> and slowing incident triage.</p></td>
+                            <td><p class="show-read-more">Enable <strong>Network Watcher</strong> in all regions and keep it enabled as your footprint expands.<br />
+<br />
+Apply <strong>defense in depth</strong> by centralizing network logs and analytics, enforce coverage with policy, and restrict tool access by <strong>least privilege</strong>. Align retention and monitoring to support timely detection and investigation.</p> <a class="read-more" href="https://hub.prowler.com/check/network_watcher_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.14, A.8.20, A.8.21, A.8.22
+
+&#x2022;CIS-2.1: 6.6
+
+&#x2022;CIS-4.0: 8.6
+
+&#x2022;HIPAA: 164_308_a_1_ii_d, 164_312_b
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_5_1
+
+&#x2022;NIS2: 2.3.1, 6.7.2.b, 6.7.2.l, 6.8.2.a, 11.1.1
+
+&#x2022;MITRE-ATTACK: T1048, T1499, T1498, T1046, T1049
+
+&#x2022;ENS-RD2022: op.mon.1.az.nw.1, op.mon.2.r2.az.ma.1, op.mon.3.az.nw.1, mp.com.1.az.nw.1, mp.com.1.az.nw.2, mp.com.1.az.nw.3, mp.com.3.az.nw.1
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-cna, ksi-mla, ksi-mla-07
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.14
+
+&#x2022;CSA-CCM-4.0: IVS-03, IVS-09
+
+&#x2022;SecNumCloud-3.2: 12.6, 12.14, 13.1, 13.3
+
+&#x2022;CIS-3.0: 7.6
+
+&#x2022;CIS-5.0: 7.6
+
+&#x2022;CIS-2.0: 6.6
+
+&#x2022;CCC-v2025.10: CCC.VPC.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>medium</td>
+                            <td>policy</td>
+                            <td>global</td>
+                            <td>policy<wbr />_ensure<wbr />_asc<wbr />_enforcement<wbr />_enabled</td>
+                            <td>Security Center built-in policy assignment has enforcement mode set to Default</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Authorization/policyAssignments/SecurityCenterBuiltIn</td>
+                            <td></td>
+                            <td>Policy assigment '/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/providers/Microsoft.Authorization/policyAssignments/SecurityCenterBuiltIn' is configured with enforcement mode 'Default'.</td>
+                            <td><p class="show-read-more">With <code>DoNotEnforce</code>, policy effects like <code>deny</code> and <code>deployIfNotExists</code> aren't applied, letting insecure configs persist. This erodes <strong>confidentiality</strong> and <strong>integrity</strong> (exposed endpoints, weak encryption) and can affect <strong>availability</strong> via unpatched or misconfigured services, enabling compromise and lateral movement.</p></td>
+                            <td><p class="show-read-more">Keep enforcement mode <code>Default</code> on the default initiative and avoid disabling critical effects. Apply at scale for consistent governance, align with <strong>least privilege</strong> and <strong>defense in depth</strong>, validate changes in <code>Audit</code> in non-prod, and manage justified exceptions via time-bound policy exemptions instead of turning enforcement off.</p> <a class="read-more" href="https://hub.prowler.com/check/policy_ensure_asc_enforcement_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.5.1
+
+&#x2022;CIS-2.1: 2.1.13
+
+&#x2022;CIS-4.0: 9.1.11
+
+&#x2022;HIPAA: 164_308_a_1_ii_a, 164_308_a_8
+
+&#x2022;ProwlerThreatScore-1.0: 3.3.17
+
+&#x2022;CSA-CCM-4.0: A&A-04, CCC-04, CCC-07, DCS-06, DSP-03
+
+&#x2022;PCI-4.0: 10.2.1.1.31, 10.4.1.1.5, 10.4.1.4, 10.4.2.5, 10.6.3.36, 10.7.1.6, 10.7.2.6, A3.3.1.9, A3.5.1.9
+
+&#x2022;SecNumCloud-3.2: 8.1, 13.1, 17.5, 18.3
+
+&#x2022;CIS-3.0: 3.1.11
+
+&#x2022;CIS-5.0: 8.1.11
+
+&#x2022;CIS-2.0: 2.1.14
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_account<wbr />_key<wbr />_access<wbr />_disabled</td>
+                            <td>Storage account has shared key access disabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has shared key access enabled.</td>
+                            <td><p class="show-read-more">Allowing <strong>Shared Key</strong> undermines <strong>confidentiality, integrity, and availability</strong>:<br />
+- A leaked key grants broad read/write/delete across the account<br />
+- Access bypasses <strong>RBAC</strong> and Conditional Access, reducing accountability<br />
+- Activity is hard to attribute, easing data exfiltration and tampering</p></td>
+                            <td><p class="show-read-more">Disallow <strong>Shared Key</strong> and require <strong>Microsoft Entra ID</strong> with least-privilege RBAC for all data access.<br />
+- Prefer user delegation SAS over account/service SAS<br />
+- Apply Conditional Access and separation of duties<br />
+- Monitor and phase out key-based clients; rotate and revoke unused keys</p> <a class="read-more" href="https://hub.prowler.com/check/storage_account_key_access_disabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.3.1.3
+
+&#x2022;C5-2025: PS-03.02B, IAM-10.01B, IAM-10.02B
+
+&#x2022;CSA-CCM-4.0: DSP-17
+
+&#x2022;CIS-5.0: 9.3.1.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR04, CCC.ObjStor.CN02.AR01, CCC.ObjStor.CN02.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_blob<wbr />_public<wbr />_access<wbr />_level<wbr />_is<wbr />_disabled</td>
+                            <td>Storage account has 'Allow blob public access' disabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has allow blob public access disabled.</td>
+                            <td><p class="show-read-more">Allowing public access permits unauthenticated users to read blob data or enumerate container contents when any container is made public, compromising confidentiality.<br />
+<br />
+Exposed objects can be scraped at scale, enabling data exfiltration and intelligence gathering without audit attribution.</p></td>
+                            <td><p class="show-read-more">Disable <strong>blob public access</strong> at the account and enforce authenticated access based on <strong>least privilege</strong>. Prefer <strong>private endpoints</strong> or restricted networks, use short-lived <code>SAS</code> or federated identities, and apply <strong>RBAC</strong> with container-level permissions. Monitor access and review exposure regularly.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_blob_public_access_level_is_disabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.1
+
+&#x2022;CIS-2.1: 3.7
+
+&#x2022;CIS-4.0: 10.3.9, 10.3.2.2
+
+&#x2022;HIPAA: 164_308_a_1_ii_b, 164_308_a_3_i, 164_312_a_1
+
+&#x2022;C5-2025: PS-03.02B, OPS-32.01B, IAM-10.01B, IAM-10.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3
+
+&#x2022;NIS2: 12.2.2.a
+
+&#x2022;MITRE-ATTACK: T1530
+
+&#x2022;ENS-RD2022: op.mon.3.r5.az.1
+
+&#x2022;SOC2: cc_6_1
+
+&#x2022;ProwlerThreatScore-1.0: 2.2.6
+
+&#x2022;CSA-CCM-4.0: DSP-07, DSP-17
+
+&#x2022;PCI-4.0: 1.2.8.30, 1.2.8.31, 1.2.8.32, 1.2.8.33, 1.2.8.34, 1.2.8.35, 1.3.1.34, 1.3.1.35, 1.3.1.36, 1.3.1.37, 1.3.1.38, 1.3.1.39, 1.3.2.34, 1.3.2.35, 1.3.2.36, 1.3.2.37, 1.3.2.38, 1.3.2.39, 1.4.2.32, 1.4.2.33, 1.4.2.34, 1.4.2.35, 1.4.2.36, 1.4.2.37, 1.5.1.30, 1.5.1.31, 1.5.1.32, 1.5.1.33, 1.5.1.34, 1.5.1.35, 10.3.2.18, 10.3.2.19, 10.3.2.20, 10.3.2.21, 10.3.2.23, 10.3.2.24, 10.3.3.23, 10.3.4.8, 10.6.3.33, 3.5.1.3.23, 3.5.1.3.24, 3.5.1.3.25, 3.5.1.3.26, 3.5.1.3.28, 3.5.1.3.29, 7.2.1.25, 7.2.2.25, 7.2.5.19, 7.2.6.4, 7.3.1.19, 7.3.2.19, 7.3.3.19, 8.2.7.19, 8.2.8.21, 8.3.4.19, A1.1.2.14, A1.1.2.15, A1.1.2.16, A1.1.2.17, A1.1.2.19, A1.1.2.20, A1.1.3.30, A1.1.3.31, A1.1.3.32, A1.1.3.33, A1.1.3.34, A1.1.3.35, A1.2.1.31, A3.4.1.16, A3.4.1.17, A3.4.1.18, A3.4.1.19, A3.4.1.21, A3.4.1.22
+
+&#x2022;SecNumCloud-3.2: 9.7
+
+&#x2022;CIS-3.0: 4.6
+
+&#x2022;CIS-5.0: 9.3.2.2, 9.3.8
+
+&#x2022;CIS-2.0: 3.7
+
+&#x2022;CCC-v2025.10: CCC.AuditLog.CN10.AR01, CCC.AuditLog.CN10.AR02, CCC.Logging.CN05.AR01, CCC.Logging.CN05.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_blob<wbr />_versioning<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has blob versioning enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students does not have blob versioning enabled.</td>
+                            <td><p class="show-read-more">Without <strong>blob versioning</strong>:<br />
+- <strong>Integrity</strong>: overwrites can't be reverted<br />
+- <strong>Availability</strong>: deletes or ransomware remove usable copies<br />
+- <strong>Forensics</strong>: no immutable history for investigation and scoped recovery<br />
+<br />
+Mistakes or compromised identities can cause irreversible object loss and wider impact.</p></td>
+                            <td><p class="show-read-more">Enable <strong>blob versioning</strong> for accounts holding critical data. Pair with <strong>blob soft delete</strong> and lifecycle rules to retain and age off versions. Enforce <strong>least privilege</strong> on write and version-delete actions, and monitor access. <em>For high-churn data</em>, isolate into separate accounts with tailored retention to balance security and cost.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_blob_versioning_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.2.2
+
+&#x2022;HIPAA: 164_308_a_7_i, 164_308_a_7_ii_a, 164_308_a_7_ii_b, 164_308_a_7_ii_c, 164_312_a_2_ii, 164_312_c_1, 164_312_c_2, 164_312_e_2_i
+
+&#x2022;C5-2025: AM-09.01B, OPS-09.02B, OPS-33.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_12
+
+&#x2022;CSA-CCM-4.0: BCR-11
+
+&#x2022;SecNumCloud-3.2: 12.5, 17.6
+
+&#x2022;CIS-5.0: 9.2.3
+
+&#x2022;CCC-v2025.10: CCC.ObjStor.CN03.AR01, CCC.ObjStor.CN05.AR01, CCC.ObjStor.CN05.AR02, CCC.ObjStor.CN05.AR03, CCC.ObjStor.CN05.AR04
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_cross<wbr />_tenant<wbr />_replication<wbr />_disabled</td>
+                            <td>Storage account has cross-tenant replication disabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has cross-tenant replication disabled.</td>
+                            <td><p class="show-read-more">Permitting cross-tenant replication can copy sensitive blobs into external tenants, undermining <strong>confidentiality</strong>. A compromised or mismanaged destination enables <strong>data exfiltration</strong>; mirrored updates/deletes can impact <strong>integrity</strong> and retention, complicating auditability and incident response.</p></td>
+                            <td><p class="show-read-more">Enforce <code>AllowCrossTenantReplication=false</code> and keep replication within the same tenant. Apply <strong>least privilege</strong> and <strong>separation of duties</strong> for replication management, backed by <strong>policy-based governance</strong> to prevent drift. <em>If cross-tenant transfer is required</em>, use formal data-sharing controls, monitoring, and time-bound approvals.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_cross_tenant_replication_disabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.3.8
+
+&#x2022;CSA-CCM-4.0: DSP-17
+
+&#x2022;CIS-5.0: 9.3.7
+
+&#x2022;CCC-v2025.10: CCC.Core.CN10.AR01, CCC.Core.CN05.AR03
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_default<wbr />_network<wbr />_access<wbr />_rule<wbr />_is<wbr />_denied</td>
+                            <td>Storage account default network access rule is set to Deny</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has network access rule set to Allow.</td>
+                            <td><p class="show-read-more">With the default action set to <code>Allow</code>, the public endpoint is reachable from any network. This removes a network boundary, so <strong>stolen access keys</strong> or leaked <strong>SAS tokens</strong> can be abused from anywhere, enabling <strong>data exfiltration</strong>, tampering, and destructive writes-impacting confidentiality, integrity, and availability.</p></td>
+                            <td><p class="show-read-more">Set the default network access to <code>Deny</code> and permit only required sources: selected VNets, specific IP ranges, or preferably <strong>private endpoints</strong>. Apply <strong>least privilege</strong>, minimize service bypass, and use short-lived, scoped SAS to limit blast radius if credentials leak.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_default_network_access_rule_is_denied"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-2.1: 3.8
+
+&#x2022;CIS-4.0: 2.2.1.2, 10.3.2.3
+
+&#x2022;HIPAA: 164_308_a_1_ii_b, 164_308_a_3_i, 164_308_a_4_ii_a, 164_312_a_1
+
+&#x2022;C5-2025: PS-03.02B, IAM-10.01B, IAM-10.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3, annex_i_5_1
+
+&#x2022;NIS2: 1.2.1, 2.3.1, 6.7.2.b, 11.1.1, 11.2.1, 12.2.2.a
+
+&#x2022;ENS-RD2022: op.exp.8.r4.az.sa.2
+
+&#x2022;ProwlerThreatScore-1.0: 2.2.7
+
+&#x2022;CSA-CCM-4.0: DSP-07, DSP-17
+
+&#x2022;SecNumCloud-3.2: 9.7, 13.2
+
+&#x2022;CIS-3.0: 4.7
+
+&#x2022;CIS-5.0: 9.3.2.3
+
+&#x2022;CIS-2.0: 3.8
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR04, CCC.AuditLog.CN10.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_default<wbr />_to<wbr />_entra<wbr />_authorization<wbr />_enabled</td>
+                            <td>Storage account uses Microsoft Entra authorization by default</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Default to Microsoft Entra authorization is not enabled for storage account sttfstateghassen01.</td>
+                            <td><p class="show-read-more">Defaulting to <strong>access keys/Shared Key</strong> enables broad, non-scoped access and weak <strong>auditing</strong>. A stolen key grants full data access, risking <strong>confidentiality</strong> (exfiltration), <strong>integrity</strong> (unauthorized writes/deletes), and <strong>availability</strong> (destructive actions). It can also bypass <strong>least privilege</strong> and enable lateral movement via key reuse.</p></td>
+                            <td><p class="show-read-more">Enable this setting so the portal uses <strong>Microsoft Entra ID</strong> by default. Apply <strong>least privilege</strong> with Azure RBAC, prefer <strong>managed identities</strong> and user-delegation SAS, and <em>where feasible</em> disable Shared Key use. Rotate any existing keys, and monitor access with logs to enforce <strong>defense in depth</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_default_to_entra_authorization_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.3.3.1
+
+&#x2022;HIPAA: 164_312_a_2_i
+
+&#x2022;C5-2025: IAM-03.01AC
+
+&#x2022;CSA-CCM-4.0: DSP-17
+
+&#x2022;CIS-5.0: 9.3.3.1
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR03, CCC.Core.CN05.AR04, CCC.ObjStor.CN02.AR01, CCC.ObjStor.CN02.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_azure<wbr />_services<wbr />_are<wbr />_trusted<wbr />_to<wbr />_access<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has 'Allow trusted Microsoft services to access this storage account' enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students allows trusted Microsoft services to access this storage account.</td>
+                            <td><p class="show-read-more">Without this exception, platform services relying on the account (backup, monitoring, replication) can be blocked, causing failed backups, missing logs, and stalled workflows-affecting <strong>availability</strong> and <strong>integrity</strong>. Teams may over-broaden network access to compensate, increasing <strong>confidentiality</strong> risk.</p></td>
+                            <td><p class="show-read-more">Enable the <strong>trusted services</strong> exception (<code>AzureServices</code>) for storage accounts used by platform services.<br />
+- Enforce <strong>least privilege</strong> with RBAC and managed identities<br />
+- Keep networks restricted; prefer <strong>private endpoints</strong><br />
+- Monitor access and review exceptions regularly</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_azure_services_are_trusted_to_access_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.3
+
+&#x2022;CIS-2.1: 3.9
+
+&#x2022;CIS-4.0: 10.3.5
+
+&#x2022;C5-2025: PS-03.02B, OPS-16.01B, IAM-10.01B, IAM-10.02B
+
+&#x2022;NIS2: 12.2.2.a
+
+&#x2022;MITRE-ATTACK: T1530
+
+&#x2022;ENS-RD2022: mp.info.6.r2.az.sa.1
+
+&#x2022;ProwlerThreatScore-1.0: 2.2.8
+
+&#x2022;CSA-CCM-4.0: IPY-03
+
+&#x2022;PCI-4.0: 10.6.3.35, 11.5.2.5, 11.6.1.5, 12.10.5.5, 7.2.1.27, 7.2.2.27, 7.2.5.21, 7.2.6.5, 7.3.1.21, 7.3.2.21, 7.3.3.21, 8.2.7.21, 8.2.8.23, 8.3.4.21, A3.3.1.8, A3.5.1.8
+
+&#x2022;CIS-3.0: 4.8
+
+&#x2022;CIS-5.0: 9.3.5
+
+&#x2022;CIS-2.0: 3.9
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_encryption<wbr />_with<wbr />_customer<wbr />_managed<wbr />_keys</td>
+                            <td>Azure Storage account uses customer-managed keys (CMKs) for encryption</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students does not encrypt with CMKs.</td>
+                            <td><p class="show-read-more">Without <strong>CMK</strong>, keys are provider-controlled, reducing <strong>confidentiality</strong> and governance.<br />
+- Cannot promptly revoke access during incidents<br />
+- No custom rotation or separation of duties<br />
+- Limited key-use auditing<br />
+This weakens data sovereignty and hinders effective crypto-shredding.</p></td>
+                            <td><p class="show-read-more">Adopt <strong>CMK</strong> with keys in Key Vault or Managed HSM. Enforce <strong>least privilege</strong> for the storage identity, regular <strong>key rotation</strong>, and <strong>separation of duties</strong> between key custodians and operators. Audit key usage, enable tamper-resistant key protection (soft-delete/purge protection), and plan for <strong>key revocation/crypto-shredding</strong>.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_encryption_with_customer_managed_keys"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.5, A.8.11, A.8.24
+
+&#x2022;CIS-2.1: 3.12
+
+&#x2022;CIS-4.0: 2.1.1.2.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_b, 164_308_a_4_ii_a, 164_310_d_1, 164_312_a_2_iv, 164_312_c_1, 164_312_c_2, 164_312_e_2_ii
+
+&#x2022;C5-2025: OIS-08.02B, OPS-14.03B, IAM-03.01AS, CRY-05.02B, CRY-06.01B, CRY-19.01B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3
+
+&#x2022;NIS2: 9.2.a, 9.2.c.iv, 12.2.2.a, 12.2.2.b
+
+&#x2022;MITRE-ATTACK: T1530
+
+&#x2022;ENS-RD2022: op.exp.10.az.kv.2
+
+&#x2022;SOC2: cc_6_7, cc_7_5, pi_1_4, pi_1_5
+
+&#x2022;ProwlerThreatScore-1.0: 4.2.1
+
+&#x2022;CSA-CCM-4.0: BCR-08, CEK-03, CEK-08, CEK-10, DSP-17, LOG-02, LOG-09
+
+&#x2022;PCI-4.0: 3.5.1.34, 8.3.2.53
+
+&#x2022;SecNumCloud-3.2: 10.1
+
+&#x2022;CIS-3.0: 4.11
+
+&#x2022;CIS-5.0: 2.1.8
+
+&#x2022;CIS-2.0: 3.12
+
+&#x2022;CCC-v2025.10: CCC.Core.CN02.AR01, CCC.Core.CN11.AR03, CCC.ObjStor.CN01.AR01, CCC.ObjStor.CN01.AR02, CCC.ObjStor.CN01.AR03, CCC.ObjStor.CN01.AR04
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_file<wbr />_shares<wbr />_soft<wbr />_delete<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has soft delete enabled for file shares</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01/fileServices/default</td>
+                            <td></td>
+                            <td>File share soft delete is enabled for storage account sttfstateghassen01 with a retention period of 7 days.</td>
+                            <td><p class="show-read-more">Without <strong>soft delete</strong>, deletions are irreversible, reducing <strong>availability</strong> and <strong>integrity</strong>. Mistakes or insiders can wipe shares, causing outages, data loss, and lengthy restores. Destructive deletes can magnify ransomware impact and block timely recovery.</p></td>
+                            <td><p class="show-read-more">Enable <strong>soft delete</strong> for all Azure file shares and choose a retention window aligned to <code>RPO/RTO</code> and data criticality (e.g., <code>7-90</code> days). Apply <strong>least privilege</strong> to delete actions, layer <strong>snapshots/backup</strong> for defense in depth, consider <strong>resource locks</strong>, and monitor delete events for misuse.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_file_shares_soft_delete_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.1.1
+
+&#x2022;HIPAA: 164_308_a_7_i, 164_308_a_7_ii_a
+
+&#x2022;C5-2025: PI-03.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_12
+
+&#x2022;CSA-CCM-4.0: DSP-02, DSP-16
+
+&#x2022;SecNumCloud-3.2: 12.5
+
+&#x2022;CIS-5.0: 9.1.1
+
+&#x2022;CCC-v2025.10: CCC.ObjStor.CN04.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_minimum<wbr />_tls<wbr />_version<wbr />_12</td>
+                            <td>Storage account minimum TLS version is 1.2</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has TLS version set to 1.2.</td>
+                            <td><p class="show-read-more">Allowing TLS <code>1.0</code>/<code>1.1</code> enables protocol downgrades and exploitation of known flaws (e.g., BEAST), weakening <strong>confidentiality</strong> and <strong>integrity</strong>. Attackers can intercept or modify data in transit and harvest credentials via weakened cipher suites.</p></td>
+                            <td><p class="show-read-more">Set the storage account <code>minimum TLS version</code> to at least <code>1.2</code> (prefer <code>1.3</code> where supported) and disable legacy protocols. Apply <strong>defense in depth</strong> by restricting network access, using <strong>least privilege</strong> credentials, and monitoring handshake failures to identify outdated clients.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_minimum_tls_version_12"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-2.1: 3.15
+
+&#x2022;CIS-4.0: 10.3.7
+
+&#x2022;HIPAA: 164_312_e_1, 164_312_e_2_i, 164_312_e_2_ii
+
+&#x2022;C5-2025: OPS-23.01B, IAM-09.03B, CRY-04.01B, CRY-04.01AS, COS-08.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3
+
+&#x2022;NIS2: 6.7.2.i, 6.7.2.l, 12.2.2.a, 12.2.2.c
+
+&#x2022;MITRE-ATTACK: T1040
+
+&#x2022;ENS-RD2022: mp.com.3.r2.az.tls.3
+
+&#x2022;SOC2: cc_6_6
+
+&#x2022;ProwlerThreatScore-1.0: 4.1.3
+
+&#x2022;CSA-CCM-4.0: CEK-04, DSP-10
+
+&#x2022;SecNumCloud-3.2: 10.2
+
+&#x2022;CIS-3.0: 4.15
+
+&#x2022;CIS-5.0: 9.3.6
+
+&#x2022;CIS-2.0: 3.15
+
+&#x2022;CCC-v2025.10: CCC.Core.CN01.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_private<wbr />_endpoints<wbr />_in<wbr />_storage<wbr />_accounts</td>
+                            <td>Storage account has private endpoint connections</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students does not have private endpoint connections.</td>
+                            <td><p class="show-read-more">Relying on the <strong>public endpoint</strong> widens exposure:<br />
+- Confidentiality: higher risk of key/SAS compromise and unauthorized reads<br />
+- Integrity: abused creds enable writes/deletes<br />
+- Availability: subject to DDoS and internet scanning<br />
+It can also bypass egress controls, easing covert data exfiltration.</p></td>
+                            <td><p class="show-read-more">Prefer <strong>Private Endpoints</strong> for storage access and minimize public exposure:<br />
+- Limit or disable <code>Public network access</code><br />
+- Use private DNS so names resolve to private IPs<br />
+- Enforce <strong>least privilege</strong> and <strong>defense in depth</strong> with segmentation and logging<br />
+- Monitor access and rotate keys/SAS <em>as part of routine hygiene</em>.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_private_endpoints_in_storage_accounts"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.14
+
+&#x2022;CIS-2.1: 3.10
+
+&#x2022;CIS-4.0: 2.2.2.1, 10.3.2.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_b, 164_308_a_4_ii_a, 164_312_a_1
+
+&#x2022;C5-2025: IAM-10.01B, IAM-10.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3
+
+&#x2022;NIS2: 1.1.1.a, 1.1.1.c, 6.7.2.i, 6.7.2.l, 11.2.2.d, 12.2.2.a
+
+&#x2022;MITRE-ATTACK: T1530
+
+&#x2022;ENS-RD2022: mp.com.4.r2..az.sa.1
+
+&#x2022;SOC2: cc_3_3
+
+&#x2022;ProwlerThreatScore-1.0: 2.2.9
+
+&#x2022;CSA-CCM-4.0: DSP-07, IVS-06
+
+&#x2022;SecNumCloud-3.2: 13.2
+
+&#x2022;CIS-3.0: 4.9
+
+&#x2022;CIS-5.0: 9.3.2.1
+
+&#x2022;CIS-2.0: 3.10
+
+&#x2022;CCC-v2025.10: CCC.Core.CN05.AR04, CCC.Core.CN05.AR05, CCC.AuditLog.CN10.AR01, CCC.AuditLog.CN10.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_ensure<wbr />_soft<wbr />_delete<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has soft delete for containers enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has soft delete disabled.</td>
+                            <td><p class="show-read-more">Without this, container deletions are permanent, reducing <strong>availability</strong> and <strong>integrity</strong>. A compromised user or faulty automation could erase entire datasets, forcing slow restores from backups and extending RTO/RPO, with potential downstream app outages.</p></td>
+                            <td><p class="show-read-more">Enable <strong>container soft delete</strong> and choose a retention window (<code>7-365</code> days) that meets your RPO. Pair with <strong>blob soft delete</strong> and <strong>versioning</strong> for layered recovery. Enforce <strong>least privilege</strong> on delete actions and apply resource <strong>locks</strong> to prevent destructive changes.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_ensure_soft_delete_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.10
+
+&#x2022;CIS-2.1: 3.11
+
+&#x2022;CIS-4.0: 10.2.1, 10.3.6
+
+&#x2022;HIPAA: 164_308_a_7_i, 164_308_a_7_ii_a, 164_308_a_7_ii_b, 164_308_a_7_ii_c, 164_312_a_2_ii
+
+&#x2022;C5-2025: PI-03.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_12
+
+&#x2022;NIS2: 4.2.2.f, 12.2.2.a, 12.2.2.b
+
+&#x2022;MITRE-ATTACK: T1485
+
+&#x2022;SOC2: cc_7_4, cc_c_1_1, cc_c_1_2, pi_1_5
+
+&#x2022;CSA-CCM-4.0: CCC-04, DSP-02, DSP-16, LOG-02
+
+&#x2022;PCI-4.0: 10.3.2.22, 3.5.1.3.27, 8.4.1.5, 8.4.2.5, 8.4.3.5, A1.1.2.18, A3.4.1.20
+
+&#x2022;SecNumCloud-3.2: 12.5, 17.6
+
+&#x2022;CIS-3.0: 4.10
+
+&#x2022;CIS-5.0: 9.2.1, 9.2.2
+
+&#x2022;CIS-2.0: 3.11
+
+&#x2022;CCC-v2025.10: CCC.ObjStor.CN03.AR01, CCC.ObjStor.CN03.AR02, CCC.ObjStor.CN04.AR01, CCC.ObjStor.CN04.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_geo<wbr />_redundant<wbr />_enabled</td>
+                            <td>Azure Storage account uses geo-redundant replication (GRS, GZRS, RA-GRS, or RA-GZRS)</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students does not have Geo-redundant storage enabled, it has Standard<wbr />_LRS instead.</td>
+                            <td><p class="show-read-more">Absent <strong>geo-replication</strong>, data resides in one region, undermining <strong>availability</strong> and <strong>durability</strong> during regional failures. Disasters can cause prolonged downtime or unrecoverable loss. With geo-replication but without <code>RA-*</code>, the secondary is unreadable, increasing RTO and interrupting business continuity.</p></td>
+                            <td><p class="show-read-more">Adopt <strong>GRS/GZRS</strong> for critical workloads (prefer <code>Standard_GZRS</code> where supported) to achieve cross-region resilience. <em>If read continuity is required</em>, use <code>Standard_RAGRS</code> or <code>Standard_RAGZRS</code>. Define RPO/RTO, regularly test failover, and design for <strong>defense in depth</strong> across regions and zones.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_geo_redundant_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.3.12
+
+&#x2022;HIPAA: 164_308_a_7_i, 164_308_a_7_ii_a, 164_308_a_7_ii_b, 164_308_a_7_ii_c, 164_312_a_2_ii
+
+&#x2022;C5-2025: PS-02.01B, PS-02.01AS, PS-02.02B, PS-02.02AS
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_12
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-rpl
+
+&#x2022;CSA-CCM-4.0: BCR-11
+
+&#x2022;SecNumCloud-3.2: 12.5, 17.2, 17.4
+
+&#x2022;CIS-5.0: 9.3.11
+
+&#x2022;CCC-v2025.10: CCC.Core.CN08.AR01, CCC.Core.CN08.AR02
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>low</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_infrastructure<wbr />_encryption<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has infrastructure encryption enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has infrastructure encryption disabled.</td>
+                            <td><p class="show-read-more">Without this second layer, compromise of the service-level key or algorithm can expose stored data, degrading <strong>confidentiality</strong> and weakening <strong>defense in depth</strong>. Insider misuse or key theft is more likely to yield readable blobs, files, or tables.</p></td>
+                            <td><p class="show-read-more">Enable <strong>infrastructure encryption</strong> for accounts or scopes handling sensitive data to strengthen <strong>defense in depth</strong>. Plan it at creation, as the setting is immutable. Maintain strong key hygiene for service-level encryption (use CMK where appropriate, rotate, restrict access) and enforce guardrails with policy.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_infrastructure_encryption_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.5, A.8.11, A.8.24
+
+&#x2022;CIS-2.1: 3.2
+
+&#x2022;CIS-4.0: 10.3.1.1
+
+&#x2022;HIPAA: 164_308_a_1_ii_b, 164_308_a_4_ii_a, 164_310_d_1, 164_312_a_2_iv, 164_312_e_2_ii
+
+&#x2022;C5-2025: OIS-08.02B, CRY-06.01B
+
+&#x2022;NIS2: 9.2.a, 12.2.2.a, 12.2.2.b
+
+&#x2022;MITRE-ATTACK: T1530
+
+&#x2022;ENS-RD2022: op.exp.10.az.kv.2
+
+&#x2022;SOC2: cc_6_7, cc_7_5, pi_1_4, pi_1_5
+
+&#x2022;FedRAMP-20x-KSI-Low-25.05C: ksi-rpl, ksi-svc
+
+&#x2022;CSA-CCM-4.0: CEK-03, UEM-08
+
+&#x2022;PCI-4.0: 3.5.1.22, 8.3.2.37
+
+&#x2022;SecNumCloud-3.2: 10.1
+
+&#x2022;CIS-3.0: 4.3
+
+&#x2022;CIS-5.0: 9.3.1.1
+
+&#x2022;CIS-2.0: 3.2
+
+&#x2022;CCC-v2025.10: CCC.Core.CN02.AR01
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_key<wbr />_rotation<wbr />_90<wbr />_days</td>
+                            <td>Storage account has access key expiration period set to 90 days or less</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has no key expiration period set.</td>
+                            <td><p class="show-read-more">Long-lived storage access keys undermine <strong>confidentiality</strong> and <strong>integrity</strong>: a leaked or reused key grants full data access and can sign SAS tokens. Extended validity enables persistent unauthorized access, data exfiltration, and tampering, and complicates revocation and incident response.</p></td>
+                            <td><p class="show-read-more">Enforce a <code>key expiration period</code> of <code>&lt;= 90</code> days and automate rotation. Prefer <strong>Microsoft Entra ID</strong> with managed identities over Shared Key; when SAS is needed, use user-delegation SAS. Apply <strong>least privilege</strong>, minimize key distribution, monitor usage, rotate on suspected exposure, and disable Shared Key when feasible.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_key_rotation_90_days"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-2.1: 3.4
+
+&#x2022;CIS-4.0: 10.3.1.2
+
+&#x2022;HIPAA: 164_308_a_3_ii_c, 164_308_a_4_ii_c, 164_308_a_5_ii_d
+
+&#x2022;C5-2025: OPS-31.02B, IAM-08.05B, CRY-03.01B, CRY-04.01B, CRY-04.01AS, CRY-07.01B, CRY-09.02B
+
+&#x2022;NIS2: 9.2.c.iii, 9.2.c.iv, 11.6.2.c, 12.2.2.a
+
+&#x2022;ENS-RD2022: op.acc.6.r1.az.eid.2
+
+&#x2022;CSA-CCM-4.0: CEK-12, IAM-08
+
+&#x2022;CIS-3.0: 4.4
+
+&#x2022;CIS-5.0: 9.3.1.2
+
+&#x2022;CIS-2.0: 3.4
+
+&#x2022;CCC-v2025.10: CCC.Core.CN11.AR06
+</p></td>
+                        </tr>
+                        
+                        <tr class="p-3 mb-2 bg-success-custom">
+                            <td>PASS</td>
+                            <td>high</td>
+                            <td>storage</td>
+                            <td>norwayeast</td>
+                            <td>storage<wbr />_secure<wbr />_transfer<wbr />_required<wbr />_is<wbr />_enabled</td>
+                            <td>Storage account has secure transfer required enabled</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students has secure transfer required enabled.</td>
+                            <td><p class="show-read-more">Allowing <code>HTTP</code> to storage endpoints enables <strong>man-in-the-middle</strong> and <strong>TLS-stripping</strong> attacks.<br />
+Intercepted traffic can expose credentials, SAS tokens, or data (<strong>confidentiality</strong>) and allow request tampering (<strong>integrity</strong>), leading to unauthorized access and <strong>data exfiltration</strong>.</p></td>
+                            <td><p class="show-read-more">Enforce <strong>HTTPS-only</strong> on all storage accounts (<code>enableHttpsTrafficOnly</code>) and use modern TLS.<br />
+Apply <strong>least privilege</strong> to SAS and keys, rotate if exposure is suspected, and use <strong>defense in depth</strong>: prefer private endpoints, restrict public access, block <code>HTTP</code> at network controls, and ensure all clients use <code>https://</code> endpoints.</p> <a class="read-more" href="https://hub.prowler.com/check/storage_secure_transfer_required_is_enabled"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;ISO27001-2022: A.8.12, A.8.14, A.8.24
+
+&#x2022;CIS-2.1: 3.1
+
+&#x2022;CIS-4.0: 10.3.4
+
+&#x2022;HIPAA: 164_312_a_2_iv, 164_312_c_1, 164_312_c_2, 164_312_e_1, 164_312_e_2_i, 164_312_e_2_ii
+
+&#x2022;C5-2025: OIS-08.02B
+
+&#x2022;RBI-Cyber-Security-Framework: annex_i_1_3
+
+&#x2022;NIS2: 6.7.2.i, 6.7.2.l, 9.2.a, 12.2.2.a, 12.2.2.b, 12.2.2.c
+
+&#x2022;MITRE-ATTACK: T1040
+
+&#x2022;ENS-RD2022: mp.com.3.az.sa.1
+
+&#x2022;SOC2: cc_6_2, cc_6_7
+
+&#x2022;CSA-CCM-4.0: CEK-03, DSP-10, IPY-03
+
+&#x2022;PCI-4.0: 1.2.5.15, 2.2.5.15, 2.2.7.19, 3.5.1.30, 4.2.1.1.27, 4.2.1.19, 8.3.2.48, 8.3.2.49
+
+&#x2022;SecNumCloud-3.2: 10.2
+
+&#x2022;CIS-3.0: 4.1
+
+&#x2022;CIS-5.0: 9.3.4
+
+&#x2022;CIS-2.0: 3.1
+
+&#x2022;CCC-v2025.10: CCC.Core.CN01.AR01, CCC.Core.CN01.AR03
+</p></td>
+                        </tr>
+                        
+                        <tr class="table-danger">
+                            <td>FAIL</td>
+                            <td>medium</td>
+                            <td>storage</td>
+                            <td>global</td>
+                            <td>storage<wbr />_smb<wbr />_channel<wbr />_encryption<wbr />_with<wbr />_secure<wbr />_algorithm</td>
+                            <td>Storage account uses AES-256-GCM for SMB channel encryption on file shares</td>
+                            <td>/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01/fileServices/default</td>
+                            <td></td>
+                            <td>Storage account sttfstateghassen01 from subscription Azure for Students does not have SMB channel encryption enabled for file shares.</td>
+                            <td><p class="show-read-more">Missing or weak SMB channel encryption undermines <strong>confidentiality</strong> and <strong>integrity</strong>. On-path attackers could read sensitive files, capture hashes, or modify data in transit. Allowing legacy ciphers increases downgrade risks and can facilitate <strong>lateral movement</strong>, eroding trust boundaries across networks.</p></td>
+                            <td><p class="show-read-more">Enforce <strong>defense in depth</strong> by restricting SMB channel encryption to <code>AES-256-GCM</code> on SMB <code>3.1.1</code>, removing weaker options.
+<ul>
+<li>Prefer private access (private endpoints/VPN)</li>
+<li>Require secure transfer and modern TLS</li>
+<li>Apply <strong>least privilege</strong> on shares</li>
+<li>Validate client support and monitor connections during rollout</li>
+</ul></p> <a class="read-more" href="https://hub.prowler.com/check/storage_smb_channel_encryption_with_secure_algorithm"><i class="fas fa-external-link-alt"></i></a></td>
+                            <td><p class="show-read-more">
+&#x2022;CIS-4.0: 10.1.3
+
+&#x2022;CSA-CCM-4.0: CEK-03
+
+&#x2022;SecNumCloud-3.2: 10.2
+
+&#x2022;CIS-5.0: 9.1.3
+
+&#x2022;CCC-v2025.10: CCC.Core.CN01.AR01, CCC.Core.CN11.AR01
+</p></td>
+                        </tr>
+                        
+            </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Table search and paginator -->
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+        integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.bundle.min.js"
+        integrity="sha384-1CmrxMRARb6aLqgBO7yyAxTOQE2AKb9GfXnEo760AUcUmFx3ibVJJAzGytlQcNXd"
+        crossorigin="anonymous"></script>
+    <!-- https://datatables.net/download/index with jQuery, DataTables, Buttons, SearchPanes, and Select //-->
+    <script type="text/javascript"
+        src="https://cdn.datatables.net/v/dt/jqc-1.12.4/dt-1.10.25/b-1.7.1/sp-1.4.0/sl-1.3.3/datatables.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            // Initialise the table with 50 rows, and some search/filtering panes
+            $('#findingsTable').DataTable({
+                responsive: true,
+                // Show 25, 50, 100 and All records
+                lengthChange: true,
+                lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "All"]],
+                searchPanes: {
+                    cascadePanes: true,
+                    viewTotal: true,
+                },
+                dom: 'Blfrtip',
+                language: {
+                    // To enable a filter button instead of the filter row
+                    searchPanes: {
+                        clearMessage: 'Clear Filters',
+                        collapse: { 0: 'Filters', _: 'Filters (%d)' },
+                        initCollapsed: true
+
+                    }
+                },
+                buttons: [
+                    {
+                        extend: 'searchPanes',
+                        config: {
+                            cascadePanes: true,
+                            viewTotal: true,
+                            orderable: false
+                        }
+                    }
+                ],
+                columnDefs: [
+                    {
+                        searchPanes: {
+                            show: true,
+                            pagingType: 'numbers',
+                            searching: true
+                        },
+                        // Show all filters
+                        targets: [0, 1, 2, 3, 5, 7]
+                    }
+                ]
+            });
+            var maxLength = 30;
+            // ReadMore ReadLess
+            $(".show-read-more").each(function () {
+                var myStr = $(this).html();
+                var textLength = $(this).text().length;
+                if (textLength > maxLength) {
+                    // Find the position where to cut while preserving HTML tags and breaking at word boundaries
+                    var cutPosition = 0;
+                    var currentLength = 0;
+                    var inTag = false;
+                    var lastWordBoundary = 0;
+                    var tagStack = [];
+
+                    for (var i = 0; i < myStr.length; i++) {
+                        if (myStr[i] === '<') {
+                            inTag = true;
+                            // Track opening tags
+                            if (myStr[i + 1] !== '/') {
+                                var tagEnd = myStr.indexOf('>', i);
+                                if (tagEnd !== -1) {
+                                    var tagName = myStr.substring(i + 1, tagEnd).split(' ')[0];
+                                    tagStack.push(tagName);
+                                }
+                            } else {
+                                // Closing tag
+                                var tagEnd = myStr.indexOf('>', i);
+                                if (tagEnd !== -1) {
+                                    var tagName = myStr.substring(i + 2, tagEnd).split(' ')[0];
+                                    if (tagStack.length > 0) {
+                                        tagStack.pop();
+                                    }
+                                }
+                            }
+                        } else if (myStr[i] === '>') {
+                            inTag = false;
+                        } else if (!inTag) {
+                            currentLength++;
+                            // Only consider word boundaries if we're not inside any HTML tags
+                            if (tagStack.length === 0 && (myStr[i] === ' ' || myStr[i] === '.' || myStr[i] === ',' || myStr[i] === ';' || myStr[i] === ':' || myStr[i] === '!' || myStr[i] === '?')) {
+                                lastWordBoundary = i + 1;
+                            }
+
+                            if (currentLength >= maxLength) {
+                                // If we're inside HTML tags, find the next closing tag
+                                if (tagStack.length > 0) {
+                                    // Find the next closing tag for the current open tag
+                                    var nextClosingTag = '</' + tagStack[tagStack.length - 1] + '>';
+                                    var closingTagPos = myStr.indexOf(nextClosingTag, i);
+                                    if (closingTagPos !== -1) {
+                                        cutPosition = closingTagPos + nextClosingTag.length;
+                                    } else {
+                                        // If no closing tag found, use current position
+                                        cutPosition = i + 1;
+                                    }
+                                } else {
+                                    // Use the last word boundary if available, otherwise use current position
+                                    cutPosition = lastWordBoundary > 0 ? lastWordBoundary : i + 1;
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    var newStr = myStr.substring(0, cutPosition);
+                    var removedStr = myStr.substring(cutPosition);
+                    $(this).empty().html(newStr);
+                    $(this).append(' <a href="javascript:void(0);" class="read-more">read more...</a>');
+                    $(this).append('<span class="more-text">' + removedStr + '</span>');
+                }
+            });
+            $(".read-more").click(function () {
+                $(this).siblings(".more-text").contents().unwrap();
+                $(this).remove();
+            });
+        });
+    </script>
+</body>
+
+</html>

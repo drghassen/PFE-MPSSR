@@ -43,12 +43,15 @@ sr_audit() {
   local level="${1:?level is required}"
   local event="${2:?event is required}"
   local message="${3:-}"
-  local details_json="${4:-{}}"
+  local details_json="${4:-}"
+  if [[ -z "$details_json" ]]; then
+    details_json='{}'
+  fi
 
   # Last-resort guard: if the caller passed empty or non-JSON, log a visible
   # WARN so the problem is traceable, then replace with a sentinel.
   # Callers should use sr_build_details() to avoid reaching this path.
-  if [[ -z "$details_json" ]] || ! printf '%s' "$details_json" | jq -e . >/dev/null 2>&1; then
+  if [[ -z "$details_json" ]] || ! jq -e . >/dev/null 2>&1 <<<"$details_json"; then
     _sr_plain_log "WARN" "audit_details_suppressed" \
       "details JSON was empty or invalid for event='${event}'; use sr_build_details() at the call site"
     details_json='{"error":"invalid_details_json_suppressed"}'
@@ -84,7 +87,10 @@ sr_audit() {
 sr_fail() {
   local message="${1:?message is required}"
   local code="${2:-1}"
-  local details_json="${3:-{}}"
+  local details_json="${3:-}"
+  if [[ -z "$details_json" ]]; then
+    details_json='{}'
+  fi
   sr_audit "ERROR" "failure" "$message" "$details_json"
   exit "$code"
 }
