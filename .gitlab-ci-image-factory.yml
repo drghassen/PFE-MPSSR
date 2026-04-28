@@ -23,8 +23,6 @@ variables:
   SCAN_TOOLS_BUILD_TAG: "1.0.0"
   DEPLOY_TOOLS_BUILD_TAG: "1.0.0"
   OPA_BUILD_TAG: "1.0.1"
-  PROWLER_TOOLS_BUILD_TAG: "1.0.0"
-
 stages:
   - build
 
@@ -67,20 +65,6 @@ build-opa-image:
     entrypoint: [""]
   script:
     - /busybox/sh ci/scripts/build-opa-image.sh
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
-      when: manual
-      allow_failure: false
-    - when: never
-
-build-prowler-tools-image:
-  stage: build
-  timeout: 2h
-  image:
-    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
-    entrypoint: [""]
-  script:
-    - /busybox/sh ci/scripts/build-prowler-tools-image.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
       when: manual

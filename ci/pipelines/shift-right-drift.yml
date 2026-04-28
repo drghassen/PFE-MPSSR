@@ -57,8 +57,7 @@ drift-detect:
 prowler-detect:
   stage: drift
   image:
-    # TODO: Replace tag with pinned digest after first image-factory build.
-    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler-tools:1.0.0"
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler-tools@sha256:25eb1d5758e3bc3b34dd29adfa9abcc08adb415f6fec054c754953b9043462c3"
     entrypoint: [""]
   before_script: []
   variables:
