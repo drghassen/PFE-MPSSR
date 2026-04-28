@@ -205,6 +205,7 @@ EFFECTIVE_MEDIUM="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violat
 EFFECTIVE_LOW="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "LOW")] | length' 'OPA drift decision')"
 TOTAL_EXCEPTIONS_LOADED="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.total_exceptions_loaded // 0)' 'OPA drift decision')"
 VALID_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.valid_exceptions // 0)' 'OPA drift decision')"
+EXPIRED_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.expired_exceptions // 0)' 'OPA drift decision')"
 OPA_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select(.action_required != "none" and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
 
 sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA drift violations count does not match input findings"
@@ -266,6 +267,7 @@ fi
   echo "OPA_DRIFT_INPUT_COUNT=${INPUT_COUNT}"
   echo "OPA_DRIFT_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_DRIFT_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"
+  echo "OPA_DRIFT_EXPIRED_EXCEPTIONS=${EXPIRED_EXCEPTIONS}"
   echo "OPA_DRIFT_TOTAL_EXCEPTIONS_LOADED=${TOTAL_EXCEPTIONS_LOADED}"
 } > "$ENV_FILE"
 
@@ -284,6 +286,7 @@ sr_audit "INFO" "stage_complete" "OPA drift decision completed" "$(sr_build_deta
   --argjson low                 "$EFFECTIVE_LOW" \
   --argjson exceptions_loaded   "$TOTAL_EXCEPTIONS_LOADED" \
   --argjson exceptions_valid    "$VALID_EXCEPTIONS" \
+  --argjson exceptions_expired  "$EXPIRED_EXCEPTIONS" \
   --argjson exceptions_applied  "$EXCEPTED_VIOLATIONS" \
   --arg  decision_file          "$DECISION_FILE" \
   '{
@@ -308,6 +311,7 @@ sr_audit "INFO" "stage_complete" "OPA drift decision completed" "$(sr_build_deta
     exceptions: {
       loaded:  $exceptions_loaded,
       valid:   $exceptions_valid,
+      expired: $exceptions_expired,
       applied: $exceptions_applied
     },
     artifacts: { decision_file: $decision_file }

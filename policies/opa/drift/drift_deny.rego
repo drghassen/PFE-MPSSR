@@ -46,9 +46,9 @@ deny contains msg if {
 	msg := "Unscoped exception detected"
 }
 
-deny contains msg if {
-	some ex in object.get(_drift_exceptions_store, "exceptions", [])
-	ex.expires_at
-	time.now_ns() > time.parse_rfc3339_ns(ex.expires_at)
-	msg := "Expired exception"
-}
+# NOTE: expired exceptions are intentionally NOT a deny condition.
+# An expired exception is a normal DefectDojo lifecycle artefact. It is already
+# excluded from valid_drift_exception (via _is_expired) so it cannot suppress any
+# violation. Blocking the pipeline on stale metadata would cause an indefinite
+# false-positive gate. Expiry counts are surfaced in drift_exception_summary for
+# governance observability without pipeline impact.

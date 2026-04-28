@@ -1,9 +1,9 @@
+# yaml-language-server: $schema=https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json
 # ============================================================================
 # CloudSentinel - GitLab CI/CD (Dispatcher)
 # - Shift-Left pipeline runs on push/MR
 # - Shift-Right drift pipeline runs on schedules
 # ============================================================================
-##
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

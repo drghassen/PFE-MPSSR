@@ -506,3 +506,62 @@ test_excepted_violations_contains_suppressed_item if {
 	count(excepted) == 1
 	count(effective) == 0
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Groupe 10 — Régression : exception expirée (bug "expired → deny")
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Régression : une exception expirée présente dans le store NE doit PAS
+# déclencher deny. Elle est déjà exclue de valid_drift_exception (via _is_expired)
+# donc elle ne couvre aucune violation. Un deny dur ici bloquerait le pipeline
+# indéfiniment pour une donnée obsolète — faux positif de gouvernance.
+test_expired_exception_does_not_trigger_deny if {
+	exceptions_doc := {"exceptions": [{
+		"source": "defectdojo",
+		"status": "approved",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2020-06-01T00:00:00Z",
+		"environments": ["production"],
+	}]}
+	input_doc := {
+		"environment": "production",
+		"repo": "group/project",
+		"branch": "main",
+	}
+	result := deny with input as input_doc with data.cloudsentinel.drift_exceptions as exceptions_doc
+	result == set()
+}
+
+# Observabilité : une exception expirée doit être comptée dans
+# drift_exception_summary.expired_exceptions (visible dans les logs d'audit)
+# sans impacter valid_exceptions ni excepted_violations.
+test_expired_exception_counted_in_summary if {
+	exceptions_doc := {"exceptions": [{
+		"source": "defectdojo",
+		"status": "approved",
+		"resource_type": "azurerm_storage_account",
+		"resource_id": "azurerm_storage_account.example",
+		"requested_by": "alice",
+		"approved_by": "bob",
+		"approved_at": "2020-01-01T00:00:00Z",
+		"expires_at": "2020-06-01T00:00:00Z",
+		"environments": ["production"],
+	}]}
+	input_doc := {
+		"environment": "production",
+		"repo": "group/project",
+		"branch": "main",
+		"findings": [],
+	}
+	summary := drift_exception_summary
+		with input as input_doc
+		with data.cloudsentinel.drift_exceptions as exceptions_doc
+	summary.total_exceptions_loaded == 1
+	summary.expired_exceptions == 1
+	summary.valid_exceptions == 0
+	summary.excepted_violations == 0
+}
