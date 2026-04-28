@@ -1,0 +1,16 @@
+# ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
+# Policy: enforce-storage-tls
+# Trigger: OPA drift action == "auto_remediate" or "auto_remediate_with_alert"
+#          on azurerm_storage_account with min_tls_version in changed_paths
+# Action: Set min TLS version to TLS1_2 on the drifted storage account
+# ─────────────────────────────────────────────────────────────────────────
+policies:
+  - name: enforce-storage-tls
+    resource: azure.storage
+    # TODO: add filters to target only the drifted resource by ARM ID
+    filters: []
+    # TODO: implement the action
+    # actions:
+    #   - type: set-firewall-rules
+    #     default-action: Deny
+    actions: []

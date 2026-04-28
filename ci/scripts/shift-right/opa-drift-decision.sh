@@ -230,27 +230,27 @@ fi
   if [[ "$OPA_DRIFT_BLOCK" == "true" ]]; then
     printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
   else
-    printf '│ %-78s │\n' "  DECISION: ALLOW  — no actionable violations (monitor-only)"
+    printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
   fi
   printf '│ %-78s │\n' \
     "  Deny: ${OPA_DRIFT_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
   printf '│ %-78s │\n' \
     "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
-  printf '├──────────────────────────────────┬──────────┬───────────┬──────────────────────┤\n'
-  printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' "Resource" "Severity" "Action" "Reason"
-  printf '├──────────────────────────────────┼──────────┼───────────┼──────────────────────┤\n'
+  printf '├────────────────────────────┬──────────┬────────────────────────────┬────────────────────────┤\n'
+  printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' "Resource" "Severity" "Action" "Reason"
+  printf '├────────────────────────────┼──────────┼────────────────────────────┼────────────────────────┤\n'
   if [[ "$INPUT_COUNT" -gt 0 ]]; then
     while IFS=$'\t' read -r _rid _sev _act _rsn; do
-      printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' \
-        "${_rid:0:32}" "${_sev:0:8}" "${_act:0:9}" "${_rsn:0:20}"
+      printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' \
+        "${_rid:0:26}" "${_sev:0:8}" "${_act:0:26}" "${_rsn:0:22}"
     done < <(jq -r '
       ((.result.effective_violations // .result.violations) // [])[] |
       [.resource_id, (.severity // "?"), (.action_required // "?"), (.reason // "?")] | @tsv
     ' "$DECISION_FILE")
   else
-    printf '│ %-32s │ %-8s │ %-9s │ %-20s │\n' "  No violations" "" "" ""
+    printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' "  No violations" "" "" ""
   fi
-  printf '└──────────────────────────────────┴──────────┴───────────┴──────────────────────┘\n'
+  printf '└────────────────────────────┴──────────┴────────────────────────────┴────────────────────────┘\n'
 } >&2
 
 {
@@ -264,6 +264,12 @@ fi
   echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
   echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
   echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
+  echo "OPA_DRIFT_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
+  echo "OPA_DRIFT_HIGH_COUNT=${EFFECTIVE_HIGH}"
+  echo "OPA_DRIFT_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
+  echo "OPA_DRIFT_LOW_COUNT=${EFFECTIVE_LOW}"
+  echo "OPA_REQUIRES_EMERGENCY_ALERT=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_REQUIRES_AUTO_REMEDIATION=$([ \"$((EFFECTIVE_HIGH + EFFECTIVE_MEDIUM + EFFECTIVE_LOW))\" -gt 0 ] && echo true || echo false)"
   echo "OPA_DRIFT_INPUT_COUNT=${INPUT_COUNT}"
   echo "OPA_DRIFT_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_DRIFT_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"

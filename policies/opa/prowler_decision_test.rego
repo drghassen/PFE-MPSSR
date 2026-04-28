@@ -33,7 +33,7 @@ test_high_finding_is_actionable_schedule_review if {
   })
 
   count(result) == 1
-  result[0].action_required == "schedule_review"
+  result[0].action_required == "alert_and_ticket"
   result[0].severity == "HIGH"
 }
 

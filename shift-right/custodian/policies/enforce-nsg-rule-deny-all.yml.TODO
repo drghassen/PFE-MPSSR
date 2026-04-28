@@ -1,0 +1,12 @@
+# ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
+# Policy: enforce-nsg-rule-deny-all
+# Trigger: OPA drift action == "auto_remediate" on azurerm_network_security_rule
+# Action: Restore deny-all rule semantics for targeted NSG rule
+# ─────────────────────────────────────────────────────────────────────────
+policies:
+  - name: enforce-nsg-rule-deny-all
+    resource: azure.networksecuritygroup
+    # TODO: add filters to target only the drifted resource by ARM ID
+    filters: []
+    # TODO: implement the action
+    actions: []

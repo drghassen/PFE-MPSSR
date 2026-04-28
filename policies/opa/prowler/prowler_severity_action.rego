@@ -18,16 +18,18 @@ normalize_severity(value) := "CRITICAL" if {
 	upper(value) == "INFO"
 } else := "LOW"
 
-# Enforcement strategy for runtime posture:
-# - CRITICAL/HIGH are actionable and block in enforcement mode.
-# - MEDIUM/LOW are monitor in this phase and do not block.
-# - INFO is compliant/no-op.
-determine_action(severity) := "immediate_review" if {
+# Runtime posture routing semantics:
+# - CRITICAL -> emergency_alert
+# - HIGH     -> alert_and_ticket
+# - MEDIUM   -> auto_remediate
+# - LOW      -> auto_remediate
+# - INFO     -> none
+determine_action(severity) := "emergency_alert" if {
 	severity == "CRITICAL"
-} else := "schedule_review" if {
+} else := "alert_and_ticket" if {
 	severity == "HIGH"
-} else := "monitor" if {
+} else := "auto_remediate" if {
 	severity == "MEDIUM"
-} else := "monitor" if {
+} else := "auto_remediate" if {
 	severity == "LOW"
 } else := "none"

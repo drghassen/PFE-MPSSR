@@ -197,7 +197,7 @@ sr_require_json "$DECISION_FILE" '
 DENY_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.deny | length)' 'OPA prowler decision')"
 RAW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.violations | length)' 'OPA prowler decision')"
 EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '((.result.effective_violations // .result.violations) | length)' 'OPA prowler decision')"
-ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select(.action_required != "none" and .action_required != "monitor")] | length' 'OPA prowler decision')"
+ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH")] | length' 'OPA prowler decision')"
 EXCEPTED_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.excepted_violations // 0)' 'OPA prowler decision')"
 EFFECTIVE_CRITICAL="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL")] | length' 'OPA prowler decision')"
 EFFECTIVE_HIGH="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "HIGH")] | length' 'OPA prowler decision')"
@@ -228,7 +228,7 @@ fi
   if [[ "$OPA_PROWLER_BLOCK" == "true" ]]; then
     printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
   else
-    printf '│ %-78s │\n' "  DECISION: ALLOW  — no actionable violations (monitor-only)"
+    printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
   fi
   printf '│ %-78s │\n' \
     "  Deny: ${OPA_PROWLER_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
@@ -251,6 +251,12 @@ fi
   echo "OPA_PROWLER_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_PROWLER_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"
   echo "OPA_PROWLER_TOTAL_EXCEPTIONS_LOADED=${TOTAL_EXCEPTIONS_LOADED}"
+  echo "OPA_PROWLER_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
+  echo "OPA_PROWLER_HIGH_COUNT=${EFFECTIVE_HIGH}"
+  echo "OPA_PROWLER_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
+  echo "OPA_PROWLER_LOW_COUNT=${EFFECTIVE_LOW}"
+  echo "OPA_PROWLER_REQUIRES_EMERGENCY_ALERT=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_PROWLER_REQUIRES_AUTO_REMEDIATION=$([ \"$((EFFECTIVE_HIGH + EFFECTIVE_MEDIUM + EFFECTIVE_LOW))\" -gt 0 ] && echo true || echo false)"
 } > "$ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "OPA prowler decision completed" "$(sr_build_details \

@@ -1,6 +1,18 @@
 # ============================================================================
 # CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline
 # ============================================================================
+# Architecture:
+# detect -> decide -> route/remediate -> verify -> escalate
+# Shift-Right runs against already-deployed Azure resources. Pipeline red/green
+# alone does not change cloud state, so findings are routed to actions instead
+# of immediate blanket blocking. Escalation is reserved for unresolved critical
+# risk after remediation verification.
+#
+# Phase 2 roadmap:
+# - Implement real Cloud Custodian execution in `custodian-autofix`.
+# - Implement post-remediation targeted re-scan in `verify-remediation`.
+# - Keep all findings uploaded to DefectDojo for audit traceability.
+#
 default:
   tags:
     - cloudsentinel
@@ -12,8 +24,9 @@ default:
 stages:
   - drift
   - decide
-  - report
   - remediate
+  - verify
+  - escalate
 
 drift-detect:
   stage: drift
@@ -152,7 +165,7 @@ opa-prowler-decision:
       dotenv: .cloudsentinel/opa_prowler.env
 
 upload-drift-to-defectdojo:
-  stage: report
+  stage: remediate
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
@@ -176,7 +189,7 @@ upload-drift-to-defectdojo:
       - .cloudsentinel/upload_drift_audit.jsonl
 
 upload-prowler-to-defectdojo:
-  stage: report
+  stage: remediate
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
@@ -199,8 +212,83 @@ upload-prowler-to-defectdojo:
       - .cloudsentinel/dojo-responses/prowler.json
       - .cloudsentinel/upload_prowler_audit.jsonl
 
-enforce-shift-right:
+alert-critical:
   stage: remediate
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: opa-drift-decision
+      artifacts: true
+    - job: opa-prowler-decision
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/alert-critical.sh
+  allow_failure: true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/alert_critical_audit.jsonl
+
+custodian-autofix:
+  stage: remediate
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: opa-drift-decision
+      artifacts: true
+  variables:
+    CUSTODIAN_DRY_RUN: "true"
+    CUSTODIAN_POLICIES_DIR: "shift-right/custodian/policies"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/custodian-autofix.sh
+  allow_failure: true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/custodian_audit.jsonl
+    reports:
+      dotenv: .cloudsentinel/custodian.env
+
+verify-remediation:
+  stage: verify
+  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  before_script: []
+  needs:
+    - job: custodian-autofix
+      artifacts: true
+    - job: opa-drift-decision
+      artifacts: true
+    - job: opa-prowler-decision
+      artifacts: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - when: never
+  script:
+    - set -euo pipefail
+    - bash ci/scripts/shift-right/verify-remediation.sh
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - .cloudsentinel/remediation_verify.jsonl
+    reports:
+      dotenv: .cloudsentinel/remediation_verify.env
+
+enforce-shift-right:
+  stage: escalate
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
   before_script: []
   needs:
@@ -211,6 +299,8 @@ enforce-shift-right:
     - job: upload-drift-to-defectdojo
       artifacts: true
     - job: upload-prowler-to-defectdojo
+      artifacts: true
+    - job: verify-remediation
       artifacts: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

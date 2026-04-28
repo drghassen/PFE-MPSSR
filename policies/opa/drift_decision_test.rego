@@ -201,7 +201,7 @@ test_critical_drift_action_is_immediate_review if {
 		"changed_paths": ["security_rule"],
 		"actions": ["update"],
 	})
-	result.action_required == "immediate_review"
+	result.action_required == "emergency_alert"
 }
 
 # HIGH + storage → auto_remediate
@@ -213,7 +213,7 @@ test_high_storage_drift_action_is_auto_remediate if {
 		"changed_paths": ["min_tls_version"],
 		"actions": ["update"],
 	})
-	result.action_required == "auto_remediate"
+	result.action_required == "auto_remediate_with_alert"
 }
 
 # LOW → monitor
@@ -225,7 +225,7 @@ test_low_drift_action_is_monitor if {
 		"changed_paths": ["retention_in_days"],
 		"actions": ["update"],
 	})
-	result.action_required == "monitor"
+	result.action_required == "auto_remediate"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
