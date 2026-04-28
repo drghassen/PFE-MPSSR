@@ -57,12 +57,20 @@ drift-detect:
 prowler-detect:
   stage: drift
   image:
+    # Digest pinned to manual build. Update after each rebuild:
+    # docker inspect registry.../prowler-tools:latest --format '{{index .RepoDigests 0}}'
     name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/prowler-tools@sha256:25eb1d5758e3bc3b34dd29adfa9abcc08adb415f6fec054c754953b9043462c3"
     entrypoint: [""]
   before_script: []
   variables:
     GIT_STRATEGY: fetch
+    # Auth mode — only sp-env is permitted in CI (enforced by azure-auth-context.sh).
+    # OIDC migration: switch to `oidc` once GitLab Workload Identity Federation is provisioned.
     PROWLER_AZURE_AUTH_MODE: "sp-env"
+    # Variable contract (must be defined as masked project-level CI/CD variables):
+    #   ARM_CLIENT_ID     → normalized to AZURE_CLIENT_ID  by azure-auth-context.sh
+    #   ARM_TENANT_ID     → normalized to AZURE_TENANT_ID  by azure-auth-context.sh
+    #   ARM_CLIENT_SECRET → normalized to AZURE_CLIENT_SECRET by azure-auth-context.sh
     PROWLER_AZURE_SUBSCRIPTION_IDS: "${ARM_SUBSCRIPTION_ID}"
     PROWLER_OUTPUT_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/prowler/output"
     PROWLER_REPORT_PATH: "${CI_PROJECT_DIR}/shift-right/prowler/output/prowler-report.json"

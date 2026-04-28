@@ -2,6 +2,7 @@
 set -euo pipefail
 
 source ci/scripts/shift-right/lib/pipeline-guard.sh
+source ci/scripts/shift-right/lib/azure-auth-context.sh
 source ci/scripts/setup-custom-ca.sh
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -35,9 +36,7 @@ if [[ -z "$SUBSCRIPTION_IDS" ]]; then
   sr_fail "Prowler subscription scope is missing" 1 '{}'
 fi
 
-if [[ "$AUTH_MODE" == "sp-env" ]]; then
-  sr_require_env AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_CLIENT_SECRET
-fi
+azure_auth_init "$AUTH_MODE" "$SUBSCRIPTION_IDS"
 
 sr_audit "INFO" "stage_start" "starting prowler detection" "$(sr_build_details \
   --arg environment "$ENVIRONMENT" \
