@@ -60,6 +60,7 @@ valid_prowler_exception(ex) if {
 	ex.requested_by != ex.approved_by
 	ex.check_id != ""
 	ex.resource_id != ""
+	ex.resource_type != ""
 	time.parse_rfc3339_ns(ex.approved_at) <= time.now_ns()
 	not _is_expired(ex)
 	valid_env_scope(ex)

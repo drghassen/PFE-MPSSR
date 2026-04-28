@@ -526,6 +526,8 @@ test_expired_exception_does_not_trigger_deny if {
 		"approved_at": "2020-01-01T00:00:00Z",
 		"expires_at": "2020-06-01T00:00:00Z",
 		"environments": ["production"],
+		"repos": ["group/project"],
+		"branches": ["main"],
 	}]}
 	input_doc := {
 		"environment": "production",

@@ -33,5 +33,9 @@ prowler_exception_summary := {
 		some ex in object.get(_prowler_exceptions_store, "exceptions", [])
 		valid_prowler_exception(ex)
 	]),
+	"expired_exceptions": count([ex |
+		some ex in object.get(_prowler_exceptions_store, "exceptions", [])
+		_is_expired(ex)
+	]),
 	"excepted_violations": count(excepted_violations),
 }

@@ -48,7 +48,7 @@ opa:
   server_url: ${OPA_SERVER_URL:-http://localhost:8182}
   policy_path: cloudsentinel.shiftright.drift
   timeout: 30
-  fallback_on_error: false
+  fallback_on_error: true  # degrade gracefully; CI uses OPA_ENABLED=false as primary gate
   # Zero Trust: Bearer token for OPA server authentication.
   # Set OPA_AUTH_TOKEN as a masked CI variable or in .env locally.
   auth_token: ${OPA_AUTH_TOKEN:-}

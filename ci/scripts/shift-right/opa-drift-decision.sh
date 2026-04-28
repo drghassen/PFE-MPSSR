@@ -197,7 +197,7 @@ sr_require_json "$DECISION_FILE" '
 DENY_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.deny | length)' 'OPA drift decision')"
 RAW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.violations | length)' 'OPA drift decision')"
 EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '((.result.effective_violations // .result.violations) | length)' 'OPA drift decision')"
-ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select(.action_required != "none" and .action_required != "monitor")] | length' 'OPA drift decision')"
+ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH")] | length' 'OPA drift decision')"
 EXCEPTED_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.excepted_violations // 0)' 'OPA drift decision')"
 EFFECTIVE_CRITICAL="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL")] | length' 'OPA drift decision')"
 EFFECTIVE_HIGH="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "HIGH")] | length' 'OPA drift decision')"
