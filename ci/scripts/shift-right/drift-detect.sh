@@ -71,8 +71,8 @@ sr_require_json "$DRIFT_REPORT_PATH" '
   and (.drift.summary | type == "object")
   and (.drift.items | type == "array")
   and (.errors | type == "array")
-  and ((.drift.detected // null) | type == "boolean")
-  and ((.drift.exit_code // null) | type == "number")
+  and (.drift.detected | type == "boolean")
+  and (.drift.exit_code | type == "number")
 ' "drift report"
 
 REPORT_ERROR_COUNT="$(sr_json_number "$DRIFT_REPORT_PATH" '.errors | length' 'drift report')"

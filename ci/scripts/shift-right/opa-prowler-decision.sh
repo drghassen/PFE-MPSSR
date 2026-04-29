@@ -42,7 +42,7 @@ sr_require_json "$REPORT_PATH" '
   and (.prowler.summary | type == "object")
   and (.prowler.items | type == "array")
   and (.errors | type == "array")
-  and ((.prowler.detected // null) | type == "boolean")
+  and (.prowler.detected | type == "boolean")
 ' "prowler report"
 
 sr_require_json "$EXCEPTIONS_FILE" '

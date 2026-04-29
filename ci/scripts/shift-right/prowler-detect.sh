@@ -220,7 +220,7 @@ sr_require_json "$PROWLER_REPORT_PATH" '
   and (.prowler.summary | type == "object")
   and (.prowler.items | type == "array")
   and (.errors | type == "array")
-  and ((.prowler.detected // null) | type == "boolean")
+  and (.prowler.detected | type == "boolean")
 ' "prowler normalized report"
 
 REPORT_ERROR_COUNT="$(sr_json_number "$PROWLER_REPORT_PATH" '.errors | length' 'prowler normalized report')"

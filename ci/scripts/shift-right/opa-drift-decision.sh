@@ -42,8 +42,8 @@ sr_require_json "$REPORT_PATH" '
   and (.drift.summary | type == "object")
   and (.drift.items | type == "array")
   and (.errors | type == "array")
-  and ((.drift.exit_code // null) | type == "number")
-  and ((.drift.detected // null) | type == "boolean")
+  and (.drift.exit_code | type == "number")
+  and (.drift.detected | type == "boolean")
 ' "drift report"
 sr_require_json "$EXCEPTIONS_FILE" '
   type == "object"
