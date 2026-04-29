@@ -7,27 +7,24 @@ package cloudsentinel.shiftright.drift
 import rego.v1
 
 # ==============================================================================
-# Action routing semantics (Phase 1)
+# Action routing semantics
 # ------------------------------------------------------------------------------
-# Shift-Right must route findings to operational outcomes, not only allow/deny:
-# - CRITICAL                            -> emergency_alert
-# - HIGH + azurerm_storage_account      -> auto_remediate_with_alert
-# - HIGH (other resource types)         -> alert_and_ticket
-# - MEDIUM / LOW                        -> auto_remediate
-# - INFO                                -> none
+# Shift-Right routes findings to neutral decision categories:
+# - CRITICAL -> runtime_remediation
+# - HIGH     -> ticket_and_notify
+# - MEDIUM   -> ticket_and_notify
+# - LOW      -> notify
+# - INFO     -> none
 #
 # Cloud Custodian remediation execution is Phase 2; routing is implemented now.
 # ==============================================================================
 
-determine_action(severity, finding) := "emergency_alert" if {
+determine_action(severity, _finding) := "runtime_remediation" if {
 	severity == "CRITICAL"
-} else := "auto_remediate_with_alert" if {
+} else := "ticket_and_notify" if {
 	severity == "HIGH"
-	object.get(finding, "type", "") == "azurerm_storage_account"
-} else := "alert_and_ticket" if {
-	severity == "HIGH"
-} else := "auto_remediate" if {
+} else := "ticket_and_notify" if {
 	severity == "MEDIUM"
-} else := "auto_remediate" if {
+} else := "notify" if {
 	severity == "LOW"
 } else := "none"

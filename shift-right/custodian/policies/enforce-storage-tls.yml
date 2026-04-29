@@ -1,0 +1,41 @@
+vars:
+  violation-tag: &violation-tag cs-violation
+
+policies:
+  - name: enforce-storage-tls
+    resource: azure.storage
+    description: |
+      Detects Azure Storage accounts that do not enforce TLS 1.2 as the minimum
+      TLS version (minimumTlsVersion != "TLS1_2").
+
+      Allowing TLS 1.0 or 1.1 exposes data in transit to known protocol
+      vulnerabilities (POODLE, BEAST). This is a CIS Azure Benchmark control.
+
+      Valid values for minimumTlsVersion:
+        TLS1_0  — allows 1.0, 1.1, 1.2  (non-compliant)
+        TLS1_1  — allows 1.1, 1.2       (non-compliant)
+        TLS1_2  — allows 1.2 only       (compliant)
+
+      Dry-run mode: reports matched resources, takes no action.
+      Live mode:    tags the resource with cs-violation=tls-version-below-1.2.
+
+      Next remediation step (not in this policy):
+        az storage account update \
+          --name <name> --resource-group <rg> \
+          --min-tls-version TLS1_2
+
+    # ── Filters ───────────────────────────────────────────────────────────
+    # Match storage accounts where minimumTlsVersion is NOT TLS1_2.
+    # The `not` block inverts the inner filter: resources that pass the inner
+    # test are excluded, resources that fail it are matched.
+    # Resources with a null/absent property are also matched (fail-closed).
+    filters:
+      - not:
+        - type: value
+          key: properties.minimumTlsVersion
+          value: TLS1_2
+
+    actions:
+      - type: tag
+        tag: *violation-tag
+        value: tls-version-below-1.2

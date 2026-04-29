@@ -11,11 +11,17 @@ sr_init_guard "shift-right/alert-critical" "$AUDIT_FILE"
 
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
+OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-}"
+OPA_PROWLER_CORRELATION_ID="${OPA_PROWLER_CORRELATION_ID:-}"
 CI_PROJECT_URL="${CI_PROJECT_URL:-unknown}"
 CI_PIPELINE_ID="${CI_PIPELINE_ID:-unknown}"
 CI_COMMIT_REF_NAME="${CI_COMMIT_REF_NAME:-unknown}"
 
 TOTAL_CRITICAL=$((OPA_DRIFT_CRITICAL_COUNT + OPA_PROWLER_CRITICAL_COUNT))
+CORRELATION_ID="${OPA_CORRELATION_ID:-$OPA_PROWLER_CORRELATION_ID}"
+if [[ -z "$CORRELATION_ID" ]]; then
+  CORRELATION_ID="unknown"
+fi
 
 if [[ "$TOTAL_CRITICAL" -eq 0 ]]; then
   sr_audit "INFO" "skip" "no critical findings" "$(sr_build_details \
@@ -34,6 +40,7 @@ sr_audit "WARN" "alert_triggered" "critical findings detected; alert routing req
   --argjson drift_critical "$OPA_DRIFT_CRITICAL_COUNT" \
   --argjson prowler_critical "$OPA_PROWLER_CRITICAL_COUNT" \
   --argjson total_critical "$TOTAL_CRITICAL" \
+  --arg correlation_id "$CORRELATION_ID" \
   --arg ci_project_url "$CI_PROJECT_URL" \
   --arg ci_pipeline_id "$CI_PIPELINE_ID" \
   --arg ci_commit_ref_name "$CI_COMMIT_REF_NAME" \
@@ -41,6 +48,7 @@ sr_audit "WARN" "alert_triggered" "critical findings detected; alert routing req
     drift_critical: $drift_critical,
     prowler_critical: $prowler_critical,
     total_critical: $total_critical,
+    correlation_id: $correlation_id,
     pipeline: {
       project_url: $ci_project_url,
       pipeline_id: $ci_pipeline_id,

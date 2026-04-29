@@ -62,6 +62,7 @@ sr_assert_eq "$OPA_RAW_VIOLATIONS" "$PROWLER_ITEM_COUNT" "prowler upload input m
 
 SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // now | tostring | .[0:10]' "$REPORT_PATH")"
 RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
+CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 
 VIOLATION_MAP="$(jq '
   (.result.violations // [])
@@ -101,6 +102,7 @@ sr_audit "INFO" "stage_start" "starting DefectDojo upload for prowler findings" 
 jq -c \
   --arg scan_date "$SCAN_DATE" \
   --arg run_id "$RUN_ID" \
+  --arg correlation_id "$CORRELATION_ID" \
   --argjson violations "$VIOLATION_MAP" \
   --argjson effective_map "$EFFECTIVE_MAP" \
   '
@@ -128,16 +130,18 @@ jq -c \
         description:
           ("CloudSentinel shift-right prowler finding\n"
           + "- Run ID: " + $run_id + "\n"
+          + "- Correlation ID: " + $correlation_id + "\n"
           + "- Check ID: " + (($item.check_id // "unknown") | tostring) + "\n"
           + "- Resource ID: " + (($item.resource_id // "unknown") | tostring) + "\n"
           + "- Resource type: " + (($item.resource_type // "unknown") | tostring) + "\n"
           + "- Region: " + (($item.region // "global") | tostring) + "\n"
           + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
-          + "- OPA action_required: " + (($decision.action_required // "unknown") | tostring) + "\n"
+          + "- OPA response_type: " + (($decision.response_type // $decision.action_required // "unknown") | tostring) + "\n"
+          + "- OPA requires_remediation: " + (($decision.requires_remediation // false) | tostring) + "\n"
           + "- OPA effective: " + ((if $effective_map[$k] then "true" else "false" end)) + "\n"
           + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Apply cloud hardening control or approved exception.",
-        references: ("CloudSentinel Prowler Report run_id=" + $run_id)
+        references: ("CloudSentinel Prowler Report run_id=" + $run_id + " correlation_id=" + $correlation_id)
       }
     ]
   }

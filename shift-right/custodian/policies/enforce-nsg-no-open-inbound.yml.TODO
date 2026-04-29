@@ -1,6 +1,7 @@
 # ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
 # Policy: enforce-nsg-no-open-inbound
-# Trigger: OPA drift action == "auto_remediate" on azurerm_network_security_group
+# Trigger: OPA decision requires_remediation == true
+#          and response_type == "runtime_remediation" on azurerm_network_security_group
 # Action: Remove or tighten open inbound NSG rules (0.0.0.0/0)
 # ─────────────────────────────────────────────────────────────────────────
 policies:

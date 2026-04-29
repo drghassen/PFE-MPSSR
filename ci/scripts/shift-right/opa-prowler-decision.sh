@@ -56,6 +56,7 @@ REPORT_ERROR_COUNT="$(sr_json_number "$REPORT_PATH" '.errors | length' 'prowler 
 PROWLER_INPUT_COUNT="$(sr_json_number "$REPORT_PATH" '.prowler.items | length' 'prowler report')"
 PROWLER_FAIL_COUNT="$(sr_json_number "$REPORT_PATH" '.prowler.summary.fail_count' 'prowler report')"
 PROWLER_DETECTED_RAW="$(jq -r '.prowler.detected' "$REPORT_PATH")"
+CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 EXCEPTION_COUNT="$(sr_json_number "$EXCEPTIONS_FILE" '.cloudsentinel.prowler_exceptions.exceptions | length' 'prowler exceptions')"
 
 sr_assert_eq "$PROWLER_FAIL_COUNT" "$PROWLER_INPUT_COUNT" "prowler report fail_count mismatch with items"
@@ -81,6 +82,7 @@ sr_audit "INFO" "stage_start" "starting OPA prowler decision" "$(sr_build_detail
   --arg  fail_closed "$FAIL_CLOSED" \
   --argjson prowler_findings "$PROWLER_INPUT_COUNT" \
   --argjson exceptions_loaded "$EXCEPTION_COUNT" \
+  --arg  correlation_id "$CORRELATION_ID" \
   --arg  opa_server_url "$OPA_SERVER_URL" \
   '{
     evaluation_context: {
@@ -94,6 +96,7 @@ sr_audit "INFO" "stage_start" "starting OPA prowler decision" "$(sr_build_detail
       prowler_findings: $prowler_findings,
       exceptions_loaded: $exceptions_loaded
     },
+    correlation_id: $correlation_id,
     opa_server: $opa_server_url
   }')"
 
@@ -137,10 +140,12 @@ jq -c \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg repo "$REPO_PATH" \
   --arg branch "$BRANCH_NAME" \
+  --arg correlation_id "$CORRELATION_ID" \
   '{
      input: {
        source: "prowler",
        scan_type: "shift-right-prowler",
+       correlation_id: $correlation_id,
        timestamp: $timestamp,
        environment: $environment,
        repo: $repo,
@@ -161,7 +166,8 @@ jq -c \
            provider: (.provider // "azure"),
            severity: (.severity // "LOW"),
            status_code: (.status_code // "FAIL"),
-           status_detail: (.status_detail // "")
+           status_detail: (.status_detail // ""),
+           correlation_id: $correlation_id
          }
        ]
      }
@@ -175,6 +181,7 @@ sr_require_json "$INPUT_FILE" '
   and ((.input.environment // "") | type == "string" and length > 0)
   and ((.input.repo // "") | type == "string" and length > 0)
   and ((.input.branch // "") | type == "string" and length > 0)
+  and ((.input.correlation_id // "") | type == "string" and length > 0)
 ' "OPA prowler input"
 
 INPUT_COUNT="$(sr_json_number "$INPUT_FILE" '.input.findings | length' 'OPA prowler input')"
@@ -205,6 +212,10 @@ EFFECTIVE_MEDIUM="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violat
 EFFECTIVE_LOW="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "LOW")] | length' 'OPA prowler decision')"
 TOTAL_EXCEPTIONS_LOADED="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.total_exceptions_loaded // 0)' 'OPA prowler decision')"
 VALID_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.valid_exceptions // 0)' 'OPA prowler decision')"
+OPA_PROWLER_CORRELATION_ID="$(jq -r '.result.correlation_id // "unknown"' "$DECISION_FILE")"
+if [[ "$OPA_PROWLER_CORRELATION_ID" == "unknown" ]]; then
+  OPA_PROWLER_CORRELATION_ID="$CORRELATION_ID"
+fi
 
 sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA prowler violations count does not match input findings"
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA prowler effective violations exceed raw violations"
@@ -251,12 +262,14 @@ fi
   echo "OPA_PROWLER_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_PROWLER_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"
   echo "OPA_PROWLER_TOTAL_EXCEPTIONS_LOADED=${TOTAL_EXCEPTIONS_LOADED}"
+  echo "OPA_PROWLER_CORRELATION_ID=${OPA_PROWLER_CORRELATION_ID}"
   echo "OPA_PROWLER_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
   echo "OPA_PROWLER_HIGH_COUNT=${EFFECTIVE_HIGH}"
   echo "OPA_PROWLER_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
   echo "OPA_PROWLER_LOW_COUNT=${EFFECTIVE_LOW}"
   echo "OPA_PROWLER_REQUIRES_EMERGENCY_ALERT=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
-  echo "OPA_PROWLER_REQUIRES_AUTO_REMEDIATION=$([ \"$((EFFECTIVE_HIGH + EFFECTIVE_MEDIUM + EFFECTIVE_LOW))\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_PROWLER_REMEDIATION_SCOPE=CRITICAL_ONLY"
+  echo "OPA_PROWLER_REQUIRES_AUTO_REMEDIATION=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
 } > "$ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "OPA prowler decision completed" "$(sr_build_details \

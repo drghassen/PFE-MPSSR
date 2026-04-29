@@ -1,76 +1,78 @@
 # ==============================================================================
-# Shift-Right Drift — evaluate_drift (core decision per finding)
+# Shift-Right Drift - evaluate_drift (core decision per finding)
 # ==============================================================================
 
 package cloudsentinel.shiftright.drift
 
 import rego.v1
 
-# ==============================================================================
-# Fonction Principale
-# ==============================================================================
-
-# FIX: P0.2 — Clause nominale avec guards explicites sur les champs obligatoires.
-# Si l'un des trois champs est absent, cette clause ne s'évalue pas et le fallback
-# _malformed_finding_decision prend le relais — jamais de silence sur un finding.
 evaluate_drift(finding) := decision if {
-	finding.address
-	finding.type
-	finding.provider_name
+	_has_required_fields(finding)
 
 	severity := determine_severity(finding)
-	action := determine_action(severity, finding)
-	custodian := get_custodian_policy(finding)
+	response_type := determine_action(severity, finding)
+	correlation_id := _resolve_correlation_id(finding)
+	requires_remediation := _requires_remediation(response_type)
 
 	decision := {
-		# B8: resource_id uses finding.address (Terraform resource address, e.g.
-		# "azurerm_storage_account.example") — always present, stable, and matches
-		# what opa_normalizer.normalize_drift_for_opa() sets as resource_id.
-		# The ARM resource ID (/subscriptions/...) lives in json_normalizer output
-		# but is NOT used here to avoid ambiguity with undeployed resources.
-		"resource_id": finding.address,
-		"resource_type": finding.type,
-		"provider": finding.provider_name,
+		"resource_id": object.get(finding, "address", "UNKNOWN"),
+		"resource_type": object.get(finding, "type", "UNKNOWN"),
+		"provider": object.get(finding, "provider_name", "UNKNOWN"),
 		"severity": severity,
 		"reason": build_reason(severity, finding),
-		"action_required": action,
+		"action_required": response_type,
+		"response_type": response_type,
+		"requires_remediation": requires_remediation,
 		"changed_paths": object.get(finding, "changed_paths", []),
-		"custodian_policy": custodian,
+		"custodian_policy": _custodian_policy_for_response(response_type, finding),
+		"correlation_id": correlation_id,
 		"original_actions": object.get(finding, "actions", []),
 	}
-}
-
-# FIX: P0.2 — Fallback si address manquant
-evaluate_drift(finding) := decision if {
-	not finding.address
+} else := decision if {
 	decision := _malformed_finding_decision(finding)
 }
 
-# FIX: P0.2 — Fallback si type manquant (address présent)
-evaluate_drift(finding) := decision if {
-	finding.address
-	not finding.type
-	decision := _malformed_finding_decision(finding)
+_has_required_fields(finding) if {
+	object.get(finding, "address", "") != ""
+	object.get(finding, "type", "") != ""
+	object.get(finding, "provider_name", "") != ""
 }
 
-# FIX: P0.2 — Fallback si provider_name manquant (address et type présents)
-evaluate_drift(finding) := decision if {
-	finding.address
-	finding.type
-	not finding.provider_name
-	decision := _malformed_finding_decision(finding)
-}
+_requires_remediation(response_type) := true if {
+	response_type == "runtime_remediation"
+} else := false
 
-# Un finding malformé ne doit JAMAIS être ignoré silencieusement.
-# LOW + manual_review garantit sa présence dans violations[] pour traitement humain.
+_custodian_policy_for_response(response_type, finding) := policy if {
+	response_type == "runtime_remediation"
+	policy := get_custodian_policy(finding)
+} else := null
+
+_resolve_correlation_id(finding) := cid if {
+	cid := object.get(finding, "correlation_id", "")
+	is_string(cid)
+	cid != ""
+} else := cid if {
+	cid := _input_correlation_id
+	is_string(cid)
+	cid != ""
+} else := "unknown"
+
+_input_correlation_id := cid if {
+	is_object(input)
+	cid := object.get(input, "correlation_id", "")
+} else := ""
+
 _malformed_finding_decision(finding) := {
 	"resource_id": object.get(finding, "address", "UNKNOWN"),
 	"resource_type": object.get(finding, "type", "UNKNOWN"),
 	"provider": object.get(finding, "provider_name", "UNKNOWN"),
 	"severity": "LOW",
 	"action_required": "manual_review",
+	"response_type": "manual_review",
+	"requires_remediation": false,
 	"custodian_policy": null,
+	"correlation_id": _resolve_correlation_id(finding),
 	"changed_paths": object.get(finding, "changed_paths", []),
-	"reason": "Finding with missing mandatory fields — requires manual review",
+	"reason": "Finding with missing mandatory fields - requires manual review",
 	"original_actions": object.get(finding, "actions", []),
 }

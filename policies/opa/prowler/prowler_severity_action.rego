@@ -19,17 +19,17 @@ normalize_severity(value) := "CRITICAL" if {
 } else := "LOW"
 
 # Runtime posture routing semantics:
-# - CRITICAL -> emergency_alert
-# - HIGH     -> alert_and_ticket
-# - MEDIUM   -> auto_remediate
-# - LOW      -> auto_remediate
+# - CRITICAL -> runtime_remediation
+# - HIGH     -> ticket_and_notify
+# - MEDIUM   -> ticket_and_notify
+# - LOW      -> notify
 # - INFO     -> none
-determine_action(severity) := "emergency_alert" if {
+determine_action(severity) := "runtime_remediation" if {
 	severity == "CRITICAL"
-} else := "alert_and_ticket" if {
+} else := "ticket_and_notify" if {
 	severity == "HIGH"
-} else := "auto_remediate" if {
+} else := "ticket_and_notify" if {
 	severity == "MEDIUM"
-} else := "auto_remediate" if {
+} else := "notify" if {
 	severity == "LOW"
 } else := "none"

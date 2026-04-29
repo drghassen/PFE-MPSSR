@@ -8,8 +8,7 @@ services:
       - "127.0.0.1:8181:8181"
     volumes:
       - ./policies/opa/gate:/app/policies/gate:ro
-      - ./policies/opa/system/authz.rego:/app/policies/system/authz.rego:ro
-      - ./.cloudsentinel/opa_auth_config.json:/app/auth/opa_config.json:ro
+      - ./policies/opa/system:/app/policies/system:ro
       - ./.cloudsentinel:/app/data:ro
     command:
       - run
@@ -24,7 +23,7 @@ services:
       - /app/policies/gate
       - /app/policies/system/authz.rego
       - /app/data/exceptions.json
-      - /app/auth/opa_config.json
+      - /app/data/opa_auth_config.json
     healthcheck:
       test: ["CMD", "/opa", "eval", "--format=raw", "1 == 1"]
       interval: 10s
@@ -50,9 +49,8 @@ services:
       - "127.0.0.1:8182:8182"
     volumes:
       - ./policies/opa/drift:/app/policies/drift:ro
-      - ./policies/opa/system/authz.rego:/app/policies/system/authz.rego:ro
-      - ./.cloudsentinel/opa_auth_config.json:/app/auth/opa_config.json:ro
-      - ./.cloudsentinel/drift_exceptions.json:/app/data/drift_exceptions.json:ro
+      - ./policies/opa/system:/app/policies/system:ro
+      - ./.cloudsentinel:/app/data:ro
     command:
       - run
       - --server
@@ -66,7 +64,7 @@ services:
       - /app/policies/drift
       - /app/policies/system/authz.rego
       - /app/data/drift_exceptions.json
-      - /app/auth/opa_config.json
+      - /app/data/opa_auth_config.json
     healthcheck:
       test: ["CMD", "/opa", "eval", "--format=raw", "1 == 1"]
       interval: 10s

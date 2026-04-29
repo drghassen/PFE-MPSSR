@@ -1,0 +1,46 @@
+vars:
+  # The tag key used to mark non-compliant resources.
+  # Using a consistent prefix makes it easy to query all CloudSentinel findings
+  # with: az resource list --tag cs-violation
+  violation-tag: &violation-tag cs-violation
+
+policies:
+  - name: deny-public-storage
+    resource: azure.storage
+    description: |
+      Detects Azure Storage accounts that have allowBlobPublicAccess set to true.
+
+      Public blob access allows anyone on the internet to read data without
+      authentication if the container ACL is also set to "Blob" or "Container".
+      This is a CIS Azure 3.x control violation and a common data-exposure vector.
+
+      Dry-run mode (CUSTODIAN_DRY_RUN=true):
+        custodian --dryrun reports matched resources but takes no action.
+
+      Live mode (CUSTODIAN_DRY_RUN=false):
+        Tags the resource with cs-violation=public-blob-access-enabled.
+        No data is deleted or modified. The tag creates an audit trail and
+        enables targeted remediation in a follow-up step.
+
+      Next remediation step (not in this policy):
+        az storage account update \
+          --name <name> --resource-group <rg> \
+          --allow-blob-public-access false
+
+    # ── Filters ───────────────────────────────────────────────────────────
+    # We check allowBlobPublicAccess == true explicitly.
+    # Resources where the property is absent (null) or false are not matched.
+    # Azure default for new accounts is false since 2021-11-01 API version,
+    # but older accounts may still have this set to true.
+    filters:
+      - type: value
+        key: properties.allowBlobPublicAccess
+        value: true
+
+    # ── Actions ───────────────────────────────────────────────────────────
+    # Phase 1 action: tag only. Marks the resource for visibility without
+    # modifying the security configuration. Safe to run repeatedly.
+    actions:
+      - type: tag
+        tag: *violation-tag
+        value: public-blob-access-enabled

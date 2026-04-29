@@ -24,9 +24,10 @@
     "cloudsentinel": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["run_id", "engine", "engine_version", "terraform_workspace", "terraform_working_dir", "started_at", "finished_at", "duration_ms"],
+      "required": ["run_id", "correlation_id", "engine", "engine_version", "terraform_workspace", "terraform_working_dir", "started_at", "finished_at", "duration_ms"],
       "properties": {
         "run_id": { "type": "string" },
+        "correlation_id": { "type": "string" },
         "engine": { "type": "string" },
         "engine_version": { "type": "string" },
         "tenant_id": { "type": ["string", "null"] },
@@ -88,4 +89,3 @@
     }
   }
 }
-

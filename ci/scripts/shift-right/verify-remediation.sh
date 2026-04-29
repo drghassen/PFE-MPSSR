@@ -13,6 +13,7 @@ sr_init_guard "shift-right/verify-remediation" "$AUDIT_FILE"
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
 OPA_REQUIRES_AUTO_REMEDIATION="${OPA_REQUIRES_AUTO_REMEDIATION:-false}"
+OPA_REMEDIATION_SCOPE="${OPA_REMEDIATION_SCOPE:-CRITICAL_ONLY}"
 CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-true}"
 
 if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
@@ -23,7 +24,11 @@ if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
 
   sr_audit "INFO" "skip" "auto-remediation not required; verification skipped" "$(sr_build_details \
     --arg requires_auto_remediation "$OPA_REQUIRES_AUTO_REMEDIATION" \
-    '{requires_auto_remediation: ($requires_auto_remediation == "true")}')"
+    --arg remediation_scope "$OPA_REMEDIATION_SCOPE" \
+    '{
+      requires_auto_remediation: ($requires_auto_remediation == "true"),
+      remediation_scope: $remediation_scope
+    }')"
   exit 0
 fi
 

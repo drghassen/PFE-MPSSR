@@ -55,6 +55,7 @@ sr_assert_eq "$OPA_RAW_VIOLATIONS" "$DRIFT_COUNT" "drift upload input mismatch b
 
 SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // .ocsf.time | tostring | .[0:10]' "$REPORT_PATH")"
 RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
+CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 VIOLATION_MAP="$(jq '
   (.result.violations // [])
   | map(select(.resource_id != null and .resource_id != ""))
@@ -90,6 +91,7 @@ sr_audit "INFO" "stage_start" "starting DefectDojo upload for drift findings" "$
 jq -c \
   --arg scan_date "$SCAN_DATE" \
   --arg run_id "$RUN_ID" \
+  --arg correlation_id "$CORRELATION_ID" \
   --argjson violations "$VIOLATION_MAP" \
   --argjson effective_map "$EFFECTIVE_MAP" \
   '
@@ -115,16 +117,18 @@ jq -c \
         description:
           ("CloudSentinel shift-right drift finding\n"
           + "- Run ID: " + $run_id + "\n"
+          + "- Correlation ID: " + $correlation_id + "\n"
           + "- Address: " + (($item.address // "unknown") | tostring) + "\n"
           + "- Resource type: " + (($item.type // "unknown") | tostring) + "\n"
           + "- Actions: " + ((($item.actions // []) | tostring)) + "\n"
           + "- Changed paths: " + ((($item.changed_paths // []) | tostring)) + "\n"
           + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
-          + "- OPA action_required: " + (($decision.action_required // "unknown") | tostring) + "\n"
+          + "- OPA response_type: " + (($decision.response_type // $decision.action_required // "unknown") | tostring) + "\n"
+          + "- OPA requires_remediation: " + (($decision.requires_remediation // false) | tostring) + "\n"
           + "- OPA effective: " + ((if $effective_map[$item.address] then "true" else "false" end)) + "\n"
           + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Reconcile Terraform state and cloud state or apply approved exception.",
-        references: ("CloudSentinel Drift Report run_id=" + $run_id)
+        references: ("CloudSentinel Drift Report run_id=" + $run_id + " correlation_id=" + $correlation_id)
       }
     ]
   }' "$REPORT_PATH" > "$GENERIC_FINDINGS_FILE"

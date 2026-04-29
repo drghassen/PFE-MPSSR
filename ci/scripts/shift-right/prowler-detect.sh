@@ -176,6 +176,7 @@ jq -c \
   {
     cloudsentinel: {
       run_id: $run_id,
+      correlation_id: $run_id,
       engine: "cloudsentinel-prowler-engine",
       version: "0.1.0",
       source: "prowler",
@@ -214,6 +215,7 @@ jq -c \
 sr_require_json "$PROWLER_REPORT_PATH" '
   type == "object"
   and (.cloudsentinel | type == "object")
+  and ((.cloudsentinel.correlation_id // "") | type == "string" and length > 0)
   and (.prowler | type == "object")
   and (.prowler.summary | type == "object")
   and (.prowler.items | type == "array")
@@ -224,6 +226,7 @@ sr_require_json "$PROWLER_REPORT_PATH" '
 REPORT_ERROR_COUNT="$(sr_json_number "$PROWLER_REPORT_PATH" '.errors | length' 'prowler normalized report')"
 REPORT_ITEM_COUNT="$(sr_json_number "$PROWLER_REPORT_PATH" '.prowler.items | length' 'prowler normalized report')"
 REPORT_DETECTED="$(jq -r '.prowler.detected' "$PROWLER_REPORT_PATH")"
+PROWLER_CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$PROWLER_REPORT_PATH")"
 
 sr_assert_eq "$REPORT_ITEM_COUNT" "$FAIL_COUNT" "prowler normalized report item count mismatch"
 if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
@@ -286,6 +289,7 @@ PROWLER_EXCEPTION_COUNT="$(sr_json_number "$PROWLER_EXCEPTIONS_FILE" '.cloudsent
   echo "PROWLER_PASS_COUNT=${PASS_COUNT}"
   echo "PROWLER_MUTED_COUNT=${MUTED_COUNT}"
   echo "PROWLER_EXCEPTION_COUNT=${PROWLER_EXCEPTION_COUNT}"
+  echo "PROWLER_CORRELATION_ID=${PROWLER_CORRELATION_ID}"
 } > "$PROWLER_ENGINE_ENV_FILE"
 
 # ── Prowler Detection Summary Table ──────────────────────────────────────────

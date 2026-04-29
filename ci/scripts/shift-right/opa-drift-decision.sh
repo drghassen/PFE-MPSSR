@@ -56,6 +56,7 @@ REPORT_ERROR_COUNT="$(sr_json_number "$REPORT_PATH" '.errors | length' 'drift re
 DRIFT_INPUT_COUNT="$(sr_json_number "$REPORT_PATH" '.drift.items | length' 'drift report')"
 DRIFT_EXIT_CODE="$(sr_json_number "$REPORT_PATH" '.drift.exit_code' 'drift report')"
 DRIFT_DETECTED_RAW="$(jq -r '.drift.detected' "$REPORT_PATH")"
+CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 EXCEPTION_COUNT="$(sr_json_number "$EXCEPTIONS_FILE" '.cloudsentinel.drift_exceptions.exceptions | length' 'drift exceptions')"
 
 if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
@@ -83,6 +84,7 @@ sr_audit "INFO" "stage_start" "starting OPA drift decision" "$(sr_build_details 
   --arg  fail_closed       "$FAIL_CLOSED" \
   --argjson drift_findings "$DRIFT_INPUT_COUNT" \
   --argjson exceptions_loaded "$EXCEPTION_COUNT" \
+  --arg  correlation_id "$CORRELATION_ID" \
   --arg  opa_server_url    "$OPA_SERVER_URL" \
   '{
     evaluation_context: {
@@ -96,6 +98,7 @@ sr_audit "INFO" "stage_start" "starting OPA drift decision" "$(sr_build_details 
       drift_findings:    $drift_findings,
       exceptions_loaded: $exceptions_loaded
     },
+    correlation_id: $correlation_id,
     opa_server: $opa_server_url
   }')"
 
@@ -139,10 +142,12 @@ jq -c \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg repo "$REPO_PATH" \
   --arg branch "$BRANCH_NAME" \
+  --arg correlation_id "$CORRELATION_ID" \
   '{
      input: {
        source: "drift-engine",
        scan_type: "shift-right-drift",
+       correlation_id: $correlation_id,
        timestamp: $timestamp,
        environment: $environment,
        repo: $repo,
@@ -161,7 +166,8 @@ jq -c \
            provider_name: (.provider_name // "unknown"),
            actions: (.actions // []),
            resource_id: .address,
-           changed_paths: (.changed_paths // [])
+           changed_paths: (.changed_paths // []),
+           correlation_id: $correlation_id
          }
        ]
      }
@@ -175,6 +181,7 @@ sr_require_json "$INPUT_FILE" '
   and ((.input.environment // "") | type == "string" and length > 0)
   and ((.input.repo // "") | type == "string" and length > 0)
   and ((.input.branch // "") | type == "string" and length > 0)
+  and ((.input.correlation_id // "") | type == "string" and length > 0)
 ' "OPA drift input"
 
 INPUT_COUNT="$(sr_json_number "$INPUT_FILE" '.input.findings | length' 'OPA drift input')"
@@ -206,7 +213,11 @@ EFFECTIVE_LOW="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violation
 TOTAL_EXCEPTIONS_LOADED="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.total_exceptions_loaded // 0)' 'OPA drift decision')"
 VALID_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.valid_exceptions // 0)' 'OPA drift decision')"
 EXPIRED_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.expired_exceptions // 0)' 'OPA drift decision')"
-OPA_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select(.action_required != "none" and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
+OPA_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select((.requires_remediation // false) == true and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
+OPA_CORRELATION_ID="$(jq -r '.result.correlation_id // "unknown"' "$DECISION_FILE")"
+if [[ "$OPA_CORRELATION_ID" == "unknown" ]]; then
+  OPA_CORRELATION_ID="$CORRELATION_ID"
+fi
 
 sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA drift violations count does not match input findings"
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA drift effective violations exceed raw violations"
@@ -245,7 +256,7 @@ fi
         "${_rid:0:26}" "${_sev:0:8}" "${_act:0:26}" "${_rsn:0:22}"
     done < <(jq -r '
       ((.result.effective_violations // .result.violations) // [])[] |
-      [.resource_id, (.severity // "?"), (.action_required // "?"), (.reason // "?")] | @tsv
+      [.resource_id, (.severity // "?"), (.response_type // .action_required // "?"), (.reason // "?")] | @tsv
     ' "$DECISION_FILE")
   else
     printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' "  No violations" "" "" ""
@@ -264,12 +275,14 @@ fi
   echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
   echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
   echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
+  echo "OPA_CORRELATION_ID=${OPA_CORRELATION_ID}"
   echo "OPA_DRIFT_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
   echo "OPA_DRIFT_HIGH_COUNT=${EFFECTIVE_HIGH}"
   echo "OPA_DRIFT_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
   echo "OPA_DRIFT_LOW_COUNT=${EFFECTIVE_LOW}"
   echo "OPA_REQUIRES_EMERGENCY_ALERT=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
-  echo "OPA_REQUIRES_AUTO_REMEDIATION=$([ \"$((EFFECTIVE_HIGH + EFFECTIVE_MEDIUM + EFFECTIVE_LOW))\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_REMEDIATION_SCOPE=CRITICAL_ONLY"
+  echo "OPA_REQUIRES_AUTO_REMEDIATION=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
   echo "OPA_DRIFT_INPUT_COUNT=${INPUT_COUNT}"
   echo "OPA_DRIFT_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_DRIFT_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"

@@ -1,25 +1,38 @@
-# Cloud Custodian Integration (Phase 2)
+# Cloud Custodian Runtime Remediation
 
-Cloud Custodian is a policy-as-code engine for cloud governance that can continuously detect and remediate misconfigurations across cloud resources. In CloudSentinel Shift-Right, Custodian is planned as the runtime remediation executor for already-deployed Azure resources, complementing Terraform drift detection and posture findings.
+Cloud Custodian is used as the runtime executor in Shift-Right.
 
-## OPA Integration Contract
+## Contract with OPA
 
-CloudSentinel OPA drift decisions include a `custodian_policy` field per effective violation. That value is the routing key for remediation in `ci/scripts/shift-right/custodian-autofix.sh`. In Phase 1, routing and audit are implemented. In Phase 2, each routed policy name must map to a real Cloud Custodian YAML and be executed with safe controls (dry-run first, scoped targeting, full audit logs).
+- OPA drift decision outputs `custodian_policy` per violation.
+- `ci/scripts/shift-right/custodian-autofix.sh` runs only policies listed in `OPA_CUSTODIAN_POLICIES`.
+- `OPA_CUSTODIAN_POLICIES` is populated from `effective_violations` where:
+  - `requires_remediation == true`
+  - `custodian_policy != null`
 
-## Phase 2 Policies To Implement
+This enforces `CRITICAL_ONLY` auto-remediation.
 
-1. `enforce-storage-tls`
-2. `deny-public-storage`
-3. `enforce-nsg-no-open-inbound`
-4. `enforce-keyvault-access-policy`
-5. `enforce-keyvault-network-acls`
-6. `enforce-vm-no-password-auth`
-7. `enforce-sql-password-rotation`
-8. `enforce-nsg-rule-deny-all`
+## Current CRITICAL Policy Map
 
-## Local Dry-Run Testing
+1. `enforce-nsg-no-open-inbound`
+2. `enforce-nsg-rule-deny-all`
+3. `enforce-vm-no-password-auth`
+4. `enforce-sql-password-rotation`
 
-Example local execution (dry-run):
+## Operating Model
+
+1. Detect drift/posture issue.
+2. OPA decides severity/response type/risk.
+3. Fan-out in parallel:
+- DefectDojo finding
+- Notification
+- Custodian action (CRITICAL only)
+4. Reconciliation ticket is created for IaC correction.
+5. Team fixes Terraform and applies.
+
+## Dry-Run
+
+Use dry-run before live remediation:
 
 ```bash
 export ARM_CLIENT_ID=...
@@ -30,9 +43,5 @@ export ARM_SUBSCRIPTION_ID=...
 custodian run --dryrun \
   --output-dir .cloudsentinel/custodian-output \
   --cache-period 0 \
-  shift-right/custodian/policies/enforce-storage-tls.yml
+  shift-right/custodian/policies/enforce-nsg-no-open-inbound.yml
 ```
-
-Use targeted filters in each policy to scope remediation to the exact resource(s) identified by OPA.
-
-Reference: https://cloudcustodian.io/docs/azure/policy/resources/storage.html

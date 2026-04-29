@@ -39,6 +39,7 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
     normalized = {
         "source": "drift-engine",
         "scan_type": "shift-right-drift",
+        "correlation_id": os.getenv("CLOUDSENTINEL_CORRELATION_ID", "unknown"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": os.getenv("CI_ENVIRONMENT", os.getenv("ENVIRONMENT", "unknown")),
         "repo": os.getenv("CI_PROJECT_PATH", os.getenv("GIT_REPO_NAME", "unknown")),
@@ -64,6 +65,7 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
             # stable Terraform address avoids ambiguity with ARM IDs.
             "resource_id": item.get("address"),
             "changed_paths": item.get("changed_paths", []),
+            "correlation_id": os.getenv("CLOUDSENTINEL_CORRELATION_ID", "unknown"),
         }
 
         normalized["findings"].append(finding)

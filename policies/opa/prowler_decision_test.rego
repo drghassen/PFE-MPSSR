@@ -18,7 +18,7 @@ test_empty_input_returns_empty_violations if {
   result == []
 }
 
-test_high_finding_is_actionable_schedule_review if {
+test_high_finding_is_actionable_ticket_and_notify if {
   result := violations with input as object.union(base_input, {
     "findings": [
       {
@@ -33,7 +33,8 @@ test_high_finding_is_actionable_schedule_review if {
   })
 
   count(result) == 1
-  result[0].action_required == "alert_and_ticket"
+  result[0].action_required == "ticket_and_notify"
+  result[0].requires_remediation == false
   result[0].severity == "HIGH"
 }
 

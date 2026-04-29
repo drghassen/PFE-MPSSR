@@ -1,6 +1,7 @@
 # ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
 # Policy: deny-public-storage
-# Trigger: OPA drift action == "auto_remediate" or "auto_remediate_with_alert"
+# Trigger: OPA decision requires_remediation == true
+#          and response_type == "runtime_remediation"
 #          on azurerm_storage_account with allow_blob_public_access drift
 # Action: Disable public blob access on the drifted storage account
 # ─────────────────────────────────────────────────────────────────────────

@@ -104,6 +104,7 @@ def enrich_drift_items_with_opa(
             else:
                 item["_opa_error"] = False
                 item["opa_reason"] = "New drift not yet in OPA catalog"
+            item["severity"] = "Medium"
             item["opa_evaluated"] = False
             item["action_required"] = "manual_review"
             item["custodian_policy"] = None

@@ -25,14 +25,14 @@ class TestOPAEnrichment(unittest.TestCase):
                     "resource_id": "azurerm_storage_account.a",
                     "severity": "HIGH",
                     "reason": "High-severity drift",
-                    "action_required": "auto_remediate",
-                    "custodian_policy": "enforce-storage-tls",
+                    "action_required": "ticket_and_notify",
+                    "custodian_policy": None,
                 },
                 {
                     "resource_id": "azurerm_network_security_group.b",
                     "severity": "CRITICAL",
                     "reason": "Critical drift",
-                    "action_required": "immediate_review",
+                    "action_required": "runtime_remediation",
                     "custodian_policy": "enforce-nsg-no-open-inbound",
                 },
             ],
@@ -41,8 +41,8 @@ class TestOPAEnrichment(unittest.TestCase):
                     "resource_id": "azurerm_storage_account.a",
                     "severity": "HIGH",
                     "reason": "High-severity drift",
-                    "action_required": "auto_remediate",
-                    "custodian_policy": "enforce-storage-tls",
+                    "action_required": "ticket_and_notify",
+                    "custodian_policy": None,
                 }
             ],
             "excepted_violations": [
@@ -50,7 +50,7 @@ class TestOPAEnrichment(unittest.TestCase):
                     "resource_id": "azurerm_network_security_group.b",
                     "severity": "CRITICAL",
                     "reason": "Critical drift",
-                    "action_required": "immediate_review",
+                    "action_required": "runtime_remediation",
                     "custodian_policy": "enforce-nsg-no-open-inbound",
                 }
             ],
@@ -64,11 +64,12 @@ class TestOPAEnrichment(unittest.TestCase):
 
         self.assertEqual(by_address["azurerm_storage_account.a"]["severity"], "High")
         self.assertEqual(
-            by_address["azurerm_storage_account.a"]["action_required"], "auto_remediate"
+            by_address["azurerm_storage_account.a"]["action_required"],
+            "ticket_and_notify",
         )
         self.assertEqual(
             by_address["azurerm_storage_account.a"]["custodian_policy"],
-            "enforce-storage-tls",
+            None,
         )
         self.assertFalse(by_address["azurerm_storage_account.a"]["opa_excepted"])
 
@@ -99,7 +100,7 @@ class TestOPAEnrichment(unittest.TestCase):
                     "resource_id": "azurerm_sql_server.main",
                     "severity": "CRITICAL",
                     "reason": "Critical drift on SQL password",
-                    "action_required": "immediate_review",
+                    "action_required": "runtime_remediation",
                     "custodian_policy": "enforce-sql-password-rotation",
                 }
             ],
@@ -109,7 +110,7 @@ class TestOPAEnrichment(unittest.TestCase):
         enriched = enrich_drift_items_with_opa(deepcopy(drift_items), opa_decisions)
         item = enriched[0]
         self.assertEqual(item["severity"], "Critical")
-        self.assertEqual(item["action_required"], "immediate_review")
+        self.assertEqual(item["action_required"], "runtime_remediation")
         self.assertEqual(item["custodian_policy"], "enforce-sql-password-rotation")
 
 

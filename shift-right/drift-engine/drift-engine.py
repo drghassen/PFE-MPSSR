@@ -371,6 +371,7 @@ def build_report_context(
 
     cloudsentinel = {
         "run_id": run_id,
+        "correlation_id": run_id,
         "engine": config.engine.name,
         "engine_version": config.engine.version,
         "tenant_id": config.azure.tenant_id,
@@ -445,6 +446,7 @@ def main(argv: list[str]) -> int:
 
     logger = configure_logging()
     run_id = str(uuid.uuid4())
+    os.environ["CLOUDSENTINEL_CORRELATION_ID"] = run_id
     started_at = _utc_now()
     errors: list[dict[str, Any]] = []
 
@@ -472,6 +474,7 @@ def main(argv: list[str]) -> int:
             },
             "cloudsentinel": {
                 "run_id": run_id,
+                "correlation_id": run_id,
                 "engine": "cloudsentinel-drift-engine",
                 "engine_version": "unknown",
                 "tenant_id": None,

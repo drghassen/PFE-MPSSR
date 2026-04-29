@@ -1,6 +1,7 @@
 # ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
 # Policy: enforce-keyvault-network-acls
-# Trigger: OPA drift action == "auto_remediate" on azurerm_key_vault network ACLs
+# Trigger: OPA decision requires_remediation == true
+#          and response_type == "runtime_remediation" on azurerm_key_vault network ACLs
 # Action: Restore restrictive network ACL baseline for targeted Key Vault
 # ─────────────────────────────────────────────────────────────────────────
 policies:

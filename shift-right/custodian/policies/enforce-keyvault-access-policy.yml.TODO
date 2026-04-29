@@ -1,6 +1,7 @@
 # ── TODO Phase 2 — Cloud Custodian Policy ────────────────────────────────
 # Policy: enforce-keyvault-access-policy
-# Trigger: OPA drift action == "auto_remediate" on azurerm_key_vault access policies
+# Trigger: OPA decision requires_remediation == true
+#          and response_type == "runtime_remediation" on azurerm_key_vault access policies
 # Action: Restore least-privilege access policy baseline for targeted Key Vault
 # ─────────────────────────────────────────────────────────────────────────
 policies:

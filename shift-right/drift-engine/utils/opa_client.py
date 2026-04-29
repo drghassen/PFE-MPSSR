@@ -147,6 +147,7 @@ class OPAClient:
                 "excepted_violations": excepted_violations,
                 "compliant": compliant,
                 "drift_exception_summary": drift_exception_summary,
+                "correlation_id": opa_decision.get("correlation_id", normalized_findings.get("correlation_id", "unknown")),
                 "metadata": {
                     "opa_server": self.config.server_url,
                     "policy_path": self.config.policy_path,
@@ -176,8 +177,11 @@ class OPAClient:
                 "severity": "HIGH",
                 "reason": "OPA server unavailable - conservative fallback applied",
                 "action_required": "manual_review",
+                "response_type": "manual_review",
+                "requires_remediation": False,
                 "changed_paths": f.get("changed_paths", []),
                 "custodian_policy": None,
+                "correlation_id": f.get("correlation_id", "unknown"),
                 "original_actions": f.get("actions", []),
                 "_fallback_item": f,
             }
@@ -194,6 +198,7 @@ class OPAClient:
                 "valid_exceptions": 0,
                 "excepted_violations": 0,
             },
+            "correlation_id": findings.get("correlation_id", "unknown"),
             "metadata": {
                 "fallback_mode": True,
                 "reason": "OPA server unreachable",

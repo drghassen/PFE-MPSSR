@@ -192,8 +192,8 @@ test_finding_missing_type_returns_low_manual_review if {
 # Groupe 4 — Actions
 # ──────────────────────────────────────────────────────────────────────────────
 
-# CRITICAL → immediate_review
-test_critical_drift_action_is_immediate_review if {
+# CRITICAL → runtime_remediation
+test_critical_drift_action_is_runtime_remediation if {
 	result := evaluate_drift({
 		"address": "azurerm_network_security_group.nsg",
 		"type": "azurerm_network_security_group",
@@ -201,11 +201,12 @@ test_critical_drift_action_is_immediate_review if {
 		"changed_paths": ["security_rule"],
 		"actions": ["update"],
 	})
-	result.action_required == "emergency_alert"
+	result.action_required == "runtime_remediation"
+	result.requires_remediation == true
 }
 
-# HIGH + storage → auto_remediate
-test_high_storage_drift_action_is_auto_remediate if {
+# HIGH + storage → ticket_and_notify
+test_high_storage_drift_action_is_ticket_and_notify if {
 	result := evaluate_drift({
 		"address": "azurerm_storage_account.sa",
 		"type": "azurerm_storage_account",
@@ -213,11 +214,12 @@ test_high_storage_drift_action_is_auto_remediate if {
 		"changed_paths": ["min_tls_version"],
 		"actions": ["update"],
 	})
-	result.action_required == "auto_remediate_with_alert"
+	result.action_required == "ticket_and_notify"
+	result.requires_remediation == false
 }
 
-# LOW → monitor
-test_low_drift_action_is_monitor if {
+# LOW → notify
+test_low_drift_action_is_notify if {
 	result := evaluate_drift({
 		"address": "azurerm_log_analytics_workspace.law",
 		"type": "azurerm_log_analytics_workspace",
@@ -225,15 +227,15 @@ test_low_drift_action_is_monitor if {
 		"changed_paths": ["retention_in_days"],
 		"actions": ["update"],
 	})
-	result.action_required == "auto_remediate"
+	result.action_required == "notify"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Groupe 5 — Custodian mapping (valide P1.3)
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Storage + min_tls_version → enforce-storage-tls
-test_storage_tls_has_custodian_policy if {
+# Storage + min_tls_version (HIGH) → no custodian policy
+test_storage_tls_has_no_custodian_policy if {
 	result := evaluate_drift({
 		"address": "azurerm_storage_account.sa",
 		"type": "azurerm_storage_account",
@@ -241,11 +243,11 @@ test_storage_tls_has_custodian_policy if {
 		"changed_paths": ["min_tls_version"],
 		"actions": ["update"],
 	})
-	result.custodian_policy == "enforce-storage-tls"
+	result.custodian_policy == null
 }
 
-# Storage + allow_blob_public_access → deny-public-storage
-test_storage_public_blob_has_custodian_policy if {
+# Storage + allow_blob_public_access (HIGH) → no custodian policy
+test_storage_public_blob_has_no_custodian_policy if {
 	result := evaluate_drift({
 		"address": "azurerm_storage_account.sa",
 		"type": "azurerm_storage_account",
@@ -253,7 +255,7 @@ test_storage_public_blob_has_custodian_policy if {
 		"changed_paths": ["allow_blob_public_access"],
 		"actions": ["update"],
 	})
-	result.custodian_policy == "deny-public-storage"
+	result.custodian_policy == null
 }
 
 # NSG + security_rule → enforce-nsg-no-open-inbound (P1.3)

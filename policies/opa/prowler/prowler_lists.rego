@@ -19,5 +19,6 @@ compliant := [info |
 	info := {
 		"resource_id": object.get(finding, "resource_id", "UNKNOWN"),
 		"status": "COMPLIANT",
+		"correlation_id": decision.correlation_id,
 	}
 ]
