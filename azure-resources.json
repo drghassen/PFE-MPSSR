@@ -1,0 +1,45 @@
+[
+  {
+    "changedTime": "2026-02-12T15:53:19.338491+00:00",
+    "createdTime": "2026-02-12T15:43:17.711558+00:00",
+    "extendedLocation": null,
+    "id": "/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/NetworkWatcher_norwayeast",
+    "identity": null,
+    "kind": null,
+    "location": "norwayeast",
+    "managedBy": null,
+    "name": "NetworkWatcher_norwayeast",
+    "plan": null,
+    "properties": null,
+    "provisioningState": "Succeeded",
+    "resourceGroup": "NetworkWatcherRG",
+    "sku": null,
+    "tags": null,
+    "type": "Microsoft.Network/networkWatchers"
+  },
+  {
+    "changedTime": "2026-04-04T22:13:42.700541+00:00",
+    "createdTime": "2026-04-03T00:04:47.189417+00:00",
+    "extendedLocation": null,
+    "id": "/subscriptions/8eef52e8-b918-4aec-8a36-fb2218e65f77/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/sttfstateghassen01",
+    "identity": null,
+    "kind": "StorageV2",
+    "location": "norwayeast",
+    "managedBy": null,
+    "name": "sttfstateghassen01",
+    "plan": null,
+    "properties": null,
+    "provisioningState": "Succeeded",
+    "resourceGroup": "rg-terraform-state",
+    "sku": {
+      "capacity": null,
+      "family": null,
+      "model": null,
+      "name": "Standard_LRS",
+      "size": null,
+      "tier": "Standard"
+    },
+    "tags": {},
+    "type": "Microsoft.Storage/storageAccounts"
+  }
+]

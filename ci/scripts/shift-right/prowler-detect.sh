@@ -99,6 +99,25 @@ else
     prowler_cmd+=(--ignore-exit-code-3)
   fi
 
+  # ── Prowler exclusions (structurally impossible checks) ──────────────────
+  PROWLER_EXCLUDED_CHECKS_FILE="${PROWLER_EXCLUDED_CHECKS_FILE:-config/prowler/exclusions-azure-student.txt}"
+  if [[ -f "$PROWLER_EXCLUDED_CHECKS_FILE" ]]; then
+    while IFS= read -r _check_id || [[ -n "$_check_id" ]]; do
+      [[ -z "$_check_id" || "$_check_id" == \#* ]] && continue
+      prowler_cmd+=(--excluded-check "$_check_id")
+    done < "$PROWLER_EXCLUDED_CHECKS_FILE"
+    sr_audit "INFO" "exclusions_loaded" "prowler check exclusions applied" \
+      "$(sr_build_details --arg file "$PROWLER_EXCLUDED_CHECKS_FILE" '{file:$file}')"
+  fi
+
+  # ── Prowler mutelist (design-accepted / licensing constraints) ───────────
+  PROWLER_MUTELIST_FILE="${PROWLER_MUTELIST_FILE:-config/prowler/mutelist-azure-student.yaml}"
+  if [[ -f "$PROWLER_MUTELIST_FILE" ]]; then
+    prowler_cmd+=(--mutelist-file "$PROWLER_MUTELIST_FILE")
+    sr_audit "INFO" "mutelist_loaded" "prowler mutelist applied" \
+      "$(sr_build_details --arg file "$PROWLER_MUTELIST_FILE" '{file:$file}')"
+  fi
+
   case "$AUTH_MODE" in
     sp-env)
       prowler_cmd+=(--sp-env-auth)
