@@ -1,0 +1,35 @@
+{
+  "exception_id": "EXC-IAM-001",
+  "schema_version": "1.0.0",
+  "created_at": "2026-05-01",
+  "expires_at": "2026-06-30",
+  "status": "active",
+  "findings": [
+    {
+      "check_id": "iam_role_user_access_admin_restricted",
+      "resource_id": "/providers/Microsoft.Authorization/roleAssignments/c90a27b7-049c-4eca-ab7d-aa1d1d85aff4",
+      "principal_id": "0d42e8dc-8442-4e18-bd7f-585f1558cd3a",
+      "principal_type": "User",
+      "scope": "/",
+      "severity": "HIGH"
+    },
+    {
+      "check_id": "iam_role_user_access_admin_restricted",
+      "resource_id": "/providers/Microsoft.Authorization/roleAssignments/befee0f8-7c4e-451f-96a2-b3657cb58be6",
+      "principal_id": "07efb741-3779-4047-b815-9049d6bc30c0",
+      "principal_type": "User",
+      "scope": "/",
+      "severity": "HIGH"
+    }
+  ],
+  "exception_type": "tenant_admin_required",
+  "justification": "Role assignments at root tenant scope (/). Removal requires Global Administrator or Privileged Role Administrator permissions not available on Azure for Students subscription. Principal identities not resolvable via SP context — insufficient AAD read permissions. Risk accepted pending tenant admin review.",
+  "risk_owner": "platform-security",
+  "remediation_path": "Escalate to tenant admin for identity resolution and scope restriction to subscription level",
+  "compensating_controls": [
+    "monitor_alert_create_policy_assignment active",
+    "monitor_alert_delete_policy_assignment active",
+    "monitor_diagnostic_settings capturing Administrative category",
+    "All IAM changes logged to law-cloudsentinel-01"
+  ]
+}
