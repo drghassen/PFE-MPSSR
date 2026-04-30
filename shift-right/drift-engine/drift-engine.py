@@ -39,6 +39,8 @@ from utils.terraform_runner import TerraformRunner
 
 SCHEMA_VERSION = "1.0.0"
 
+logger = structlog.get_logger()
+
 
 class TerraformInitConfig(BaseModel):
     upgrade: bool = False
@@ -444,7 +446,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    logger = configure_logging()
+    configure_logging()
     run_id = str(uuid.uuid4())
     os.environ["CLOUDSENTINEL_CORRELATION_ID"] = run_id
     started_at = _utc_now()

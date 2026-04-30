@@ -13,10 +13,26 @@ DRIFT_REPORT_PATH="$DRIFT_OUTPUT_PATH"
 DRIFT_ENGINE_ENV_FILE="${OUTPUT_DIR}/drift_engine.env"
 DRIFT_EXCEPTIONS_FILE="${OUTPUT_DIR}/drift_exceptions.json"
 AUDIT_FILE="${OUTPUT_DIR}/drift_detect_audit.jsonl"
-DRIFT_CONFIG_PATH="${DRIFT_CONFIG_PATH:-/app/config/drift_config.yaml}"
-DRIFT_ENGINE_ENTRYPOINT="${DRIFT_ENGINE_ENTRYPOINT:-/app/drift-engine.py}"
 TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-${REPO_ROOT}/.cloudsentinel/tf-plugin-cache}"
 ENVIRONMENT="${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}"
+DEFAULT_REPO_DRIFT_CONFIG_PATH="${REPO_ROOT}/shift-right/drift-engine/config/drift_config.yaml"
+DEFAULT_REPO_DRIFT_ENGINE_ENTRYPOINT="${REPO_ROOT}/shift-right/drift-engine/drift-engine.py"
+
+if [[ -z "${DRIFT_CONFIG_PATH:-}" ]]; then
+  if [[ -f "$DEFAULT_REPO_DRIFT_CONFIG_PATH" ]]; then
+    DRIFT_CONFIG_PATH="$DEFAULT_REPO_DRIFT_CONFIG_PATH"
+  else
+    DRIFT_CONFIG_PATH="/app/config/drift_config.yaml"
+  fi
+fi
+
+if [[ -z "${DRIFT_ENGINE_ENTRYPOINT:-}" ]]; then
+  if [[ -f "$DEFAULT_REPO_DRIFT_ENGINE_ENTRYPOINT" ]]; then
+    DRIFT_ENGINE_ENTRYPOINT="$DEFAULT_REPO_DRIFT_ENGINE_ENTRYPOINT"
+  else
+    DRIFT_ENGINE_ENTRYPOINT="/app/drift-engine.py"
+  fi
+fi
 
 mkdir -p "$(dirname "$DRIFT_REPORT_PATH")" "$OUTPUT_DIR" "$TF_PLUGIN_CACHE_DIR"
 
