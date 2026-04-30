@@ -164,7 +164,13 @@ sr_require_json "$OCSF_PATH" '
 TOTAL_FINDINGS="$(sr_json_number "$OCSF_PATH" 'length' 'prowler ocsf report')"
 FAIL_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "FAIL")] | length' 'prowler ocsf report')"
 PASS_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "PASS")] | length' 'prowler ocsf report')"
-MUTED_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "MUTED")] | length' 'prowler ocsf report')"
+# Prowler v5 exclut les MUTED du fichier OCSF — comptage depuis le CSV
+CSV_PATH="$(find "$PROWLER_OUTPUT_DIR" -maxdepth 1 -type f -name '*.csv' | sort | tail -n1 || true)"
+if [[ -n "$CSV_PATH" && -f "$CSV_PATH" ]]; then
+  MUTED_COUNT="$(awk -F';' 'NR>1 {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $NF); if ($NF == "MUTED") count++} END{print count+0}' "$CSV_PATH" || echo 0)"
+else
+  MUTED_COUNT=0
+fi
 
 RUN_ID="$(python - <<'PY'
 import uuid

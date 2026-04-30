@@ -2,17 +2,14 @@ Mutelist:
   Accounts:
     "*":
       Checks:
-        # EXC-IAM-001 — tenant admin required, root scope
         iam_role_user_access_admin_restricted:
           Regions:
             - "*"
           Resources:
-            - "/providers/Microsoft.Authorization/roleAssignments/c90a27b7-049c-4eca-ab7d-aa1d1d85aff4"
-            - "/providers/Microsoft.Authorization/roleAssignments/befee0f8-7c4e-451f-96a2-b3657cb58be6"
+            - "c90a27b7-049c-4eca-ab7d-aa1d1d85aff4"
+            - "befee0f8-7c4e-451f-96a2-b3657cb58be6"
           Tags:
             - "*"
-
-        # EXC-DESIGN-001 — licensing constraint azure_for_students
         storage_ensure_encryption_with_customer_managed_keys:
           Regions:
             - "*"
@@ -20,7 +17,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         storage_ensure_private_endpoints_in_storage_accounts:
           Regions:
             - "*"
@@ -28,7 +24,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         storage_geo_redundant_enabled:
           Regions:
             - "*"
@@ -36,7 +31,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         storage_smb_channel_encryption_with_secure_algorithm:
           Regions:
             - "*"
@@ -44,7 +38,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         storage_infrastructure_encryption_is_enabled:
           Regions:
             - "*"
@@ -52,7 +45,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         network_watcher_enabled:
           Regions:
             - "*"
@@ -60,7 +52,6 @@ Mutelist:
             - "*"
           Tags:
             - "*"
-
         network_bastion_host_exists:
           Regions:
             - "*"
