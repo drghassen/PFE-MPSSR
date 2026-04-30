@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0.0",
+  "generated_by": "cloudsentinel",
+  "capabilities": {
+    "enforce-nsg-no-open-inbound": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-nsg-no-open-inbound",
+      "verification_script": "verify_nsg_no_open_inbound.sh"
+    },
+    "enforce-nsg-rule-deny-all": {
+      "remediation_supported": false
+    },
+    "enforce-vm-no-password-auth": {
+      "remediation_supported": false
+    },
+    "enforce-sql-password-rotation": {
+      "remediation_supported": false
+    },
+    "deny-public-storage": {
+      "remediation_supported": true,
+      "custodian_policy": "deny-public-storage",
+      "verification_script": "verify_storage_private.sh"
+    },
+    "enforce-storage-tls": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-storage-tls",
+      "verification_script": "verify_encryption_enabled.sh"
+    },
+    "prowler:storage_default_network_access_rule_is_denied": {
+      "remediation_supported": true,
+      "custodian_policy": "deny-public-storage",
+      "verification_script": "verify_storage_private.sh"
+    },
+    "CKV_AWS_21": {
+      "remediation_supported": false
+    }
+  }
+}

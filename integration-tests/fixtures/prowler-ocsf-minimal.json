@@ -1,0 +1,23 @@
+[
+  {
+    "status_code": "FAIL",
+    "severity": "CRITICAL",
+    "status_detail": "Default action is Allow",
+    "finding_info": {
+      "uid": "prowler-azure-storage_default_network_access_rule_is_denied-11111111-1111-1111-1111-111111111111-subscriptions-abc",
+      "title": "Storage default network access rule is denied"
+    },
+    "resources": [
+      {
+        "uid": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa",
+        "type": "microsoft.storage/storageaccounts",
+        "region": "westeurope"
+      }
+    ],
+    "cloud": {
+      "account": {
+        "uid": "abc"
+      }
+    }
+  }
+]

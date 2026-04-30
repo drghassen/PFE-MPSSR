@@ -29,4 +29,9 @@ build_reason(severity, finding) := sprintf("%s drift on %s: %s", [
 	json.marshal(object.get(finding, "changed_paths", [])),
 ]) if {
 	severity == "LOW"
+} else := sprintf("Unknown drift classification on %s requires manual review: %s", [
+	object.get(finding, "type", "UNKNOWN"),
+	json.marshal(object.get(finding, "changed_paths", [])),
+]) if {
+	severity == "UNKNOWN"
 } else := "Drift within acceptable bounds"

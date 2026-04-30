@@ -18,13 +18,35 @@ sr_init_guard "shift-right/custodian-autofix" "$AUDIT_FILE"
 #   evaluated and logged but no Azure resource is modified.
 # CUSTODIAN_POLICIES_DIR: directory containing policy YAML files.
 OPA_CUSTODIAN_POLICIES="${OPA_CUSTODIAN_POLICIES:-}"
+OPA_PROWLER_CUSTODIAN_POLICIES="${OPA_PROWLER_CUSTODIAN_POLICIES:-}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-unknown}"
-CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-true}"
+REMEDIATION_MODE="${REMEDIATION_MODE:-advisory}"
+CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-}"
 CUSTODIAN_POLICIES_DIR="${CUSTODIAN_POLICIES_DIR:-shift-right/custodian/policies}"
+
+if [[ -z "$CUSTODIAN_DRY_RUN" ]]; then
+  case "$REMEDIATION_MODE" in
+    advisory) CUSTODIAN_DRY_RUN="true" ;;
+    enforced) CUSTODIAN_DRY_RUN="false" ;;
+    *)
+      sr_fail "invalid REMEDIATION_MODE (expected advisory|enforced)" 1 \
+        "$(jq -cn --arg remediation_mode "$REMEDIATION_MODE" '{remediation_mode:$remediation_mode}')"
+      ;;
+  esac
+fi
+
+ALL_CUSTODIAN_POLICIES="$(jq -nr \
+  --arg drift "$OPA_CUSTODIAN_POLICIES" \
+  --arg prowler "$OPA_PROWLER_CUSTODIAN_POLICIES" \
+  '[($drift|split(",")[]?), ($prowler|split(",")[]?)]
+   | map(gsub("^\\s+|\\s+$";""))
+   | map(select(length > 0))
+   | unique
+   | join(",")')"
 
 # ── Early exit: nothing to do ──────────────────────────────────────────────
 # If OPA produced no CRITICAL policy names, Custodian has no work to do.
-if [[ -z "$OPA_CUSTODIAN_POLICIES" ]]; then
+if [[ -z "$ALL_CUSTODIAN_POLICIES" ]]; then
   {
     echo "CUSTODIAN_EXECUTED=false"
     echo "CUSTODIAN_POLICIES_TRIGGERED="
@@ -36,8 +58,9 @@ if [[ -z "$OPA_CUSTODIAN_POLICIES" ]]; then
   sr_audit "INFO" "skip" "no CRITICAL custodian policies triggered" \
     "$(sr_build_details \
       --arg  policies      "$OPA_CUSTODIAN_POLICIES" \
+      --arg  prowler_policies "$OPA_PROWLER_CUSTODIAN_POLICIES" \
       --arg  correlation_id "$OPA_CORRELATION_ID" \
-      '{policies:$policies, remediation_scope:"CRITICAL_ONLY", correlation_id:$correlation_id}')"
+      '{policies:$policies, prowler_policies:$prowler_policies, remediation_scope:"CRITICAL_ONLY", correlation_id:$correlation_id}')"
   exit 0
 fi
 
@@ -63,11 +86,13 @@ sr_require_command custodian jq
 sr_audit "INFO" "execution_start" "custodian autofix starting" \
   "$(sr_build_details \
     --arg  custodian_dry_run      "$CUSTODIAN_DRY_RUN" \
+    --arg  remediation_mode       "$REMEDIATION_MODE" \
     --arg  custodian_policies_dir "$CUSTODIAN_POLICIES_DIR" \
-    --arg  opa_policies           "$OPA_CUSTODIAN_POLICIES" \
+    --arg  opa_policies           "$ALL_CUSTODIAN_POLICIES" \
     --arg  correlation_id         "$OPA_CORRELATION_ID" \
     '{
       custodian_dry_run:       ($custodian_dry_run == "true"),
+      remediation_mode:        $remediation_mode,
       custodian_policies_dir:  $custodian_policies_dir,
       opa_policies:            $opa_policies,
       remediation_scope:       "CRITICAL_ONLY",
@@ -76,8 +101,8 @@ sr_audit "INFO" "execution_start" "custodian autofix starting" \
 
 # ── Parse triggered policies ───────────────────────────────────────────────
 triggered_policies=()
-if [[ -n "$OPA_CUSTODIAN_POLICIES" ]]; then
-  IFS=',' read -r -a raw_policies <<< "$OPA_CUSTODIAN_POLICIES"
+if [[ -n "$ALL_CUSTODIAN_POLICIES" ]]; then
+  IFS=',' read -r -a raw_policies <<< "$ALL_CUSTODIAN_POLICIES"
   for raw in "${raw_policies[@]}"; do
     name="${raw//[[:space:]]/}"
     [[ -n "$name" ]] && triggered_policies+=("$name")

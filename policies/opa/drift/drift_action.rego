@@ -27,4 +27,6 @@ determine_action(severity, _finding) := "runtime_remediation" if {
 	severity == "MEDIUM"
 } else := "notify" if {
 	severity == "LOW"
+} else := "manual_review" if {
+	severity == "UNKNOWN"
 } else := "none"

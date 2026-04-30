@@ -13,6 +13,10 @@ PROWLER_OUTPUT_DIR="${PROWLER_OUTPUT_DIR:-${REPO_ROOT}/.cloudsentinel/prowler/ou
 PROWLER_REPORT_PATH="${PROWLER_REPORT_PATH:-${REPO_ROOT}/shift-right/prowler/output/prowler-report.json}"
 PROWLER_ENGINE_ENV_FILE="${OUTPUT_DIR}/prowler_engine.env"
 PROWLER_EXCEPTIONS_FILE="${PROWLER_EXCEPTIONS_PATH:-${OUTPUT_DIR}/prowler_exceptions.json}"
+EXCEPTIONS_FETCH_MODE="${EXCEPTIONS_FETCH_MODE:-strict}"
+PROWLER_EXCEPTIONS_SNAPSHOT_PATH="${PROWLER_EXCEPTIONS_SNAPSHOT_PATH:-${OUTPUT_DIR}/last-known-good/prowler_exceptions.json}"
+PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH="${PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH:-${PROWLER_EXCEPTIONS_SNAPSHOT_PATH}.sha256}"
+PROWLER_DEGRADED_ARTIFACT="${PROWLER_DEGRADED_ARTIFACT:-${OUTPUT_DIR}/prowler_degraded_mode.json}"
 AUDIT_FILE="${OUTPUT_DIR}/prowler_detect_audit.jsonl"
 ENVIRONMENT="${PROWLER_ENVIRONMENT:-${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}}"
 SUBSCRIPTION_IDS="${PROWLER_AZURE_SUBSCRIPTION_IDS:-${ARM_SUBSCRIPTION_ID:-}}"
@@ -39,7 +43,7 @@ _ensure_artifacts_on_exit() {
 trap _ensure_artifacts_on_exit EXIT
 
 sr_init_guard "shift-right/prowler-detection" "$AUDIT_FILE"
-sr_require_command jq python
+sr_require_command jq python sha256sum
 
 if [[ "$PROWLER_DETECT_SKIP_SCAN" != "true" ]]; then
   sr_require_command prowler
@@ -240,9 +244,42 @@ if [[ "$REPORT_DETECTED" == "false" && "$REPORT_ITEM_COUNT" -gt 0 ]]; then
 fi
 
 if [[ "$PROWLER_FETCH_EXCEPTIONS" == "true" ]]; then
-  python shift-right/scripts/fetch_prowler_exceptions.py \
+  FETCH_ERROR=""
+  if ! python shift-right/scripts/fetch_prowler_exceptions.py \
     --output "$PROWLER_EXCEPTIONS_FILE" \
-    --environment "$ENVIRONMENT"
+    --environment "$ENVIRONMENT"; then
+    FETCH_ERROR="fetch_failed"
+  fi
+
+  if [[ -z "$FETCH_ERROR" ]]; then
+    mkdir -p "$(dirname "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH")"
+    cp "$PROWLER_EXCEPTIONS_FILE" "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH"
+    (cd "$(dirname "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH")" && sha256sum "$(basename "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH")" > "$(basename "$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH")")
+  else
+    if [[ "$EXCEPTIONS_FETCH_MODE" != "degraded" ]]; then
+      sr_fail "failed to fetch prowler exceptions from DefectDojo in strict mode" 1 \
+        "$(jq -cn --arg mode "$EXCEPTIONS_FETCH_MODE" '{mode:$mode}')"
+    fi
+
+    sr_require_nonempty_file "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH" "prowler exceptions snapshot"
+    sr_require_nonempty_file "$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH" "prowler exceptions snapshot signature"
+    if ! (cd "$(dirname "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH")" && sha256sum -c "$(basename "$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH")" >/dev/null 2>&1); then
+      sr_fail "degraded mode enabled but prowler snapshot signature verification failed" 1 \
+        "$(jq -cn --arg snapshot \"$PROWLER_EXCEPTIONS_SNAPSHOT_PATH\" --arg sig \"$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH\" '{snapshot:$snapshot,signature:$sig}')"
+    fi
+
+    cp "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH" "$PROWLER_EXCEPTIONS_FILE"
+    jq -cn \
+      --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg mode "$EXCEPTIONS_FETCH_MODE" \
+      --arg snapshot "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH" \
+      --arg signature "$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH" \
+      --arg reason "defectdojo_fetch_failed_snapshot_used" \
+      '{timestamp:$timestamp, mode:$mode, snapshot:$snapshot, signature:$signature, reason:$reason}' > "$PROWLER_DEGRADED_ARTIFACT"
+
+    sr_audit "WARN" "exceptions_degraded_mode" "DefectDojo unavailable, using signed prowler snapshot" \
+      "$(sr_build_details --arg snapshot "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH" --arg signature "$PROWLER_EXCEPTIONS_SNAPSHOT_SIG_PATH" '{snapshot:$snapshot, signature:$signature}')"
+  fi
 else
   jq -cn \
     --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

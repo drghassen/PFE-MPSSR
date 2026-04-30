@@ -142,7 +142,7 @@ test_log_analytics_retention_drift_is_low if {
 # ──────────────────────────────────────────────────────────────────────────────
 
 # P0.3 : type non classifié avec changed_paths → LOW (PAS INFO)
-test_unknown_resource_type_with_changed_paths_is_low_not_info if {
+test_unknown_resource_type_with_changed_paths_is_unknown_and_manual_review if {
 	result := evaluate_drift({
 		"address": "azurerm_virtual_network.vnet",
 		"type": "azurerm_virtual_network",
@@ -150,7 +150,9 @@ test_unknown_resource_type_with_changed_paths_is_low_not_info if {
 		"changed_paths": ["address_space"],
 		"actions": ["update"],
 	})
-	result.severity == "LOW"
+	result.severity == "UNKNOWN"
+	result.manual_review_required == true
+	result.action_required == "manual_review"
 	result.severity != "INFO"
 }
 
@@ -175,6 +177,7 @@ test_finding_missing_address_returns_low_manual_review if {
 	})
 	result.severity == "LOW"
 	result.action_required == "manual_review"
+	result.manual_review_required == true
 }
 
 # P0.2 : type manquant → LOW + manual_review (pas de silence)
@@ -186,6 +189,7 @@ test_finding_missing_type_returns_low_manual_review if {
 	})
 	result.severity == "LOW"
 	result.action_required == "manual_review"
+	result.manual_review_required == true
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -200,9 +204,18 @@ test_critical_drift_action_is_runtime_remediation if {
 		"provider_name": "registry.terraform.io/hashicorp/azurerm",
 		"changed_paths": ["security_rule"],
 		"actions": ["update"],
-	})
+	}) with input as {
+		"capabilities": {
+			"enforce-nsg-no-open-inbound": {
+				"remediation_supported": true,
+				"verification_script": "verify_nsg_no_open_inbound.sh",
+			}
+		}
+	}
 	result.action_required == "runtime_remediation"
 	result.requires_remediation == true
+	result.capability_supported == true
+	result.verification_script == "verify_nsg_no_open_inbound.sh"
 }
 
 # HIGH + storage → ticket_and_notify
@@ -216,6 +229,21 @@ test_high_storage_drift_action_is_ticket_and_notify if {
 	})
 	result.action_required == "ticket_and_notify"
 	result.requires_remediation == false
+}
+
+test_critical_drift_without_supported_capability_is_manual_review if {
+	result := evaluate_drift({
+		"address": "azurerm_network_security_rule.deny_all",
+		"type": "azurerm_network_security_rule",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["access"],
+		"actions": ["update"],
+	})
+	result.severity == "CRITICAL"
+	result.action_required == "manual_review"
+	result.manual_review_required == true
+	result.requires_remediation == false
+	result.custodian_policy == null
 }
 
 # LOW → notify
@@ -266,7 +294,14 @@ test_nsg_has_custodian_policy if {
 		"provider_name": "registry.terraform.io/hashicorp/azurerm",
 		"changed_paths": ["security_rule"],
 		"actions": ["update"],
-	})
+	}) with input as {
+		"capabilities": {
+			"enforce-nsg-no-open-inbound": {
+				"remediation_supported": true,
+				"verification_script": "verify_nsg_no_open_inbound.sh",
+			}
+		}
+	}
 	result.custodian_policy == "enforce-nsg-no-open-inbound"
 }
 

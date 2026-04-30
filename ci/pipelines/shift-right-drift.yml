@@ -242,8 +242,9 @@ custodian-autofix:
   needs:
     - job: opa-drift-decision
       artifacts: true
+    - job: opa-prowler-decision
+      artifacts: true
   variables:
-    CUSTODIAN_DRY_RUN: "true"
     CUSTODIAN_POLICIES_DIR: "shift-right/custodian/policies"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'

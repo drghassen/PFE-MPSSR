@@ -19,6 +19,7 @@ OPA_SERVER_ADDR="${OPA_PROWLER_SERVER_ADDR:-127.0.0.1:8383}"
 OPA_SERVER_URL="${OPA_PROWLER_SERVER_URL:-http://${OPA_SERVER_ADDR}}"
 OPA_PROWLER_POLICY_DIR="${OPA_PROWLER_POLICY_DIR:-policies/opa/prowler}"
 OPA_SYSTEM_AUTHZ_FILE="${OPA_SYSTEM_AUTHZ_FILE:-policies/opa/system/authz.rego}"
+REMEDIATION_CAPABILITIES_FILE="${REMEDIATION_CAPABILITIES_FILE:-config/remediation-capabilities.json}"
 OPA_AUTH_TOKEN="${OPA_AUTH_TOKEN:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
 ENVIRONMENT="${PROWLER_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}"
 REPO_PATH="${CI_PROJECT_PATH:-unknown}"
@@ -34,6 +35,7 @@ sr_require_nonempty_file "$REPORT_PATH" "prowler report"
 sr_require_nonempty_file "$EXCEPTIONS_FILE" "prowler exceptions"
 sr_require_nonempty_file "$OPA_SYSTEM_AUTHZ_FILE" "OPA authz policy"
 sr_require_nonempty_file "$OPA_PROWLER_POLICY_DIR/prowler_evaluate.rego" "OPA prowler policy"
+sr_require_nonempty_file "$REMEDIATION_CAPABILITIES_FILE" "remediation capabilities registry"
 
 sr_require_json "$REPORT_PATH" '
   type == "object"
@@ -51,6 +53,10 @@ sr_require_json "$EXCEPTIONS_FILE" '
   and (.cloudsentinel.prowler_exceptions | type == "object")
   and (.cloudsentinel.prowler_exceptions.exceptions | type == "array")
 ' "prowler exceptions"
+sr_require_json "$REMEDIATION_CAPABILITIES_FILE" '
+  type == "object"
+  and (.capabilities | type == "object")
+' "remediation capabilities registry"
 
 REPORT_ERROR_COUNT="$(sr_json_number "$REPORT_PATH" '.errors | length' 'prowler report')"
 PROWLER_INPUT_COUNT="$(sr_json_number "$REPORT_PATH" '.prowler.items | length' 'prowler report')"
@@ -141,6 +147,7 @@ jq -c \
   --arg repo "$REPO_PATH" \
   --arg branch "$BRANCH_NAME" \
   --arg correlation_id "$CORRELATION_ID" \
+  --slurpfile capabilities "$REMEDIATION_CAPABILITIES_FILE" \
   '{
      input: {
        source: "prowler",
@@ -155,6 +162,7 @@ jq -c \
          allow_legacy_exceptions: true,
          allow_degraded: false
        },
+       capabilities: (($capabilities[0].capabilities // {})),
        findings: [
          (.prowler.items // [])[] | {
            check_id: .check_id,
@@ -205,6 +213,7 @@ DENY_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.deny | length)' 'OPA pro
 RAW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.violations | length)' 'OPA prowler decision')"
 EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '((.result.effective_violations // .result.violations) | length)' 'OPA prowler decision')"
 ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH")] | length' 'OPA prowler decision')"
+MANUAL_REVIEW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.manual_review_required // false) == true)] | length' 'OPA prowler decision')"
 EXCEPTED_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.excepted_violations // 0)' 'OPA prowler decision')"
 EFFECTIVE_CRITICAL="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL")] | length' 'OPA prowler decision')"
 EFFECTIVE_HIGH="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "HIGH")] | length' 'OPA prowler decision')"
@@ -212,6 +221,7 @@ EFFECTIVE_MEDIUM="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violat
 EFFECTIVE_LOW="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "LOW")] | length' 'OPA prowler decision')"
 TOTAL_EXCEPTIONS_LOADED="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.total_exceptions_loaded // 0)' 'OPA prowler decision')"
 VALID_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.prowler_exception_summary.valid_exceptions // 0)' 'OPA prowler decision')"
+OPA_PROWLER_CUSTODIAN_POLICIES="$(jq -r '[(.result.effective_violations // .result.violations // [])[] | select((.requires_remediation // false) == true and .custodian_policy != null) | .custodian_policy] | unique | join(",")' "$DECISION_FILE")"
 OPA_PROWLER_CORRELATION_ID="$(jq -r '.result.correlation_id // "unknown"' "$DECISION_FILE")"
 if [[ "$OPA_PROWLER_CORRELATION_ID" == "unknown" ]]; then
   OPA_PROWLER_CORRELATION_ID="$CORRELATION_ID"
@@ -220,10 +230,11 @@ fi
 sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA prowler violations count does not match input findings"
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA prowler effective violations exceed raw violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "OPA prowler actionable violations exceed effective violations"
+sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$MANUAL_REVIEW_VIOLATIONS" "OPA prowler manual-review violations exceed effective violations"
 
 OPA_PROWLER_BLOCK=false
 OPA_PROWLER_DENY=false
-if [[ "$DENY_COUNT" -gt 0 || "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 ]]; then
+if [[ "$DENY_COUNT" -gt 0 || "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 || "$MANUAL_REVIEW_VIOLATIONS" -gt 0 ]]; then
   OPA_PROWLER_BLOCK=true
 fi
 if [[ "$DENY_COUNT" -gt 0 ]]; then
@@ -242,7 +253,7 @@ fi
     printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
   fi
   printf '│ %-78s │\n' \
-    "  Deny: ${OPA_PROWLER_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+    "  Deny: ${OPA_PROWLER_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}  |  ManualReview: ${MANUAL_REVIEW_VIOLATIONS}"
   printf '│ %-78s │\n' \
     "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
   printf '└────────────────────────────────────────────────────────────────────────────────┘\n'
@@ -257,11 +268,13 @@ fi
   echo "OPA_PROWLER_RAW_VIOLATIONS=${RAW_VIOLATIONS}"
   echo "OPA_PROWLER_EFFECTIVE_VIOLATIONS=${EFFECTIVE_VIOLATIONS}"
   echo "OPA_PROWLER_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+  echo "OPA_PROWLER_MANUAL_REVIEW_VIOLATIONS=${MANUAL_REVIEW_VIOLATIONS}"
   echo "OPA_PROWLER_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
   echo "OPA_PROWLER_INPUT_COUNT=${INPUT_COUNT}"
   echo "OPA_PROWLER_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_PROWLER_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"
   echo "OPA_PROWLER_TOTAL_EXCEPTIONS_LOADED=${TOTAL_EXCEPTIONS_LOADED}"
+  echo "OPA_PROWLER_CUSTODIAN_POLICIES=${OPA_PROWLER_CUSTODIAN_POLICIES}"
   echo "OPA_PROWLER_CORRELATION_ID=${OPA_PROWLER_CORRELATION_ID}"
   echo "OPA_PROWLER_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
   echo "OPA_PROWLER_HIGH_COUNT=${EFFECTIVE_HIGH}"

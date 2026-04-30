@@ -19,6 +19,7 @@ OPA_SERVER_ADDR="${OPA_SERVER_ADDR:-127.0.0.1:8282}"
 OPA_SERVER_URL="${OPA_SERVER_URL:-http://${OPA_SERVER_ADDR}}"
 OPA_DRIFT_POLICY_DIR="${OPA_DRIFT_POLICY_DIR:-policies/opa/drift}"
 OPA_SYSTEM_AUTHZ_FILE="${OPA_SYSTEM_AUTHZ_FILE:-policies/opa/system/authz.rego}"
+REMEDIATION_CAPABILITIES_FILE="${REMEDIATION_CAPABILITIES_FILE:-config/remediation-capabilities.json}"
 OPA_AUTH_TOKEN="${OPA_AUTH_TOKEN:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
 ENVIRONMENT="${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-production}}"
 REPO_PATH="${CI_PROJECT_PATH:-unknown}"
@@ -34,6 +35,7 @@ sr_require_nonempty_file "$REPORT_PATH" "drift report"
 sr_require_nonempty_file "$EXCEPTIONS_FILE" "drift exceptions"
 sr_require_nonempty_file "$OPA_SYSTEM_AUTHZ_FILE" "OPA authz policy"
 sr_require_nonempty_file "$OPA_DRIFT_POLICY_DIR/drift_evaluate.rego" "OPA drift policy"
+sr_require_nonempty_file "$REMEDIATION_CAPABILITIES_FILE" "remediation capabilities registry"
 
 sr_require_json "$REPORT_PATH" '
   type == "object"
@@ -51,6 +53,10 @@ sr_require_json "$EXCEPTIONS_FILE" '
   and (.cloudsentinel.drift_exceptions | type == "object")
   and (.cloudsentinel.drift_exceptions.exceptions | type == "array")
 ' "drift exceptions"
+sr_require_json "$REMEDIATION_CAPABILITIES_FILE" '
+  type == "object"
+  and (.capabilities | type == "object")
+' "remediation capabilities registry"
 
 REPORT_ERROR_COUNT="$(sr_json_number "$REPORT_PATH" '.errors | length' 'drift report')"
 DRIFT_INPUT_COUNT="$(sr_json_number "$REPORT_PATH" '.drift.items | length' 'drift report')"
@@ -143,6 +149,7 @@ jq -c \
   --arg repo "$REPO_PATH" \
   --arg branch "$BRANCH_NAME" \
   --arg correlation_id "$CORRELATION_ID" \
+  --slurpfile capabilities "$REMEDIATION_CAPABILITIES_FILE" \
   '{
      input: {
        source: "drift-engine",
@@ -157,6 +164,7 @@ jq -c \
          allow_legacy_exceptions: true,
          allow_degraded: false
        },
+       capabilities: (($capabilities[0].capabilities // {})),
        findings: [
          (.drift.items // [])[] | {
            address: .address,
@@ -205,6 +213,7 @@ DENY_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.deny | length)' 'OPA dri
 RAW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.violations | length)' 'OPA drift decision')"
 EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '((.result.effective_violations // .result.violations) | length)' 'OPA drift decision')"
 ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH")] | length' 'OPA drift decision')"
+MANUAL_REVIEW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.manual_review_required // false) == true)] | length' 'OPA drift decision')"
 EXCEPTED_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.excepted_violations // 0)' 'OPA drift decision')"
 EFFECTIVE_CRITICAL="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL")] | length' 'OPA drift decision')"
 EFFECTIVE_HIGH="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "HIGH")] | length' 'OPA drift decision')"
@@ -222,10 +231,11 @@ fi
 sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA drift violations count does not match input findings"
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA drift effective violations exceed raw violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "OPA drift actionable violations exceed effective violations"
+sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$MANUAL_REVIEW_VIOLATIONS" "OPA drift manual-review violations exceed effective violations"
 
 OPA_DRIFT_BLOCK=false
 OPA_DRIFT_DENY=false
-if [[ "$DENY_COUNT" -gt 0 || "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 ]]; then
+if [[ "$DENY_COUNT" -gt 0 || "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 || "$MANUAL_REVIEW_VIOLATIONS" -gt 0 ]]; then
   OPA_DRIFT_BLOCK=true
 fi
 if [[ "$DENY_COUNT" -gt 0 ]]; then
@@ -244,7 +254,7 @@ fi
     printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
   fi
   printf '│ %-78s │\n' \
-    "  Deny: ${OPA_DRIFT_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+    "  Deny: ${OPA_DRIFT_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}  |  ManualReview: ${MANUAL_REVIEW_VIOLATIONS}"
   printf '│ %-78s │\n' \
     "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
   printf '├────────────────────────────┬──────────┬────────────────────────────┬────────────────────────┤\n'
@@ -273,6 +283,7 @@ fi
   echo "OPA_RAW_VIOLATIONS=${RAW_VIOLATIONS}"
   echo "OPA_EFFECTIVE_VIOLATIONS=${EFFECTIVE_VIOLATIONS}"
   echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
+  echo "OPA_MANUAL_REVIEW_VIOLATIONS=${MANUAL_REVIEW_VIOLATIONS}"
   echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
   echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
   echo "OPA_CORRELATION_ID=${OPA_CORRELATION_ID}"

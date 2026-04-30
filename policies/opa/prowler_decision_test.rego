@@ -36,6 +36,56 @@ test_high_finding_is_actionable_ticket_and_notify if {
   result[0].action_required == "ticket_and_notify"
   result[0].requires_remediation == false
   result[0].severity == "HIGH"
+  result[0].manual_review_required == false
+}
+
+test_critical_finding_without_capability_is_manual_review if {
+  result := violations with input as object.union(base_input, {
+    "findings": [
+      {
+        "check_id": "some_unmapped_critical_check",
+        "resource_id": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa",
+        "resource_type": "microsoft.storage/storageaccounts",
+        "severity": "CRITICAL",
+        "status_code": "FAIL",
+      }
+    ],
+  })
+
+  count(result) == 1
+  result[0].action_required == "manual_review"
+  result[0].requires_remediation == false
+  result[0].manual_review_required == true
+  result[0].custodian_policy == null
+}
+
+test_critical_finding_with_capability_is_runtime_remediation if {
+  in_data := object.union(base_input, {
+    "capabilities": {
+      "prowler:storage_default_network_access_rule_is_denied": {
+        "remediation_supported": true,
+        "custodian_policy": "deny-public-storage",
+        "verification_script": "verify_storage_private.sh",
+      }
+    },
+    "findings": [
+      {
+        "check_id": "storage_default_network_access_rule_is_denied",
+        "resource_id": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa",
+        "resource_type": "microsoft.storage/storageaccounts",
+        "severity": "CRITICAL",
+        "status_code": "FAIL",
+      }
+    ],
+  })
+
+  result := violations with input as in_data
+  count(result) == 1
+  result[0].action_required == "runtime_remediation"
+  result[0].requires_remediation == true
+  result[0].manual_review_required == false
+  result[0].custodian_policy == "deny-public-storage"
+  result[0].verification_script == "verify_storage_private.sh"
 }
 
 test_missing_required_fields_falls_back_to_manual_review if {

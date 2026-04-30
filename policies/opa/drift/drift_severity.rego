@@ -23,7 +23,7 @@ determine_severity(finding) := "CRITICAL" if {
 } else := "INFO" if {
 	# INFO uniquement si aucun changed_path → resource sans drift effectif détecté
 	count(object.get(finding, "changed_paths", [])) == 0
-} else := "LOW" # FIX: P0.3 — Ultime fallback conservatif pour changed_paths non classifiés
+} else := "UNKNOWN"
 
 # ==============================================================================
 # Règles de Classification
@@ -82,9 +82,10 @@ is_low_drift(finding) if {
 # FIX: P0.3 — Fallback LOW pour tout drift non classifié (élimine FAIL-OPEN via INFO).
 # Toute ressource avec changed_paths non vides et non couverte par les règles
 # explicites est au minimum LOW — jamais INFO (qui signifierait "compliant").
-is_low_drift(finding) if {
+is_unknown_drift(finding) if {
 	count(object.get(finding, "changed_paths", [])) > 0
 	not is_critical_drift(finding)
 	not is_high_drift(finding)
 	not is_medium_drift(finding)
+	not is_low_drift(finding)
 }
