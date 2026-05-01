@@ -12,7 +12,10 @@ import rego.v1
 
 # FIX: P0.3 — INFO est réservé aux findings sans changed_paths (pas de drift réel).
 # L'ultime fallback est LOW (conservatif), jamais INFO pour un drift actif.
-determine_severity(finding) := "CRITICAL" if {
+determine_severity(finding) := "INFO" if {
+	finding.type == "output"
+	not finding.provenance == "inferred_from_output"
+} else := "CRITICAL" if {
 	is_critical_drift(finding)
 } else := "HIGH" if {
 	is_high_drift(finding)
@@ -20,10 +23,12 @@ determine_severity(finding) := "CRITICAL" if {
 	is_medium_drift(finding)
 } else := "LOW" if {
 	is_low_drift(finding)
+} else := "LOW" if {
+	is_unknown_drift(finding)
 } else := "INFO" if {
 	# INFO uniquement si aucun changed_path → resource sans drift effectif détecté
 	count(object.get(finding, "changed_paths", [])) == 0
-} else := "UNKNOWN"
+} else := "LOW"
 
 # ==============================================================================
 # Règles de Classification

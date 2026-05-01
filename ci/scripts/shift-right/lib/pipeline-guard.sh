@@ -6,11 +6,32 @@ set -euo pipefail
 SHIFT_RIGHT_STAGE="${SHIFT_RIGHT_STAGE:-unknown}"
 SHIFT_RIGHT_AUDIT_FILE="${SHIFT_RIGHT_AUDIT_FILE:-.cloudsentinel/shift-right-audit.jsonl}"
 
+sr_derive_pipeline_correlation_id() {
+  if [[ -n "${CLOUDSENTINEL_PIPELINE_CORRELATION_ID:-}" ]]; then
+    printf '%s\n' "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID"
+    return 0
+  fi
+
+  if [[ -n "${CI_PIPELINE_ID:-}" ]]; then
+    printf 'cspipe-%s\n' "$CI_PIPELINE_ID"
+    return 0
+  fi
+
+  local seed cid
+  seed="${CI_PROJECT_ID:-local}:${CI_PIPELINE_IID:-0}:${CI_RUNNER_ID:-0}:${CI_COMMIT_SHA:-local}:${CI_PROJECT_PATH:-${PWD:-local}}"
+  cid="$(
+    CLOUDSENTINEL_PIPELINE_CORRELATION_SEED="$seed" python3 -c 'import hashlib, os, uuid; seed = os.environ["CLOUDSENTINEL_PIPELINE_CORRELATION_SEED"].encode("utf-8"); print(uuid.UUID(bytes=hashlib.sha256(seed).digest()[:16], version=4))'
+  )"
+  printf 'cspipe-%s\n' "$cid"
+}
+
 sr_init_guard() {
   local stage="${1:?stage is required}"
   local audit_file="${2:?audit_file is required}"
   SHIFT_RIGHT_STAGE="$stage"
   SHIFT_RIGHT_AUDIT_FILE="$audit_file"
+  CLOUDSENTINEL_PIPELINE_CORRELATION_ID="$(sr_derive_pipeline_correlation_id)"
+  export CLOUDSENTINEL_PIPELINE_CORRELATION_ID
   mkdir -p "$(dirname "$SHIFT_RIGHT_AUDIT_FILE")"
 }
 
@@ -66,6 +87,7 @@ sr_audit() {
         --arg level "$level" \
         --arg event "$event" \
         --arg message "$message" \
+        --arg pipeline_correlation_id "${CLOUDSENTINEL_PIPELINE_CORRELATION_ID:-unknown}" \
         --argjson details "$details_json" \
         '{
           timestamp: $timestamp,
@@ -73,7 +95,7 @@ sr_audit() {
           level: $level,
           event: $event,
           message: $message,
-          details: $details
+          details: ($details + {pipeline_correlation_id: $pipeline_correlation_id})
         }'
     )"
     printf '%s\n' "$line" >> "$SHIFT_RIGHT_AUDIT_FILE"
@@ -118,6 +140,12 @@ sr_require_env() {
       1 \
       "$(printf '%s\n' "${missing[@]}" | jq -R . | jq -sc '{missing_env:.}')"
   fi
+}
+
+sr_pipeline_correlation_id() {
+  CLOUDSENTINEL_PIPELINE_CORRELATION_ID="$(sr_derive_pipeline_correlation_id)"
+  export CLOUDSENTINEL_PIPELINE_CORRELATION_ID
+  printf '%s\n' "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID"
 }
 
 # ---------------------------------------------------------------------------

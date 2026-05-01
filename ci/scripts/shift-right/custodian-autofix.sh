@@ -19,6 +19,8 @@ sr_init_guard "shift-right/custodian-autofix" "$AUDIT_FILE"
 # CUSTODIAN_POLICIES_DIR: directory containing policy YAML files.
 OPA_CUSTODIAN_POLICIES="${OPA_CUSTODIAN_POLICIES:-}"
 OPA_PROWLER_CUSTODIAN_POLICIES="${OPA_PROWLER_CUSTODIAN_POLICIES:-}"
+OPA_DRIFT_L3_COUNT="${OPA_DRIFT_L3_COUNT:-0}"
+OPA_PROWLER_L3_COUNT="${OPA_PROWLER_L3_COUNT:-0}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-unknown}"
 REMEDIATION_MODE="${REMEDIATION_MODE:-enforced}"
 CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-}"
@@ -65,14 +67,16 @@ ALL_CUSTODIAN_POLICIES="$(jq -nr \
    | join(",")')"
 
 # ── Early exit: nothing to do ──────────────────────────────────────────────
-# If OPA produced no CRITICAL policy names, Custodian has no work to do.
+# If OPA produced no runtime remediation policy names, Custodian has no work to do.
 if [[ -z "$ALL_CUSTODIAN_POLICIES" ]]; then
-  sr_audit "INFO" "skip" "no CRITICAL custodian policies triggered" \
+  sr_audit "INFO" "skip" "no L3 (auto-remediation) findings - custodian not triggered" \
     "$(sr_build_details \
       --arg  policies      "$OPA_CUSTODIAN_POLICIES" \
       --arg  prowler_policies "$OPA_PROWLER_CUSTODIAN_POLICIES" \
       --arg  correlation_id "$OPA_CORRELATION_ID" \
-      '{policies:$policies, prowler_policies:$prowler_policies, remediation_scope:"CRITICAL_ONLY", correlation_id:$correlation_id}')"
+      --argjson l3_drift "$OPA_DRIFT_L3_COUNT" \
+      --argjson l3_prowler "$OPA_PROWLER_L3_COUNT" \
+      '{policies:$policies, prowler_policies:$prowler_policies, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3", remediation_scope:"L3_AUTO_REMEDIATION_ONLY", correlation_id:$correlation_id}')"
   exit 0
 fi
 
@@ -107,7 +111,7 @@ sr_audit "INFO" "execution_start" "custodian autofix starting" \
       remediation_mode:        $remediation_mode,
       custodian_policies_dir:  $custodian_policies_dir,
       opa_policies:            $opa_policies,
-      remediation_scope:       "CRITICAL_ONLY",
+      remediation_scope:       "RUNTIME_CANDIDATES_ONLY",
       correlation_id:          $correlation_id
     }')"
 

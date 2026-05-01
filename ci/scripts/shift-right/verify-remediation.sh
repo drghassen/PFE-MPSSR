@@ -23,6 +23,8 @@ sr_require_nonempty_file "$PROWLER_DECISION_FILE" "opa prowler decision"
 
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
+OPA_DRIFT_L3_COUNT="${OPA_DRIFT_L3_COUNT:-0}"
+OPA_PROWLER_L3_COUNT="${OPA_PROWLER_L3_COUNT:-0}"
 OPA_REQUIRES_AUTO_REMEDIATION="${OPA_REQUIRES_AUTO_REMEDIATION:-false}"
 OPA_PROWLER_REQUIRES_AUTO_REMEDIATION="${OPA_PROWLER_REQUIRES_AUTO_REMEDIATION:-false}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-unknown}"
@@ -143,7 +145,11 @@ if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" && "$OPA_PROWLER_REQUIRES_AUTO_
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{timestamp:$timestamp, total_candidates:0, verified:0, failed:0, skipped:true, skip_reason:"no_auto_remediation_required"}' > "$SUMMARY_FILE"
 
-  sr_audit "INFO" "skip" "auto-remediation not required" "$(sr_build_details --argjson candidates "$CANDIDATE_COUNT" '{candidates:$candidates}')"
+  sr_audit "INFO" "skip" "no L3 auto-remediation required" "$(sr_build_details \
+    --argjson candidates "$CANDIDATE_COUNT" \
+    --argjson l3_drift "$OPA_DRIFT_L3_COUNT" \
+    --argjson l3_prowler "$OPA_PROWLER_L3_COUNT" \
+    '{candidates:$candidates, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3"}')"
   exit 0
 fi
 

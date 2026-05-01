@@ -3,7 +3,7 @@
 # Commandes pratiques pour le développement et l'exploitation
 # ============================================================================
 
-.PHONY: help setup scan test clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system opa-compose-bootstrap opa-up opa-up-shiftright opa-down
+.PHONY: help setup scan test test-python clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system opa-compose-bootstrap opa-up opa-up-shiftright opa-down
 
 # Couleurs pour l'affichage
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -244,6 +244,9 @@ test: ## Exécuter tous les tests
 	@echo "$(GREEN)🧪 Tests...$(RESET)"
 	@make opa-test
 	@echo "$(GREEN)✅ Tous les tests passés$(RESET)"
+
+test-python: ## Tests Python drift-engine avec TMPDIR compatible WSL
+	@TMPDIR=/tmp TMP=/tmp TEMP=/tmp python -m pytest shift-right/drift-engine/tests/ -v --tb=short
 
 test-vulnerable-samples: ## Tester avec échantillons vulnérables
 	@echo "$(GREEN)🧪 Test avec échantillons vulnérables...$(RESET)"

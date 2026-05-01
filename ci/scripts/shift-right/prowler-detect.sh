@@ -174,10 +174,12 @@ import uuid
 print(uuid.uuid4())
 PY
 )"
+PIPELINE_CORRELATION_ID="$(sr_pipeline_correlation_id)"
 FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 jq -c \
   --arg run_id "$RUN_ID" \
+  --arg pipeline_correlation_id "$PIPELINE_CORRELATION_ID" \
   --arg environment "$ENVIRONMENT" \
   --arg finished_at "$FINISHED_AT" \
   --argjson total_findings "$TOTAL_FINDINGS" \
@@ -203,6 +205,7 @@ jq -c \
     cloudsentinel: {
       run_id: $run_id,
       correlation_id: $run_id,
+      pipeline_correlation_id: $pipeline_correlation_id,
       engine: "cloudsentinel-prowler-engine",
       version: "0.1.0",
       source: "prowler",
@@ -242,6 +245,7 @@ sr_require_json "$PROWLER_REPORT_PATH" '
   type == "object"
   and (.cloudsentinel | type == "object")
   and ((.cloudsentinel.correlation_id // "") | type == "string" and length > 0)
+  and (.cloudsentinel.pipeline_correlation_id == env.CLOUDSENTINEL_PIPELINE_CORRELATION_ID)
   and (.prowler | type == "object")
   and (.prowler.summary | type == "object")
   and (.prowler.items | type == "array")
@@ -349,6 +353,7 @@ PROWLER_EXCEPTION_COUNT="$(sr_json_number "$PROWLER_EXCEPTIONS_FILE" '.cloudsent
   echo "PROWLER_MUTED_COUNT=${MUTED_COUNT}"
   echo "PROWLER_EXCEPTION_COUNT=${PROWLER_EXCEPTION_COUNT}"
   echo "PROWLER_CORRELATION_ID=${PROWLER_CORRELATION_ID}"
+  echo "PIPELINE_CORRELATION_ID=${PIPELINE_CORRELATION_ID}"
 } > "$PROWLER_ENGINE_ENV_FILE"
 
 # ── Prowler Detection Summary Table ──────────────────────────────────────────

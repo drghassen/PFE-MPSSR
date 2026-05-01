@@ -18,19 +18,24 @@ evaluate_drift(finding) := decision if {
 	correlation_id := _resolve_correlation_id(finding)
 	requires_remediation := _requires_remediation(response_type)
 	manual_review_required := _manual_review_required(response_type, severity)
+	response_policy := _custodian_policy_for_response(response_type, candidate_policy)
+	level := remediation_level(finding, severity, requires_remediation, response_policy)
 
 	decision := {
-		"resource_id": object.get(finding, "address", "UNKNOWN"),
-		"resource_type": object.get(finding, "type", "UNKNOWN"),
-		"provider": object.get(finding, "provider_name", "UNKNOWN"),
+		"resource_id": object.get(finding, "address", "unknown"),
+		"resource_type": object.get(finding, "type", "unknown"),
+		"provider": object.get(finding, "provider_name", "unknown"),
+		"type": object.get(finding, "type", "unknown"),
+		"provenance": object.get(finding, "provenance", ""),
 		"severity": severity,
+		"remediation_level": level,
 		"reason": build_reason(severity, finding),
 		"action_required": response_type,
 		"response_type": response_type,
 		"manual_review_required": manual_review_required,
 		"requires_remediation": requires_remediation,
 		"changed_paths": object.get(finding, "changed_paths", []),
-		"custodian_policy": _custodian_policy_for_response(response_type, candidate_policy),
+		"custodian_policy": response_policy,
 		"capability_supported": _capability_supported(runtime_requested, runtime_supported),
 		"verification_script": _verification_script_for_response(response_type, candidate_policy),
 		"capability_key": candidate_policy,
@@ -46,6 +51,28 @@ _has_required_fields(finding) if {
 	object.get(finding, "type", "") != ""
 	object.get(finding, "provider_name", "") != ""
 }
+
+remediation_level(finding, severity, requires_remediation, custodian_policy) := "L0" if {
+	finding.type == "output"
+	not finding.provenance == "inferred_from_output"
+} else := "L1" if {
+	severity == "LOW"
+	not requires_remediation
+} else := "L2" if {
+	severity == "MEDIUM"
+	not requires_remediation
+} else := "L2" if {
+	severity == "HIGH"
+	not requires_remediation
+} else := "L2" if {
+	severity == "CRITICAL"
+	not requires_remediation
+} else := "L3" if {
+	severity == "CRITICAL"
+	requires_remediation == true
+	custodian_policy != null
+	custodian_policy != ""
+} else := "L1"
 
 _requires_remediation(response_type) := true if {
 	response_type == "runtime_remediation"
@@ -79,8 +106,6 @@ _verification_script_for_response(response_type, candidate_policy) := script if 
 
 _manual_review_required(response_type, severity) := true if {
 	response_type == "manual_review"
-} else if {
-	severity == "UNKNOWN"
 } else := false
 
 _resolve_correlation_id(finding) := cid if {
@@ -99,10 +124,13 @@ _input_correlation_id := cid if {
 } else := ""
 
 _malformed_finding_decision(finding) := {
-	"resource_id": object.get(finding, "address", "UNKNOWN"),
-	"resource_type": object.get(finding, "type", "UNKNOWN"),
-	"provider": object.get(finding, "provider_name", "UNKNOWN"),
+	"resource_id": object.get(finding, "address", "unknown"),
+	"resource_type": object.get(finding, "type", "unknown"),
+	"provider": object.get(finding, "provider_name", "unknown"),
+	"type": object.get(finding, "type", "unknown"),
+	"provenance": object.get(finding, "provenance", ""),
 	"severity": "LOW",
+	"remediation_level": "L1",
 	"action_required": "manual_review",
 	"response_type": "manual_review",
 	"manual_review_required": true,

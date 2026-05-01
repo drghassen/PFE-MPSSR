@@ -63,6 +63,10 @@ DRIFT_INPUT_COUNT="$(sr_json_number "$REPORT_PATH" '.drift.items | length' 'drif
 DRIFT_EXIT_CODE="$(sr_json_number "$REPORT_PATH" '.drift.exit_code' 'drift report')"
 DRIFT_DETECTED_RAW="$(jq -r '.drift.detected' "$REPORT_PATH")"
 CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
+PIPELINE_CORRELATION_ID="$(sr_pipeline_correlation_id)"
+if [[ -n "$PIPELINE_CORRELATION_ID" && "$PIPELINE_CORRELATION_ID" != "unknown" ]]; then
+  CORRELATION_ID="$PIPELINE_CORRELATION_ID"
+fi
 EXCEPTION_COUNT="$(sr_json_number "$EXCEPTIONS_FILE" '.cloudsentinel.drift_exceptions.exceptions | length' 'drift exceptions')"
 
 if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
@@ -172,6 +176,8 @@ jq -c \
            mode: (.mode // "managed"),
            name: (.name // ""),
            provider_name: (.provider_name // "unknown"),
+           provenance: (.provenance // ""),
+           inferred_from_output: (.inferred_from_output // ""),
            actions: (.actions // []),
            resource_id: .address,
            changed_paths: (.changed_paths // []),
@@ -214,11 +220,19 @@ RAW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.violations | length)
 EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '((.result.effective_violations // .result.violations) | length)' 'OPA drift decision')"
 ACTIONABLE_EFFECTIVE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH")] | length' 'OPA drift decision')"
 MANUAL_REVIEW_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.manual_review_required // false) == true)] | length' 'OPA drift decision')"
+AUTO_REMEDIATION_CANDIDATES="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.requires_remediation // false) == true)] | length' 'OPA drift decision')"
+NON_REMEDIABLE_ACTIONABLE_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select(((.severity // "") == "CRITICAL" or (.severity // "") == "HIGH") and ((.requires_remediation // false) == false))] | length' 'OPA drift decision')"
+MANUAL_ONLY_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.manual_review_required // false) == true and ((.severity // "") != "CRITICAL" and (.severity // "") != "HIGH"))] | length' 'OPA drift decision')"
 EXCEPTED_VIOLATIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.excepted_violations // 0)' 'OPA drift decision')"
 EFFECTIVE_CRITICAL="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "CRITICAL")] | length' 'OPA drift decision')"
 EFFECTIVE_HIGH="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "HIGH")] | length' 'OPA drift decision')"
 EFFECTIVE_MEDIUM="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "MEDIUM")] | length' 'OPA drift decision')"
 EFFECTIVE_LOW="$(sr_json_number "$DECISION_FILE" '[((.result.effective_violations // .result.violations) // [])[] | select((.severity // "") == "LOW")] | length' 'OPA drift decision')"
+L0_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.l0_count // 0)' "OPA drift decision")"
+L1_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.l1_count // 0)' "OPA drift decision")"
+L2_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.l2_count // 0)' "OPA drift decision")"
+L3_COUNT="$(sr_json_number "$DECISION_FILE" '(.result.l3_count // 0)' "OPA drift decision")"
+BLOCK_REASON="$(jq -r '.result.block_reason // "none"' "$DECISION_FILE")"
 TOTAL_EXCEPTIONS_LOADED="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.total_exceptions_loaded // 0)' 'OPA drift decision')"
 VALID_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.valid_exceptions // 0)' 'OPA drift decision')"
 EXPIRED_EXCEPTIONS="$(sr_json_number "$DECISION_FILE" '(.result.drift_exception_summary.expired_exceptions // 0)' 'OPA drift decision')"
@@ -232,14 +246,30 @@ sr_assert_int_ge "$INPUT_COUNT" "$RAW_VIOLATIONS" "OPA drift violations cannot e
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA drift effective violations exceed raw violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "OPA drift actionable violations exceed effective violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$MANUAL_REVIEW_VIOLATIONS" "OPA drift manual-review violations exceed effective violations"
+sr_assert_int_ge "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "$NON_REMEDIABLE_ACTIONABLE_VIOLATIONS" "OPA drift non-remediable actionable violations exceed actionable violations"
 
 OPA_DRIFT_BLOCK=false
 OPA_DRIFT_DENY=false
-if [[ "$DENY_COUNT" -gt 0 || "$ACTIONABLE_EFFECTIVE_VIOLATIONS" -gt 0 || "$MANUAL_REVIEW_VIOLATIONS" -gt 0 ]]; then
+OPA_DRIFT_BLOCK_REASON="$BLOCK_REASON"
+OPA_DRIFT_BLOCK_MANUAL_ONLY=false
+OPA_DRIFT_BLOCK_REQUIRES_CUSTODIAN=false
+OPA_DRIFT_REQUIRES_AUTO_REMEDIATION=false
+OPA_DRIFT_REQUIRES_TICKET=false
+if [[ "$DENY_COUNT" -gt 0 || "$L2_COUNT" -gt 0 || "$L3_COUNT" -gt 0 ]]; then
   OPA_DRIFT_BLOCK=true
 fi
 if [[ "$DENY_COUNT" -gt 0 ]]; then
   OPA_DRIFT_DENY=true
+fi
+if [[ "$BLOCK_REASON" == "manual_review_only" ]]; then
+  OPA_DRIFT_BLOCK_MANUAL_ONLY=true
+fi
+if [[ "$L3_COUNT" -gt 0 ]]; then
+  OPA_DRIFT_BLOCK_REQUIRES_CUSTODIAN=true
+  OPA_DRIFT_REQUIRES_AUTO_REMEDIATION=true
+fi
+if [[ "$L2_COUNT" -gt 0 || "$L3_COUNT" -gt 0 ]]; then
+  OPA_DRIFT_REQUIRES_TICKET=true
 fi
 
 # ── OPA Policy Decision Table ──────────────────────────────────────────────────
@@ -249,7 +279,11 @@ fi
   printf '│ %-78s │\n' "Mode: ENFORCING  |  Fail-closed: ${FAIL_CLOSED}  |  Env: ${ENVIRONMENT}  |  Branch: ${BRANCH_NAME}"
   printf '├────────────────────────────────────────────────────────────────────────────────┤\n'
   if [[ "$OPA_DRIFT_BLOCK" == "true" ]]; then
-    printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
+    if [[ "$OPA_DRIFT_BLOCK_REASON" == "manual_review_only" ]]; then
+      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — manual-review-only findings"
+    else
+      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
+    fi
   else
     printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
   fi
@@ -284,16 +318,29 @@ fi
   echo "OPA_EFFECTIVE_VIOLATIONS=${EFFECTIVE_VIOLATIONS}"
   echo "OPA_ACTIONABLE_EFFECTIVE_VIOLATIONS=${ACTIONABLE_EFFECTIVE_VIOLATIONS}"
   echo "OPA_MANUAL_REVIEW_VIOLATIONS=${MANUAL_REVIEW_VIOLATIONS}"
+  echo "OPA_DRIFT_MANUAL_ONLY_VIOLATIONS=${MANUAL_ONLY_VIOLATIONS}"
+  echo "OPA_DRIFT_AUTO_REMEDIATION_CANDIDATES=${AUTO_REMEDIATION_CANDIDATES}"
+  echo "OPA_DRIFT_NON_REMEDIABLE_ACTIONABLE_VIOLATIONS=${NON_REMEDIABLE_ACTIONABLE_VIOLATIONS}"
   echo "OPA_EXCEPTED_VIOLATIONS=${EXCEPTED_VIOLATIONS}"
   echo "OPA_CUSTODIAN_POLICIES=${OPA_CUSTODIAN_POLICIES}"
   echo "OPA_CORRELATION_ID=${OPA_CORRELATION_ID}"
+  echo "OPA_PIPELINE_CORRELATION_ID=${CORRELATION_ID}"
+  echo "OPA_DRIFT_L0_COUNT=${L0_COUNT}"
+  echo "OPA_DRIFT_L1_COUNT=${L1_COUNT}"
+  echo "OPA_DRIFT_L2_COUNT=${L2_COUNT}"
+  echo "OPA_DRIFT_L3_COUNT=${L3_COUNT}"
+  echo "OPA_DRIFT_BLOCK_REASON=${OPA_DRIFT_BLOCK_REASON}"
+  echo "OPA_DRIFT_BLOCK_MANUAL_ONLY=${OPA_DRIFT_BLOCK_MANUAL_ONLY}"
+  echo "OPA_DRIFT_BLOCK_REQUIRES_CUSTODIAN=${OPA_DRIFT_BLOCK_REQUIRES_CUSTODIAN}"
+  echo "OPA_DRIFT_REQUIRES_TICKET=${OPA_DRIFT_REQUIRES_TICKET}"
+  echo "OPA_DRIFT_REQUIRES_AUTO_REMEDIATION=${OPA_DRIFT_REQUIRES_AUTO_REMEDIATION}"
   echo "OPA_DRIFT_CRITICAL_COUNT=${EFFECTIVE_CRITICAL}"
   echo "OPA_DRIFT_HIGH_COUNT=${EFFECTIVE_HIGH}"
   echo "OPA_DRIFT_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
   echo "OPA_DRIFT_LOW_COUNT=${EFFECTIVE_LOW}"
   echo "OPA_REQUIRES_EMERGENCY_ALERT=$([ "$EFFECTIVE_CRITICAL" -gt 0 ] && echo true || echo false)"
-  echo "OPA_REMEDIATION_SCOPE=CRITICAL_ONLY"
-  echo "OPA_REQUIRES_AUTO_REMEDIATION=$([ "$EFFECTIVE_CRITICAL" -gt 0 ] && echo true || echo false)"
+  echo "OPA_REMEDIATION_SCOPE=RUNTIME_CANDIDATES_ONLY"
+  echo "OPA_REQUIRES_AUTO_REMEDIATION=${OPA_DRIFT_REQUIRES_AUTO_REMEDIATION}"
   echo "OPA_DRIFT_INPUT_COUNT=${INPUT_COUNT}"
   echo "OPA_DRIFT_EXCEPTION_COUNT=${EXCEPTION_COUNT}"
   echo "OPA_DRIFT_VALID_EXCEPTIONS=${VALID_EXCEPTIONS}"

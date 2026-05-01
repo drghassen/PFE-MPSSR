@@ -87,6 +87,7 @@ sr_require_json "$DRIFT_REPORT_PATH" '
   type == "object"
   and (.cloudsentinel | type == "object")
   and ((.cloudsentinel.correlation_id // "") | type == "string" and length > 0)
+  and (.cloudsentinel.pipeline_correlation_id == env.CLOUDSENTINEL_PIPELINE_CORRELATION_ID)
   and (.drift | type == "object")
   and (.drift.summary | type == "object")
   and (.drift.items | type == "array")
@@ -100,6 +101,7 @@ DRIFT_ITEM_COUNT="$(sr_json_number "$DRIFT_REPORT_PATH" '.drift.items | length' 
 REPORT_EXIT_CODE="$(sr_json_number "$DRIFT_REPORT_PATH" '.drift.exit_code' 'drift report')"
 REPORT_DETECTED="$(jq -r '.drift.detected' "$DRIFT_REPORT_PATH")"
 DRIFT_CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$DRIFT_REPORT_PATH")"
+PIPELINE_CORRELATION_ID="$(sr_pipeline_correlation_id)"
 
 sr_assert_eq "$REPORT_EXIT_CODE" "$DRIFT_ENGINE_EXIT_CODE" "drift engine exit code does not match report exit code"
 if [[ "$REPORT_ERROR_COUNT" -gt 0 ]]; then
@@ -199,6 +201,7 @@ _status="$([ "$REPORT_DETECTED" == "true" ] && echo "DRIFTED" || echo "CLEAN")"
   echo "DRIFT_ITEM_COUNT=${DRIFT_ITEM_COUNT}"
   echo "DRIFT_EXCEPTION_COUNT=${DRIFT_EXCEPTION_COUNT}"
   echo "DRIFT_CORRELATION_ID=${DRIFT_CORRELATION_ID}"
+  echo "PIPELINE_CORRELATION_ID=${PIPELINE_CORRELATION_ID}"
 } > "$DRIFT_ENGINE_ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "drift detection completed" "$(sr_build_details \

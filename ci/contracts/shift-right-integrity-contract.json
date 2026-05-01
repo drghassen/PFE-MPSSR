@@ -1,12 +1,27 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.1",
   "scope": "shift-right",
-  "description": "CloudSentinel shift-right pipeline integrity contract for detection, normalization, decision, reporting, and enforcement.",
+  "description": "CloudSentinel shift-right pipeline integrity contract for detection, normalization, OPA remediation levels, reporting, and enforcement.",
   "invariants": [
     "All required inputs must exist, be non-empty, and be valid JSON before processing.",
     "Any runtime error, malformed payload, or missing artifact fails the stage immediately.",
     "TLS verification for external APIs is mandatory; custom CAs must be installed instead of disabling verification.",
     "Detection, normalization, decision, reporting, and enforcement must each emit machine-readable JSON audit events."
+  ],
+  "remediation_levels": {
+    "L0": "INFO/LOW output-type findings - audit trail only, GATE=PASS",
+    "L1": "LOW resource findings - audit WARN only, GATE=PASS",
+    "L2": "MEDIUM/HIGH findings - alert + ticket required, GATE=PASS if ticket created",
+    "L3": "CRITICAL with custodian_policy - auto-remediation + verification + ticket, GATE=PASS if verified"
+  },
+  "gate_invariants": [
+    "HARD FAIL if OPA deny[] non-empty",
+    "HARD FAIL if L3 custodian ran live and verify-remediation FAILED",
+    "HARD FAIL if L3 findings present and reconciliation ticket not created",
+    "SOFT_PASS if L3 findings present and custodian in dry-run or not executed",
+    "SOFT_PASS if L2 findings present and reconciliation ticket not created",
+    "PASS if L2 only and ticket created",
+    "PASS if L0/L1 only"
   ],
   "stages": {
     "drift_detection": {
@@ -23,6 +38,8 @@
       "invariants": [
         "drift.exit_code must be 0 or 2",
         "errors array must be empty",
+        "cloudsentinel.correlation_id is engine-scoped",
+        "cloudsentinel.pipeline_correlation_id equals CLOUDSENTINEL_PIPELINE_CORRELATION_ID",
         "if drift.detected == true then drift.items length > 0",
         "if drift.detected == false then drift.items length == 0"
       ]
@@ -39,7 +56,15 @@
       "invariants": [
         "opa_drift.violations length == drift.items length",
         "effective_violations <= violations",
-        "actionable_violations <= effective_violations"
+        "l0_count + l1_count + l2_count + l3_count == effective_violations length",
+        "each effective violation has remediation_level in [L0,L1,L2,L3]",
+        "block_reason IN [deny, auto_remediation_required, ticket_and_notify_required, manual_review_only, none]",
+        "L0/L1 never require external alert, ticket, or Custodian",
+        "L2 requires alert and reconciliation ticket",
+        "L3 requires alert, Custodian execution path, verification, and reconciliation ticket",
+        "if l3_count > 0 then requires_auto_remediation == true",
+        "if l2_count > 0 then requires_ticket == true",
+        "if l3_count > 0 then requires_ticket == true"
       ]
     },
     "reporting": {
@@ -58,14 +83,22 @@
     },
     "enforcement": {
       "inputs": [
-        ".cloudsentinel/opa_drift.env"
+        ".cloudsentinel/opa_drift.env",
+        ".cloudsentinel/opa_prowler.env",
+        ".cloudsentinel/remediation_verify.env",
+        ".cloudsentinel/reconciliation_ticket.env"
       ],
       "outputs": [
-        ".cloudsentinel/shift_right_enforcement_audit.jsonl"
+        ".cloudsentinel/shift_right_enforcement_audit.jsonl",
+        ".cloudsentinel/gate.env"
       ],
       "invariants": [
-        "OPA_DRIFT_BLOCK == true fails the pipeline",
-        "OPA_DRIFT_DENY == true fails the pipeline"
+        "GATE_STATUS and GATE_REASON must be written for every terminal state",
+        "GATE_REASON IN [opa_drift_deny, opa_prowler_deny, l3_verification_failed, l3_ticket_missing, l3_custodian_dry_run, l3_custodian_not_executed, l2_ticket_not_created, l2_workflow_complete, no_actionable_findings, l3_verified_workflow_complete, terminal_state_unresolved]",
+        "GATE_TOTAL_L0 through GATE_TOTAL_L3 must equal OPA dotenv level totals",
+        "L2 completed with ticket exits 0",
+        "L2 without ticket exits SOFT_PASS with GATE_REASON=l2_ticket_not_created",
+        "L3 live remediation must be verified before PASS"
       ]
     }
   }

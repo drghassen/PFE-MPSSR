@@ -85,7 +85,9 @@ class TestDiffPaths(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-def _make_plan(resource_drift=None, resource_changes=None, output_changes=None):
+def _make_plan(
+    resource_drift=None, resource_changes=None, output_changes=None, configuration=None
+):
     plan = {}
     if resource_drift is not None:
         plan["resource_drift"] = resource_drift
@@ -93,6 +95,8 @@ def _make_plan(resource_drift=None, resource_changes=None, output_changes=None):
         plan["resource_changes"] = resource_changes
     if output_changes is not None:
         plan["output_changes"] = output_changes
+    if configuration is not None:
+        plan["configuration"] = configuration
     return plan
 
 
@@ -342,6 +346,112 @@ class TestNormalizeTerraformPlanOutputs(unittest.TestCase):
         )
         _, items = normalize_terraform_plan(plan)
         self.assertEqual(len(items), 1)
+
+    def test_output_change_infers_root_resource_from_configuration_reference(self):
+        plan = _make_plan(
+            output_changes={
+                "vm_name": self._output_change("old-vm", "new-vm"),
+            },
+            resource_changes=[
+                {
+                    "address": "azurerm_linux_virtual_machine.vm",
+                    "mode": "managed",
+                    "type": "azurerm_linux_virtual_machine",
+                    "name": "vm",
+                    "provider_name": "registry.terraform.io/hashicorp/azurerm",
+                    "change": {
+                        "actions": ["update"],
+                        "before": {"name": "new-vm"},
+                        "after": {"name": "new-vm"},
+                    },
+                }
+            ],
+            configuration={
+                "root_module": {
+                    "outputs": {
+                        "vm_name": {
+                            "expression": {
+                                "references": ["azurerm_linux_virtual_machine.vm"]
+                            }
+                        }
+                    },
+                    "resources": [
+                        {
+                            "address": "azurerm_linux_virtual_machine.vm",
+                            "mode": "managed",
+                            "type": "azurerm_linux_virtual_machine",
+                            "name": "vm",
+                            "provider_config_key": "azurerm",
+                        }
+                    ],
+                }
+            },
+        )
+        summary, items = normalize_terraform_plan(plan)
+        addresses = {i["address"] for i in items}
+        self.assertIn("output.vm_name", addresses)
+        self.assertIn("azurerm_linux_virtual_machine.vm", addresses)
+        self.assertEqual(summary.resources_changed, 2)
+
+        inferred = next(i for i in items if i["address"] == "azurerm_linux_virtual_machine.vm")
+        self.assertEqual(inferred["mode"], "managed")
+        self.assertEqual(inferred["type"], "azurerm_linux_virtual_machine")
+        self.assertEqual(inferred["changed_paths"], ["change"])
+        self.assertEqual(inferred["provenance"], "inferred_from_output")
+        self.assertEqual(inferred["inferred_from_output"], "vm_name")
+
+    def test_output_change_infers_child_module_resource_from_configuration_reference(self):
+        plan = _make_plan(
+            output_changes={
+                "vm_name": self._output_change("old-vm", "new-vm"),
+            },
+            resource_changes=[
+                {
+                    "address": "module.compute.azurerm_linux_virtual_machine.vm",
+                    "mode": "managed",
+                    "type": "azurerm_linux_virtual_machine",
+                    "name": "vm",
+                    "provider_name": "registry.terraform.io/hashicorp/azurerm",
+                    "change": {
+                        "actions": ["update"],
+                        "before": {"name": "new-vm"},
+                        "after": {"name": "new-vm"},
+                    },
+                }
+            ],
+            configuration={
+                "root_module": {
+                    "outputs": {
+                        "vm_name": {
+                            "expression": {
+                                "references": [
+                                    "module.compute.azurerm_linux_virtual_machine.vm"
+                                ]
+                            }
+                        }
+                    },
+                    "module_calls": {
+                        "compute": {
+                            "module": {
+                                "resources": [
+                                    {
+                                        "address": "azurerm_linux_virtual_machine.vm",
+                                        "mode": "managed",
+                                        "type": "azurerm_linux_virtual_machine",
+                                        "name": "vm",
+                                        "provider_config_key": "azurerm",
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                }
+            },
+        )
+        _, items = normalize_terraform_plan(plan)
+        addresses = {i["address"] for i in items}
+        self.assertIn("module.compute.azurerm_linux_virtual_machine.vm", addresses)
+        self.assertIn("output.vm_name", addresses)
 
 
 # ---------------------------------------------------------------------------

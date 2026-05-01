@@ -7,12 +7,13 @@ Cloud Custodian is used as the runtime executor in Shift-Right.
 - OPA drift decision outputs `custodian_policy` per violation.
 - `ci/scripts/shift-right/custodian-autofix.sh` runs only policies listed in `OPA_CUSTODIAN_POLICIES`.
 - `OPA_CUSTODIAN_POLICIES` is populated from `effective_violations` where:
+  - `remediation_level == "L3"`
   - `requires_remediation == true`
   - `custodian_policy != null`
 
-This enforces `CRITICAL_ONLY` auto-remediation.
+This enforces L3-only auto-remediation.
 
-## Current CRITICAL Policy Map
+## Current L3 Policy Map
 
 1. `enforce-nsg-no-open-inbound`
 2. `enforce-nsg-rule-deny-all`
@@ -26,7 +27,7 @@ This enforces `CRITICAL_ONLY` auto-remediation.
 3. Fan-out in parallel:
 - DefectDojo finding
 - Notification
-- Custodian action (CRITICAL only)
+- Custodian action (L3 only)
 4. Reconciliation ticket is created for IaC correction.
 5. Team fixes Terraform and applies.
 

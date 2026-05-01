@@ -142,7 +142,7 @@ test_log_analytics_retention_drift_is_low if {
 # ──────────────────────────────────────────────────────────────────────────────
 
 # P0.3 : type non classifié avec changed_paths → LOW (PAS INFO)
-test_unknown_resource_type_with_changed_paths_is_unknown_and_manual_review if {
+test_unknown_resource_type_with_changed_paths_is_low_notify if {
 	result := evaluate_drift({
 		"address": "azurerm_virtual_network.vnet",
 		"type": "azurerm_virtual_network",
@@ -150,9 +150,9 @@ test_unknown_resource_type_with_changed_paths_is_unknown_and_manual_review if {
 		"changed_paths": ["address_space"],
 		"actions": ["update"],
 	})
-	result.severity == "UNKNOWN"
-	result.manual_review_required == true
-	result.action_required == "manual_review"
+	result.severity == "LOW"
+	result.manual_review_required == false
+	result.action_required == "notify"
 	result.severity != "INFO"
 }
 

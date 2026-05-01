@@ -118,6 +118,7 @@ class AppConfig(BaseModel):
     report: ReportConfig = Field(default_factory=ReportConfig)
     defectdojo: DefectDojoSection = Field(default_factory=DefectDojoSection)
     opa: OPASection = Field(default_factory=OPASection)
+    pipeline_correlation_id: str | None = None
 
 
 def _utc_now() -> datetime:
@@ -158,6 +159,11 @@ def _expand_env_placeholders(value: Any) -> Any:
 def load_config(path: Path) -> AppConfig:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     expanded = _expand_env_placeholders(raw)
+    pipeline_correlation_id = (
+        os.getenv("CLOUDSENTINEL_PIPELINE_CORRELATION_ID") or ""
+    ).strip()
+    if pipeline_correlation_id:
+        expanded["pipeline_correlation_id"] = pipeline_correlation_id
 
     azure = expanded.get("azure") or {}
     if isinstance(azure, dict):
@@ -311,6 +317,7 @@ def _redact_sensitive(text: str) -> str:
 def build_report_context(
     config: AppConfig,
     run_id: str,
+    correlation_id: str,
     started_at: datetime,
     finished_at: datetime,
     exit_code: int,
@@ -339,6 +346,8 @@ def build_report_context(
             else classify_drift_severity(
                 str(item.get("type") or ""),
                 item.get("changed_paths") or [],
+                item.get("resource_id"),
+                item.get("provenance"),
             )
             for item in drift_items
         ]
@@ -373,7 +382,7 @@ def build_report_context(
 
     cloudsentinel = {
         "run_id": run_id,
-        "correlation_id": run_id,
+        "correlation_id": correlation_id,
         "engine": config.engine.name,
         "engine_version": config.engine.version,
         "tenant_id": config.azure.tenant_id,
@@ -385,6 +394,8 @@ def build_report_context(
         "duration_ms": int((finished_at - started_at).total_seconds() * 1000),
         "run_status": "error" if errors else ("drifted" if detected else "clean"),
     }
+    if config.pipeline_correlation_id:
+        cloudsentinel["pipeline_correlation_id"] = config.pipeline_correlation_id
 
     terraform = {
         "version": tf_version,
@@ -448,6 +459,9 @@ def main(argv: list[str]) -> int:
 
     configure_logging()
     run_id = str(uuid.uuid4())
+    pipeline_correlation_id = (
+        os.getenv("CLOUDSENTINEL_PIPELINE_CORRELATION_ID") or ""
+    ).strip()
     os.environ["CLOUDSENTINEL_CORRELATION_ID"] = run_id
     started_at = _utc_now()
     errors: list[dict[str, Any]] = []
@@ -506,6 +520,10 @@ def main(argv: list[str]) -> int:
                 }
             ],
         }
+        if pipeline_correlation_id:
+            payload["cloudsentinel"][
+                "pipeline_correlation_id"
+            ] = pipeline_correlation_id
         write_json(out_path, payload)
 
     try:
@@ -540,6 +558,8 @@ def main(argv: list[str]) -> int:
     logger.info(
         "run_started",
         run_id=run_id,
+        correlation_id=run_id,
+        pipeline_correlation_id=pipeline_correlation_id or None,
         engine=config.engine.name,
         version=config.engine.version,
         env=_safe_env_snapshot(),
@@ -582,6 +602,7 @@ def main(argv: list[str]) -> int:
         context = build_report_context(
             config=config,
             run_id=run_id,
+            correlation_id=run_id,
             started_at=started_at,
             finished_at=finished_at,
             exit_code=exit_code,

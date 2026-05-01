@@ -59,3 +59,42 @@ drift_exception_summary := {
 	]),
 	"excepted_violations": count(excepted_violations),
 }
+
+l0_count := count([v |
+	some v in effective_violations
+	v.remediation_level == "L0"
+])
+
+l1_count := count([v |
+	some v in effective_violations
+	v.remediation_level == "L1"
+])
+
+l2_count := count([v |
+	some v in effective_violations
+	v.remediation_level == "L2"
+])
+
+l3_count := count([v |
+	some v in effective_violations
+	v.remediation_level == "L3"
+])
+
+block_reason := "deny" if {
+	count(deny) > 0
+} else := "auto_remediation_required" if {
+	count(deny) == 0
+	l3_count > 0
+} else := "ticket_and_notify_required" if {
+	count(deny) == 0
+	l3_count == 0
+	l2_count > 0
+} else := "manual_review_only" if {
+	count(deny) == 0
+	l2_count == 0
+	l3_count == 0
+	count([v |
+		some v in effective_violations
+		object.get(v, "manual_review_required", false)
+	]) > 0
+} else := "none"

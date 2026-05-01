@@ -13,29 +13,28 @@ This phase monitors deployed Azure infrastructure, evaluates risk with OPA, and 
 
 3. Fan-out (parallel):
 - DefectDojo receives all findings (Info/Low/Medium/High/Critical).
-- Notification pipeline raises critical alerts.
-- Cloud Custodian executes only CRITICAL auto-remediation policies.
+- Notification pipeline raises external alerts for L2/L3 findings.
+- Cloud Custodian executes only L3 auto-remediation policies.
 
 4. Durable fix:
 - Teams fix Terraform source.
 - `terraform apply` removes drift permanently.
-- Reconciliation ticket is mandatory for CRITICAL runtime fixes.
+- Reconciliation ticket is mandatory for L2/L3 runtime findings.
 
-## Severity Routing
+## Remediation Levels
 
-- `CRITICAL` -> `runtime_remediation` (Custodian + alert + DefectDojo + reconciliation ticket)
-- `HIGH` -> `ticket_and_notify` (no auto-fix)
-- `MEDIUM` -> `ticket_and_notify` (no auto-fix)
-- `LOW` -> `notify` (no auto-fix)
-- `INFO` -> `none`
+- `L0` -> output-only INFO/LOW findings; audit trail only.
+- `L1` -> LOW resource findings; audit WARN only.
+- `L2` -> MEDIUM/HIGH or non-remediable CRITICAL; alert + ticket.
+- `L3` -> CRITICAL with supported `custodian_policy`; alert + Custodian + verification + ticket.
 
 ## Design Rules
 
 - OPA is policy decision only.
 - Custodian is execution only.
 - DefectDojo is audit trail only.
-- Auto-remediation scope is intentionally `CRITICAL_ONLY`.
-- Correlation is end-to-end through `correlation_id`.
+- Auto-remediation scope is intentionally limited to L3.
+- Pipeline correlation is end-to-end through `pipeline_correlation_id`; engine `correlation_id` remains engine-scoped.
 
 ## Key Paths
 

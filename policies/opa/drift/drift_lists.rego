@@ -13,7 +13,6 @@ import rego.v1
 violations := [decision |
 	finding := input.findings[_]
 	decision := evaluate_drift(finding)
-	decision.severity != "INFO"
 ]
 
 compliant := [info |
@@ -21,7 +20,7 @@ compliant := [info |
 	decision := evaluate_drift(finding)
 	decision.severity == "INFO"
 	info := {
-		"resource_id": object.get(finding, "address", "UNKNOWN"),
+		"resource_id": object.get(finding, "address", "unknown"),
 		"status": "COMPLIANT",
 		"correlation_id": decision.correlation_id,
 	}

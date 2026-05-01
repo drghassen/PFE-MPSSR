@@ -9,7 +9,6 @@ import rego.v1
 violations := [decision |
 	finding := input.findings[_]
 	decision := evaluate_prowler_finding(finding)
-	decision.severity != "INFO"
 ]
 
 compliant := [info |
@@ -17,7 +16,7 @@ compliant := [info |
 	decision := evaluate_prowler_finding(finding)
 	decision.severity == "INFO"
 	info := {
-		"resource_id": object.get(finding, "resource_id", "UNKNOWN"),
+		"resource_id": object.get(finding, "resource_id", "unknown"),
 		"status": "COMPLIANT",
 		"correlation_id": decision.correlation_id,
 	}
