@@ -3,7 +3,7 @@
 # Commandes pratiques pour le développement et l'exploitation
 # ============================================================================
 
-.PHONY: help setup scan test clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system
+.PHONY: help setup scan test clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system opa-compose-bootstrap opa-up opa-up-shiftright opa-down
 
 # Couleurs pour l'affichage
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -149,6 +149,18 @@ opa-eval: ## Évaluer la décision OPA (Golden Report → cloudsentinel.gate.dec
 		--format pretty \
 		"data.cloudsentinel.gate.decision" \
 		$$(find policies/opa/gate -maxdepth 1 -name "*.rego" -type f | sort)'
+
+opa-compose-bootstrap: ## Préparer config/opa/data pour les serveurs OPA docker-compose
+	@bash ci/scripts/bootstrap-opa-compose-data.sh
+
+opa-up: opa-compose-bootstrap ## Démarrer le serveur OPA shift-left (port 8181)
+	@docker compose up -d opa-server
+
+opa-up-shiftright: opa-compose-bootstrap ## Démarrer le serveur OPA shift-right (port 8182)
+	@docker compose up -d opa-server-shiftright
+
+opa-down: ## Arrêter les serveurs OPA docker-compose
+	@docker compose stop opa-server opa-server-shiftright
 
 ##@ Shift-Right (Monitoring Runtime)
 

@@ -415,10 +415,7 @@ def main(argv: list[str]) -> int:
         "--engagement",
         default=os.getenv(
             "DOJO_ENGAGEMENT_ID_RIGHT",
-            os.getenv(
-                "DEFECTDOJO_ENGAGEMENT_ID_RIGHT",
-                os.getenv("DOJO_ENGAGEMENT_ID", os.getenv("DEFECTDOJO_ENGAGEMENT_ID_LEFT", "")),
-            ),
+            os.getenv("DEFECTDOJO_ENGAGEMENT_ID_RIGHT", ""),
         ),
     )
     parser.add_argument(

@@ -9,7 +9,7 @@ services:
     volumes:
       - ./policies/opa/gate:/app/policies/gate:ro
       - ./policies/opa/system:/app/policies/system:ro
-      - ./.cloudsentinel:/app/data:ro
+      - ./config/opa/data:/app/data:ro
     command:
       - run
       - --server
@@ -19,7 +19,6 @@ services:
       - --log-level=info
       - --log-format=json
       - --set=decision_logs.console=true
-      - --watch
       - /app/policies/gate
       - /app/policies/system/authz.rego
       - /app/data/exceptions.json
@@ -50,7 +49,7 @@ services:
     volumes:
       - ./policies/opa/drift:/app/policies/drift:ro
       - ./policies/opa/system:/app/policies/system:ro
-      - ./.cloudsentinel:/app/data:ro
+      - ./config/opa/data:/app/data:ro
     command:
       - run
       - --server
@@ -60,7 +59,6 @@ services:
       - --log-level=info
       - --log-format=json
       - --set=decision_logs.console=true
-      - --watch
       - /app/policies/drift
       - /app/policies/system/authz.rego
       - /app/data/drift_exceptions.json

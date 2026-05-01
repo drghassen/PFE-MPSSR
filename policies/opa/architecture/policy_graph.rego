@@ -26,7 +26,8 @@ policy_subsystems := {
 		"listen_port": 8181,
 		"policy_dir": "policies/opa/gate",
 		"data_root_key": "cloudsentinel.exceptions",
-		"data_file_host": ".cloudsentinel/exceptions.json",
+		"data_file_host": "config/opa/data/exceptions.json",
+		"ci_data_file_host": ".cloudsentinel/exceptions.json",
 		"primary_http_eval": "/v1/data/cloudsentinel/gate/decision",
 		"pep": "shift-left/opa/run-opa.sh",
 	},
@@ -36,13 +37,14 @@ policy_subsystems := {
 		"listen_port": 8182,
 		"policy_dir": "policies/opa/drift",
 		"data_root_key": "cloudsentinel.drift_exceptions",
-		"data_file_host": ".cloudsentinel/drift_exceptions.json",
+		"data_file_host": "config/opa/data/drift_exceptions.json",
+		"ci_data_file_host": ".cloudsentinel/drift_exceptions.json",
 		"pep": "ci/scripts/opa-drift-decision.sh",
 	},
 	"shared": {
 		"authz_package": "system.authz",
 		"authz_file": "policies/opa/system/authz.rego",
-		"note": "Same authz policy on both PDPs; token from .cloudsentinel/opa_auth_config.json",
+		"note": "Same authz policy on both PDPs; compose token from config/opa/data/opa_auth_config.json, CI token from .cloudsentinel/opa_auth_config.json",
 	},
 }
 

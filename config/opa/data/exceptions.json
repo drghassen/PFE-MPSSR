@@ -1,0 +1,15 @@
+{
+  "cloudsentinel": {
+    "exceptions": {
+      "schema_version": "2.0.0",
+      "generated_at": "2099-01-01T00:00:00Z",
+      "metadata": {
+        "source": "compose-default",
+        "total_raw_risk_acceptances": 0,
+        "total_valid_exceptions": 0,
+        "total_dropped": 0
+      },
+      "exceptions": []
+    }
+  }
+}

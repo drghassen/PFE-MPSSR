@@ -47,6 +47,12 @@ OPA_PROWLER_BLOCK="${OPA_PROWLER_BLOCK:-false}"
 OPA_PROWLER_DENY="${OPA_PROWLER_DENY:-false}"
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
+SOFT_PASS_EXIT_CODE="${SOFT_PASS_EXIT_CODE:-2}"
+
+if ! [[ "$SOFT_PASS_EXIT_CODE" =~ ^[0-9]+$ ]] || (( SOFT_PASS_EXIT_CODE < 0 || SOFT_PASS_EXIT_CODE > 255 )); then
+  sr_fail "invalid SOFT_PASS_EXIT_CODE (expected integer 0..255)" 1 \
+    "$(sr_build_details --arg soft_pass_exit_code "$SOFT_PASS_EXIT_CODE" '{soft_pass_exit_code:$soft_pass_exit_code}')"
+fi
 
 TOTAL_CRITICAL=$((OPA_DRIFT_CRITICAL_COUNT + OPA_PROWLER_CRITICAL_COUNT))
 
@@ -137,7 +143,8 @@ if [[ "$TOTAL_CRITICAL" -gt 0 && "$RECONCILIATION_TICKET_CREATED" != "true" ]]; 
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SOFT_PASS — exit 0, GATE_STATUS=SOFT_PASS written to gate.env
+# SOFT_PASS — GATE_STATUS=SOFT_PASS written to gate.env, then terminal exit code
+# is controlled by SOFT_PASS_EXIT_CODE (default: 2 for strong CI signal).
 #
 # OPA has findings that need Custodian action, but Custodian is not yet acting
 # (dry-run enabled, or no policy YAML found). The pipeline does NOT fail:
@@ -210,3 +217,22 @@ sr_audit "INFO" "stage_complete" "shift-right enforcement gate evaluation comple
     custodian_executed: ($custodian_executed  == "true"),
     reconciliation_ticket_created: ($reconciliation_ticket_created == "true")
   }')"
+
+if [[ "$GATE_STATUS" == "SOFT_PASS" ]]; then
+  sr_audit "ERROR" "soft_pass_terminal" "soft-pass terminal state reached; operator action required" "$(sr_build_details \
+    --argjson total_critical "$TOTAL_CRITICAL" \
+    --arg soft_pass_exit_code "$SOFT_PASS_EXIT_CODE" \
+    --arg custodian_dry_run "$CUSTODIAN_DRY_RUN" \
+    --arg custodian_executed "$CUSTODIAN_EXECUTED" \
+    '{
+      total_critical: $total_critical,
+      soft_pass_exit_code: ($soft_pass_exit_code | tonumber),
+      custodian_dry_run: ($custodian_dry_run == "true"),
+      custodian_executed: ($custodian_executed == "true"),
+      action_required: "review critical findings and remediation path"
+    }')"
+  echo "SOFT_PASS: unresolved critical findings/remediation path. Exit code=${SOFT_PASS_EXIT_CODE}" >&2
+  exit "$SOFT_PASS_EXIT_CODE"
+fi
+
+exit 0

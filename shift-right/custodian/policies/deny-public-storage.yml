@@ -18,14 +18,9 @@ policies:
         custodian --dryrun reports matched resources but takes no action.
 
       Live mode (CUSTODIAN_DRY_RUN=false):
-        Tags the resource with cs-violation=public-blob-access-enabled.
-        No data is deleted or modified. The tag creates an audit trail and
-        enables targeted remediation in a follow-up step.
-
-      Next remediation step (not in this policy):
-        az storage account update \
-          --name <name> --resource-group <rg> \
-          --allow-blob-public-access false
+        Applies immediate hardening by switching Storage Network ACL default
+        action to Deny (public network access blocked unless explicit rules
+        exist), and tags the resource for audit traceability.
 
     # ── Filters ───────────────────────────────────────────────────────────
     # We check allowBlobPublicAccess == true explicitly.
@@ -38,9 +33,13 @@ policies:
         value: true
 
     # ── Actions ───────────────────────────────────────────────────────────
-    # Phase 1 action: tag only. Marks the resource for visibility without
-    # modifying the security configuration. Safe to run repeatedly.
+    # Real remediation + traceability tag.
     actions:
       - type: tag
         tag: *violation-tag
         value: public-blob-access-enabled
+      - type: set-firewall-rules
+        default-action: Deny
+        bypass-rules:
+          - Logging
+          - Metrics

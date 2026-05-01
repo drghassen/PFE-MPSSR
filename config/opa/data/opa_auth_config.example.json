@@ -1,0 +1,7 @@
+{
+  "opa_config": {
+    "auth_token": "set-by-ci-scripts-bootstrap-opa-auth-sh",
+    "generated_at": "2099-01-01T00:00:00Z",
+    "source": "example"
+  }
+}

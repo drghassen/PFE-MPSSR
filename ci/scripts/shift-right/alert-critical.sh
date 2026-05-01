@@ -61,15 +61,15 @@ resolve_channel() {
 }
 
 retry_request() {
-  local cmd="$1"
   local attempt=1
   local rc=1
 
   while [[ "$attempt" -le "$ALERT_MAX_RETRIES" ]]; do
-    if eval "$cmd"; then
+    if "$@"; then
       return 0
+    else
+      rc=$?
     fi
-    rc=$?
     sr_audit "WARN" "alert_retry" "alert delivery attempt failed" "$(sr_build_details \
       --argjson attempt "$attempt" \
       --argjson max_retries "$ALERT_MAX_RETRIES" \
@@ -106,8 +106,12 @@ if [[ "$CHANNEL" == "teams" ]]; then
     --arg text "CloudSentinel CRITICAL findings detected (corr=${CORRELATION_ID}) - ${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID} [drift=${OPA_DRIFT_CRITICAL_COUNT}, prowler=${OPA_PROWLER_CRITICAL_COUNT}]" \
     '{text:$text}')"
 
-  CMD="timeout ${ALERT_TIMEOUT_SECONDS} curl -sS -f -X POST '${TEAMS_WEBHOOK_URL}' -H 'Content-Type: application/json' -d '${PAYLOAD}' >/dev/null"
-  if ! retry_request "$CMD"; then
+  if ! retry_request \
+    timeout "$ALERT_TIMEOUT_SECONDS" \
+    curl -sS -f -X POST "$TEAMS_WEBHOOK_URL" \
+      -H "Content-Type: application/json" \
+      --data-binary "$PAYLOAD" \
+      -o /dev/null; then
     sr_fail "failed to deliver Teams alert" 1 "$(sr_build_details --arg channel "$CHANNEL" '{channel:$channel}')"
   fi
 else
@@ -128,8 +132,13 @@ else
     --arg labels "security,critical,runtime-alert" \
     '{title:$title, description:$description, labels:$labels}')"
 
-  CMD="timeout ${ALERT_TIMEOUT_SECONDS} curl -sS -f -X POST '${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/issues' -H 'PRIVATE-TOKEN: ${GITLAB_API_TOKEN}' -H 'Content-Type: application/json' -d '${PAYLOAD}' >/dev/null"
-  if ! retry_request "$CMD"; then
+  if ! retry_request \
+    timeout "$ALERT_TIMEOUT_SECONDS" \
+    curl -sS -f -X POST "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/issues" \
+      -H "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data-binary "$PAYLOAD" \
+      -o /dev/null; then
     sr_fail "failed to create GitLab alert issue" 1 "$(sr_build_details --arg channel "$CHANNEL" '{channel:$channel}')"
   fi
 fi

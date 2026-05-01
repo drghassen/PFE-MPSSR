@@ -9,6 +9,7 @@ import rego.v1
 _prowler_exception_matches(ex, v) if {
 	ex.check_id == v.check_id
 	ex.resource_id == v.resource_id
+	lower(ex.resource_type) == lower(v.resource_type)
 }
 
 _is_excepted_violation(v) if {

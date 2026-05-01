@@ -23,6 +23,9 @@ variables:
   SCAN_TOOLS_BUILD_TAG: "1.0.0"
   DEPLOY_TOOLS_BUILD_TAG: "1.0.0"
   OPA_BUILD_TAG: "1.0.1"
+  CUSTODIAN_TOOLS_BUILD_TAG: "1.0.0"
+  C7N_VERSION: "0.9.43"
+  C7N_AZURE_VERSION: "0.7.49"
 stages:
   - build
 
@@ -68,6 +71,23 @@ build-opa-image:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
       when: manual
+      allow_failure: false
+    - when: never
+
+build-custodian-tools-image:
+  stage: build
+  timeout: 30m
+  image:
+    name: "gcr.io/kaniko-project/executor@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e"
+    entrypoint: [""]
+  script:
+    - /busybox/sh ci/scripts/build-custodian-tools-image.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule"'
+      when: manual
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+      when: on_success
       allow_failure: false
     - when: never
 

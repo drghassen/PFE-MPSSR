@@ -11,7 +11,7 @@ Points clés validés en revue :
 | Sujet | État |
 |-------|------|
 | Isolation gate / drift | Deux packages distincts ; **aucune** référence Rego croisée entre `policies/opa/gate` et `policies/opa/drift` (vérifié par `ci/scripts/verify-opa-architecture.sh`). |
-| Serveurs OPA | **8181** = gate + `exceptions.json` ; **8182** = drift + `drift_exceptions.json` ; même `system/authz.rego`, jetons distincts possibles via le même fichier config. |
+| Serveurs OPA | **8181** = gate + `exceptions.json` ; **8182** = drift + `drift_exceptions.json` ; même `system/authz.rego`, jetons distincts possibles via le même fichier config. En local docker-compose: `config/opa/data/*`. En CI: `.cloudsentinel/*`. |
 | Divergence sémantique gate vs drift | **Volontaire** : le gate applique des seuils scanners / qualité ; le drift classe des `changed_paths` Terraform. Il n’existe pas aujourd’hui d’invariant automatique « gate severity ≥ drift » — à traiter au niveau produit / couche partagée si requis. |
 | Exceptions dupliquées | `data.cloudsentinel.exceptions` vs `data.cloudsentinel.drift_exceptions` — **deux cycles de vie** ; consolidation « core » = chantier P0 futur. |
 | Tests | CI exécute des **scopes séparés** (gate, drift, system) via `verify-opa-architecture.sh` pour éviter la confusion « un seul `opa test` = une seule vérité métier ». |
@@ -33,6 +33,14 @@ Points clés validés en revue :
 | `drift_exceptions_match.rego` | Matching, `effective_violations`, métriques |
 
 Le serveur OPA shift-right (`opa-server-shiftright`) et `ci/scripts/opa-drift-decision.sh` chargent le répertoire `policies/opa/drift` (tous les `.rego` du même package). Les tests Rego restent dans `drift_decision_test.rego` à la racine `policies/opa/`.
+
+Par défaut, les services OPA docker-compose démarrent **sans `--watch`** pour éviter les erreurs transitoires de compilation pendant les sauvegardes éditeur (fichiers momentanément vides). Pour préparer les data files compose, utiliser:
+
+```bash
+make opa-compose-bootstrap
+make opa-up
+make opa-up-shiftright
+```
 
 ## Modules `gate/` (`package cloudsentinel.gate`)
 

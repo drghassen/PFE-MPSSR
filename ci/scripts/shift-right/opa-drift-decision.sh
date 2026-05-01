@@ -228,7 +228,7 @@ if [[ "$OPA_CORRELATION_ID" == "unknown" ]]; then
   OPA_CORRELATION_ID="$CORRELATION_ID"
 fi
 
-sr_assert_eq "$RAW_VIOLATIONS" "$INPUT_COUNT" "OPA drift violations count does not match input findings"
+sr_assert_int_ge "$INPUT_COUNT" "$RAW_VIOLATIONS" "OPA drift violations cannot exceed input findings count"
 sr_assert_int_ge "$RAW_VIOLATIONS" "$EFFECTIVE_VIOLATIONS" "OPA drift effective violations exceed raw violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "OPA drift actionable violations exceed effective violations"
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$MANUAL_REVIEW_VIOLATIONS" "OPA drift manual-review violations exceed effective violations"

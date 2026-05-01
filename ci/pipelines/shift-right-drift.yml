@@ -237,7 +237,11 @@ alert-critical:
 
 custodian-autofix:
   stage: remediate
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+  image:
+    # custodian-tools contains c7n + c7n-azure + jq only (no scan-tools bloat).
+    # Rebuild via factory pipeline (build-custodian-tools-image), then update digest.
+    name: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/custodian-tools@sha256:b201e09bf3238aa70a1ddabbda54ab33220a8113ddfd8b54d488e507fd9fa40d"
+    entrypoint: [""]
   before_script: []
   needs:
     - job: opa-drift-decision
@@ -246,6 +250,7 @@ custodian-autofix:
       artifacts: true
   variables:
     CUSTODIAN_POLICIES_DIR: "shift-right/custodian/policies"
+    REMEDIATION_MODE: "enforced"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: always
@@ -285,6 +290,7 @@ verify-remediation:
     expire_in: 30 days
     paths:
       - .cloudsentinel/remediation_verify.jsonl
+      - .cloudsentinel/runtime-state/
     reports:
       dotenv: .cloudsentinel/remediation_verify.env
 

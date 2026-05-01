@@ -4,8 +4,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUTPUT_DIR="${REPO_ROOT}/.cloudsentinel"
 OUTPUT_FILE="${OUTPUT_DIR}/opa_auth_config.json"
+COMPOSE_DATA_DIR="${OPA_COMPOSE_DATA_DIR:-${REPO_ROOT}/config/opa/data}"
+COMPOSE_OUTPUT_FILE="${COMPOSE_DATA_DIR}/opa_auth_config.json"
 
-mkdir -p "${OUTPUT_DIR}"
+mkdir -p "${OUTPUT_DIR}" "${COMPOSE_DATA_DIR}"
 
 if [[ -z "${OPA_AUTH_TOKEN:-}" ]]; then
   OPA_AUTH_TOKEN="$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n')"
@@ -24,7 +26,7 @@ fi
 
 # Write the config file consumed by OPA's system.authz policy via data.opa_config
 # The key "opa_config" maps to the OPA data namespace data.opa_config.auth_token
-cat > "${OUTPUT_FILE}" <<EOF
+_payload="$(cat <<EOF
 {
   "opa_config": {
     "auth_token": "${OPA_AUTH_TOKEN}",
@@ -33,6 +35,12 @@ cat > "${OUTPUT_FILE}" <<EOF
   }
 }
 EOF
+)"
+
+printf '%s\n' "${_payload}" > "${OUTPUT_FILE}"
+printf '%s\n' "${_payload}" > "${COMPOSE_OUTPUT_FILE}"
 
 chmod 600 "${OUTPUT_FILE}"
+chmod 600 "${COMPOSE_OUTPUT_FILE}"
 echo "[bootstrap] OPA auth config written to ${OUTPUT_FILE}"
+echo "[bootstrap] OPA auth config written to ${COMPOSE_OUTPUT_FILE}"

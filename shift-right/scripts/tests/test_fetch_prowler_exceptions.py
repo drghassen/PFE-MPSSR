@@ -22,6 +22,7 @@ class FetchProwlerExceptionsTests(unittest.TestCase):
             "title": "Prowler finding: storage_default_network_access_rule_is_denied",
             "vuln_id_from_tool": "prowler_check:storage_default_network_access_rule_is_denied",
             "component_name": "/subscriptions/123/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa1",
+            "resource_type": "Microsoft.Storage/storageAccounts",
             "accepted_risks": [
                 {
                     "id": 77,
@@ -49,6 +50,7 @@ class FetchProwlerExceptionsTests(unittest.TestCase):
             ex["check_id"], "storage_default_network_access_rule_is_denied"
         )
         self.assertEqual(ex["resource_id"], finding["component_name"])
+        self.assertEqual(ex["resource_type"], finding["resource_type"])
         self.assertEqual(ex["requested_by"], "alice")
         self.assertEqual(ex["approved_by"], "bob")
 
@@ -60,6 +62,20 @@ class FetchProwlerExceptionsTests(unittest.TestCase):
 
         ex = fetch_prowler_exceptions._parse_ra_to_exception(finding, self._scope())
         self.assertIsNone(ex)
+
+    def test_parse_ra_to_exception_uses_resource_type_from_description(self):
+        finding = self._base_finding()
+        finding.pop("resource_type", None)
+        finding["description"] = (
+            "- check_id: storage_default_network_access_rule_is_denied\n"
+            "- resource_id: /subscriptions/123/resourceGroups/rg/providers/"
+            "Microsoft.Storage/storageAccounts/sa1\n"
+            "- resource_type: Microsoft.Storage/storageAccounts"
+        )
+
+        ex = fetch_prowler_exceptions._parse_ra_to_exception(finding, self._scope())
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["resource_type"], "Microsoft.Storage/storageAccounts")
 
     def test_build_scope_omits_empty_repo_branch_values(self):
         with patch.dict(os.environ, {}, clear=True):

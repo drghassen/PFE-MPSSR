@@ -28,6 +28,7 @@ terraform.rc
 .env
 *.pem
 *.key
+config/opa/data/opa_auth_config.json
 
 # OS / IDE
 .DS_Store

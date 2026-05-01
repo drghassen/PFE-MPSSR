@@ -171,6 +171,40 @@ test_exception_with_missing_resource_type_is_rejected if {
   count(result) == 1
 }
 
+test_exception_with_mismatched_resource_type_does_not_match if {
+  in_data := object.union(base_input, {
+    "findings": [
+      {
+        "check_id": "storage_default_network_access_rule_is_denied",
+        "resource_id": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa",
+        "resource_type": "microsoft.storage/storageaccounts",
+        "severity": "HIGH",
+        "status_code": "FAIL",
+      }
+    ],
+  })
+
+  result := effective_violations
+    with input as in_data
+    with data.cloudsentinel.prowler_exceptions as {
+      "exceptions": [
+        {
+          "source": "defectdojo",
+          "status": "approved",
+          "check_id": "storage_default_network_access_rule_is_denied",
+          "resource_id": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa",
+          "resource_type": "microsoft.compute/virtualmachines",
+          "requested_by": "alice",
+          "approved_by": "bob",
+          "approved_at": "2026-01-01T00:00:00Z",
+          "environments": ["production"],
+        }
+      ],
+    }
+
+  count(result) == 1
+}
+
 test_deny_when_input_missing_environment if {
   in_data := {
     "repo": "group/project",

@@ -202,6 +202,23 @@ def _extract_resource_id(
     return _clean_text(description_fields.get("resource_id"))
 
 
+def _extract_resource_type(
+    finding: dict[str, Any], description_fields: dict[str, str]
+) -> str:
+    resource_obj = finding.get("resource")
+    if isinstance(resource_obj, dict):
+        for key in ("type", "resource_type"):
+            nested = _clean_text(resource_obj.get(key))
+            if nested:
+                return nested
+
+    explicit_type = _clean_text(finding.get("resource_type"))
+    if explicit_type:
+        return explicit_type
+
+    return _clean_text(description_fields.get("resource_type"))
+
+
 def _parse_ra_to_exception(
     finding: dict[str, Any], scope: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -211,13 +228,15 @@ def _parse_ra_to_exception(
     description_fields = _parse_description_fields(finding.get("description"))
     check_id = _extract_check_id(finding, description_fields)
     resource_id = _extract_resource_id(finding, description_fields)
+    resource_type = _extract_resource_type(finding, description_fields)
 
-    if not check_id or not resource_id:
+    if not check_id or not resource_id or not resource_type:
         logger.warning(
             "prowler_exception_rejected_missing_context",
             finding_id=finding.get("id"),
             check_id=check_id,
             resource_id=resource_id,
+            resource_type=resource_type,
         )
         return None
 
@@ -261,6 +280,7 @@ def _parse_ra_to_exception(
         "status": "approved",
         "check_id": check_id,
         "resource_id": resource_id,
+        "resource_type": resource_type,
         "requested_by": requested_by,
         "requested_by_details": requested_by_details,
         "approved_by": approved_by,

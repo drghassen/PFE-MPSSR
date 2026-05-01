@@ -157,6 +157,24 @@ class FetchDriftExceptionsTests(unittest.TestCase):
         self.assertEqual([f["id"] for f in out], [1])
         self.assertEqual(mocked_get.call_count, 2)
 
+    def test_main_does_not_fallback_to_shift_left_engagement_variables(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DOJO_URL": "http://dojo.local",
+                "DOJO_API_KEY": "token",
+                "DEFECTDOJO_ENGAGEMENT_ID_LEFT": "left-123",
+            },
+            clear=True,
+        ):
+            with patch.object(
+                fetch_drift_exceptions, "fetch_risk_acceptances"
+            ) as mocked_fetch:
+                rc = fetch_drift_exceptions.main(["--dry-run"])
+
+        self.assertEqual(rc, 1)
+        mocked_fetch.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

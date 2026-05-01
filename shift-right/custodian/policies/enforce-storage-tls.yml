@@ -17,12 +17,7 @@ policies:
         TLS1_2  — allows 1.2 only       (compliant)
 
       Dry-run mode: reports matched resources, takes no action.
-      Live mode:    tags the resource with cs-violation=tls-version-below-1.2.
-
-      Next remediation step (not in this policy):
-        az storage account update \
-          --name <name> --resource-group <rg> \
-          --min-tls-version TLS1_2
+      Live mode:    tags the resource and enforces secure transfer + TLS1_2.
 
     # ── Filters ───────────────────────────────────────────────────────────
     # Match storage accounts where minimumTlsVersion is NOT TLS1_2.
@@ -39,3 +34,6 @@ policies:
       - type: tag
         tag: *violation-tag
         value: tls-version-below-1.2
+      - type: require-secure-transfer
+        value: true
+        minimum_tls_version: TLS1_2

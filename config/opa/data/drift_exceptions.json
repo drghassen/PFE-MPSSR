@@ -1,0 +1,13 @@
+{
+  "cloudsentinel": {
+    "drift_exceptions": {
+      "schema_version": "1.0.0",
+      "generated_at": "2099-01-01T00:00:00Z",
+      "metadata": {
+        "source": "compose-default",
+        "total_exceptions": 0
+      },
+      "exceptions": []
+    }
+  }
+}

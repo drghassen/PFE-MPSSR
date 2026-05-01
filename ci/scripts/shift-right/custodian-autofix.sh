@@ -20,9 +20,28 @@ sr_init_guard "shift-right/custodian-autofix" "$AUDIT_FILE"
 OPA_CUSTODIAN_POLICIES="${OPA_CUSTODIAN_POLICIES:-}"
 OPA_PROWLER_CUSTODIAN_POLICIES="${OPA_PROWLER_CUSTODIAN_POLICIES:-}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-unknown}"
-REMEDIATION_MODE="${REMEDIATION_MODE:-advisory}"
+REMEDIATION_MODE="${REMEDIATION_MODE:-enforced}"
 CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-}"
 CUSTODIAN_POLICIES_DIR="${CUSTODIAN_POLICIES_DIR:-shift-right/custodian/policies}"
+ACTUALLY_EXECUTED="false"
+TRIGGERED_JOINED=""
+EXECUTED_JOINED=""
+FAILED_JOINED=""
+CUSTODIAN_DRY_RUN_EFFECTIVE="${CUSTODIAN_DRY_RUN:-true}"
+
+write_env_file() {
+  {
+    echo "CUSTODIAN_EXECUTED=${ACTUALLY_EXECUTED}"
+    echo "CUSTODIAN_POLICIES_TRIGGERED=${TRIGGERED_JOINED}"
+    echo "CUSTODIAN_POLICIES_EXECUTED=${EXECUTED_JOINED}"
+    echo "CUSTODIAN_DRY_RUN=${CUSTODIAN_DRY_RUN_EFFECTIVE}"
+    echo "CUSTODIAN_POLICIES_FAILED=${FAILED_JOINED}"
+    echo "CUSTODIAN_CORRELATION_ID=${OPA_CORRELATION_ID}"
+  } > "$ENV_FILE"
+}
+
+trap write_env_file EXIT
+write_env_file
 
 if [[ -z "$CUSTODIAN_DRY_RUN" ]]; then
   case "$REMEDIATION_MODE" in
@@ -34,6 +53,7 @@ if [[ -z "$CUSTODIAN_DRY_RUN" ]]; then
       ;;
   esac
 fi
+CUSTODIAN_DRY_RUN_EFFECTIVE="$CUSTODIAN_DRY_RUN"
 
 ALL_CUSTODIAN_POLICIES="$(jq -nr \
   --arg drift "$OPA_CUSTODIAN_POLICIES" \
@@ -47,14 +67,6 @@ ALL_CUSTODIAN_POLICIES="$(jq -nr \
 # ── Early exit: nothing to do ──────────────────────────────────────────────
 # If OPA produced no CRITICAL policy names, Custodian has no work to do.
 if [[ -z "$ALL_CUSTODIAN_POLICIES" ]]; then
-  {
-    echo "CUSTODIAN_EXECUTED=false"
-    echo "CUSTODIAN_POLICIES_TRIGGERED="
-    echo "CUSTODIAN_DRY_RUN=${CUSTODIAN_DRY_RUN}"
-    echo "CUSTODIAN_POLICIES_FAILED="
-    echo "CUSTODIAN_CORRELATION_ID=${OPA_CORRELATION_ID}"
-  } > "$ENV_FILE"
-
   sr_audit "INFO" "skip" "no CRITICAL custodian policies triggered" \
     "$(sr_build_details \
       --arg  policies      "$OPA_CUSTODIAN_POLICIES" \
@@ -181,11 +193,14 @@ done
 # ── Fail if any policy run failed ─────────────────────────────────────────
 # We fail after all policies have been attempted (not on first failure) so
 # that audit logs are complete for every policy that was triggered.
+IFS=',' TRIGGERED_JOINED="${triggered_policies[*]:-}"
+IFS=',' EXECUTED_JOINED="${actually_executed_policies[*]:-}"
+IFS=',' FAILED_JOINED="${failed_policies[*]:-}"
+
 if ((${#failed_policies[@]} > 0)); then
-  IFS=',' failed_joined="${failed_policies[*]}"
-  sr_fail "Custodian policy execution failed for: ${failed_joined}" 1 \
+  sr_fail "Custodian policy execution failed for: ${FAILED_JOINED}" 1 \
     "$(sr_build_details \
-      --arg failed "$failed_joined" \
+      --arg failed "$FAILED_JOINED" \
       '{failed_policies:($failed | split(","))}')"
 fi
 
@@ -193,20 +208,8 @@ fi
 # CUSTODIAN_EXECUTED=true only when at least one policy actually ran.
 # This is the value that enforce-gates.sh reads to distinguish "ran + result"
 # from "triggered but skipped due to missing YAML".
-ACTUALLY_EXECUTED="false"
 ((${#actually_executed_policies[@]} > 0)) && ACTUALLY_EXECUTED="true"
-
-IFS=',' TRIGGERED_JOINED="${triggered_policies[*]:-}"
-IFS=',' EXECUTED_JOINED="${actually_executed_policies[*]:-}"
-
-{
-  echo "CUSTODIAN_EXECUTED=${ACTUALLY_EXECUTED}"
-  echo "CUSTODIAN_POLICIES_TRIGGERED=${TRIGGERED_JOINED}"
-  echo "CUSTODIAN_POLICIES_EXECUTED=${EXECUTED_JOINED}"
-  echo "CUSTODIAN_DRY_RUN=${CUSTODIAN_DRY_RUN}"
-  echo "CUSTODIAN_POLICIES_FAILED="
-  echo "CUSTODIAN_CORRELATION_ID=${OPA_CORRELATION_ID}"
-} > "$ENV_FILE"
+write_env_file
 
 sr_audit "INFO" "stage_complete" "custodian autofix complete" \
   "$(sr_build_details \

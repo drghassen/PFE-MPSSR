@@ -64,8 +64,8 @@ SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // now | tostring | .[0:10]' "$RE
 RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 
-VIOLATION_MAP="$(jq '
-  (.result.violations // [])
+EFFECTIVE_DECISION_MAP="$(jq '
+  (.result.effective_violations // .result.violations // [])
   | map(select(.check_id != null and .resource_id != null and .check_id != "" and .resource_id != ""))
   | map({ key: (.check_id + "|" + .resource_id), value: . })
   | from_entries
@@ -103,7 +103,7 @@ jq -c \
   --arg scan_date "$SCAN_DATE" \
   --arg run_id "$RUN_ID" \
   --arg correlation_id "$CORRELATION_ID" \
-  --argjson violations "$VIOLATION_MAP" \
+  --argjson effective_decisions "$EFFECTIVE_DECISION_MAP" \
   --argjson effective_map "$EFFECTIVE_MAP" \
   '
   def normalize_severity($s):
@@ -119,12 +119,14 @@ jq -c \
     findings: [
       (.prowler.items // [])[] as $item |
       (($item.check_id // "") + "|" + ($item.resource_id // "")) as $k |
-      ($violations[$k] // error("missing_opa_violation:" + $k)) as $decision |
+      select($effective_map[$k]) |
+      ($effective_decisions[$k] // error("missing_opa_effective_violation:" + $k)) as $decision |
       {
         title: ("Prowler finding: " + (($item.check_id // "unknown") | tostring)),
         vuln_id_from_tool: ("prowler_check:" + (($item.check_id // "unknown") | tostring)),
         component_name: (($item.resource_id // "unknown") | tostring),
         unique_id_from_tool: ("cloudsentinel-prowler:" + (($item.check_id // "unknown") | tostring) + ":" + (($item.resource_id // "unknown") | tostring)),
+        active: true,
         severity: normalize_severity($decision.severity),
         date: $scan_date,
         description:
@@ -138,7 +140,7 @@ jq -c \
           + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
           + "- OPA response_type: " + (($decision.response_type // $decision.action_required // "unknown") | tostring) + "\n"
           + "- OPA requires_remediation: " + (($decision.requires_remediation // false) | tostring) + "\n"
-          + "- OPA effective: " + ((if $effective_map[$k] then "true" else "false" end)) + "\n"
+          + "- OPA effective: true\n"
           + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Apply cloud hardening control or approved exception.",
         references: ("CloudSentinel Prowler Report run_id=" + $run_id + " correlation_id=" + $correlation_id)
@@ -149,8 +151,8 @@ jq -c \
 
 sr_require_json "$GENERIC_FINDINGS_FILE" 'type == "object" and (.findings | type == "array")' "prowler generic findings"
 GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 'prowler generic findings')"
-sr_assert_eq "$GENERATED_COUNT" "$PROWLER_ITEM_COUNT" "prowler upload lost findings during report conversion"
-sr_assert_positive_if_expected "$PROWLER_ITEM_COUNT" "$GENERATED_COUNT" "prowler upload generated zero findings from non-empty input"
+sr_assert_eq "$GENERATED_COUNT" "$OPA_EFFECTIVE_VIOLATIONS" "prowler upload effective findings count mismatch with OPA decision"
+sr_assert_positive_if_expected "$OPA_EFFECTIVE_VIOLATIONS" "$GENERATED_COUNT" "prowler upload generated zero effective findings from non-empty effective OPA input"
 
 if [[ "$PROWLER_UPLOAD_DRY_RUN" == "true" ]]; then
   jq -cn \
@@ -170,7 +172,6 @@ else
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_RIGHT_EFF}" \
     --form-string "test_title=CloudSentinel Prowler (Shift-Right)" \
     --form-string "scan_date=${SCAN_DATE}" \
-    --form-string "active=true" \
     --form-string "verified=true" \
     --form-string "close_old_findings=true" \
     --form-string "close_old_findings_product_scope=false" \

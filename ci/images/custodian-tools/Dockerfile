@@ -1,10 +1,10 @@
 ARG PYTHON_IMAGE=python:3.11-slim-bookworm
 FROM ${PYTHON_IMAGE}
 
-# c7n (core) and c7n-azure must be the same version — they are released together
-# from the cloud-custodian monorepo and their APIs are tightly coupled.
+# c7n and c7n-azure are released from the same monorepo but use independent
+# version numbers: c7n follows 0.9.x, c7n-azure follows 0.7.x.
 ARG C7N_VERSION=0.9.43
-ARG C7N_AZURE_VERSION=0.9.43
+ARG C7N_AZURE_VERSION=0.7.49
 
 # Install OS-level dependencies first, then Python packages.
 # jq is required by the CI wrapper scripts (custodian-autofix.sh) for audit

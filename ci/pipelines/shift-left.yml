@@ -287,3 +287,14 @@ trigger-deploy-tools-rebuild:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
       changes:
         - ci/images/deploy-tools/Dockerfile
+
+trigger-custodian-tools-rebuild:
+  stage: maintenance
+  needs: []
+  trigger:
+    include: .gitlab-ci-image-factory.yml
+    strategy: depend
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - ci/images/custodian-tools/Dockerfile
