@@ -10,6 +10,27 @@ mkdir -p "$OUTPUT_DIR"
 
 sr_init_guard "shift-right/enforcement" "$AUDIT_FILE"
 
+GATE_STATUS="INIT"
+TOTAL_CRITICAL="${TOTAL_CRITICAL:-0}"
+BLOCK_ACTIVE="${BLOCK_ACTIVE:-false}"
+CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-true}"
+CUSTODIAN_EXECUTED="${CUSTODIAN_EXECUTED:-false}"
+RECONCILIATION_TICKET_CREATED="${RECONCILIATION_TICKET_CREATED:-false}"
+
+write_gate_env_file() {
+  {
+    echo "GATE_STATUS=${GATE_STATUS}"
+    echo "GATE_TOTAL_CRITICAL=${TOTAL_CRITICAL}"
+    echo "GATE_BLOCK_ACTIVE=${BLOCK_ACTIVE}"
+    echo "GATE_CUSTODIAN_DRY_RUN=${CUSTODIAN_DRY_RUN}"
+    echo "GATE_CUSTODIAN_EXECUTED=${CUSTODIAN_EXECUTED}"
+    echo "GATE_RECONCILIATION_TICKET_CREATED=${RECONCILIATION_TICKET_CREATED}"
+  } > "$GATE_ENV_FILE"
+}
+
+trap write_gate_env_file EXIT
+write_gate_env_file
+
 # ── Artifact validation ────────────────────────────────────────────────────
 # These .env files MUST exist before we can make any gate decision.
 # If they are absent an upstream stage crashed silently — that is fail-open.
@@ -18,7 +39,6 @@ CUSTODIAN_ENV_FILE="${OUTPUT_DIR}/custodian.env"
 REMEDIATION_ENV_FILE="${OUTPUT_DIR}/remediation_verify.env"
 RECONCILIATION_ENV_FILE="${OUTPUT_DIR}/reconciliation_ticket.env"
 
-sr_require_file "$CUSTODIAN_ENV_FILE"   "custodian.env (output of custodian-autofix stage)"
 sr_require_file "$REMEDIATION_ENV_FILE" "remediation_verify.env (output of verify-remediation stage)"
 sr_require_file "$RECONCILIATION_ENV_FILE" "reconciliation_ticket.env (output of reconciliation-ticket stage)"
 
@@ -33,8 +53,20 @@ _env_key() {
 }
 
 # ── Read state from upstream artifacts ────────────────────────────────────
-CUSTODIAN_EXECUTED="$(_env_key "$CUSTODIAN_ENV_FILE"   "CUSTODIAN_EXECUTED"  "false")"
-CUSTODIAN_DRY_RUN="$(  _env_key "$CUSTODIAN_ENV_FILE"   "CUSTODIAN_DRY_RUN"   "true")"
+CUSTODIAN_EXECUTED="${CUSTODIAN_EXECUTED:-false}"
+CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-true}"
+if [[ -f "$CUSTODIAN_ENV_FILE" ]]; then
+  CUSTODIAN_EXECUTED="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_EXECUTED" "$CUSTODIAN_EXECUTED")"
+  CUSTODIAN_DRY_RUN="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_DRY_RUN" "$CUSTODIAN_DRY_RUN")"
+else
+  sr_audit "WARN" "custodian_env_missing" \
+    "custodian.env artifact missing; using dotenv/runtime env fallback values" \
+    "$(sr_build_details \
+      --arg custodian_env_file "$CUSTODIAN_ENV_FILE" \
+      --arg custodian_executed "$CUSTODIAN_EXECUTED" \
+      --arg custodian_dry_run "$CUSTODIAN_DRY_RUN" \
+      '{custodian_env_file:$custodian_env_file,custodian_executed:($custodian_executed=="true"),custodian_dry_run:($custodian_dry_run=="true")}')"
+fi
 REMEDIATION_FAILED="$( _env_key "$REMEDIATION_ENV_FILE" "REMEDIATION_FAILED"  "false")"
 RECONCILIATION_TICKET_CREATED="$(_env_key "$RECONCILIATION_ENV_FILE" "RECONCILIATION_TICKET_CREATED" "false")"
 RECONCILIATION_TICKET_REQUIRED="$(_env_key "$RECONCILIATION_ENV_FILE" "RECONCILIATION_TICKET_REQUIRED" "false")"
@@ -193,14 +225,7 @@ fi
 
 # ── Write gate result artifact ─────────────────────────────────────────────
 # This file is read by downstream stages (e.g. escalation logic).
-{
-  echo "GATE_STATUS=${GATE_STATUS}"
-  echo "GATE_TOTAL_CRITICAL=${TOTAL_CRITICAL}"
-  echo "GATE_BLOCK_ACTIVE=${BLOCK_ACTIVE}"
-  echo "GATE_CUSTODIAN_DRY_RUN=${CUSTODIAN_DRY_RUN}"
-  echo "GATE_CUSTODIAN_EXECUTED=${CUSTODIAN_EXECUTED}"
-  echo "GATE_RECONCILIATION_TICKET_CREATED=${RECONCILIATION_TICKET_CREATED}"
-} > "$GATE_ENV_FILE"
+write_gate_env_file
 
 sr_audit "INFO" "stage_complete" "shift-right enforcement gate evaluation complete" "$(sr_build_details \
   --arg gate_status        "$GATE_STATUS" \

@@ -332,6 +332,8 @@ enforce-shift-right:
       artifacts: true
     - job: opa-prowler-decision
       artifacts: true
+    - job: custodian-autofix
+      artifacts: true
     - job: upload-drift-to-defectdojo
       artifacts: true
     - job: upload-prowler-to-defectdojo

@@ -280,9 +280,9 @@ fi
   echo "OPA_PROWLER_HIGH_COUNT=${EFFECTIVE_HIGH}"
   echo "OPA_PROWLER_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
   echo "OPA_PROWLER_LOW_COUNT=${EFFECTIVE_LOW}"
-  echo "OPA_PROWLER_REQUIRES_EMERGENCY_ALERT=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_PROWLER_REQUIRES_EMERGENCY_ALERT=$([ "$EFFECTIVE_CRITICAL" -gt 0 ] && echo true || echo false)"
   echo "OPA_PROWLER_REMEDIATION_SCOPE=CRITICAL_ONLY"
-  echo "OPA_PROWLER_REQUIRES_AUTO_REMEDIATION=$([ \"$EFFECTIVE_CRITICAL\" -gt 0 ] && echo true || echo false)"
+  echo "OPA_PROWLER_REQUIRES_AUTO_REMEDIATION=$([ "$EFFECTIVE_CRITICAL" -gt 0 ] && echo true || echo false)"
 } > "$ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "OPA prowler decision completed" "$(sr_build_details \
