@@ -103,6 +103,7 @@ else
   PROWLER_EXCLUDED_CHECKS_FILE="${PROWLER_EXCLUDED_CHECKS_FILE:-config/prowler/exclusions-azure-student.txt}"
   if [[ -f "$PROWLER_EXCLUDED_CHECKS_FILE" ]]; then
     while IFS= read -r _check_id || [[ -n "$_check_id" ]]; do
+      _check_id="${_check_id//$'\r'/}"
       [[ -z "$_check_id" || "$_check_id" == \#* ]] && continue
       prowler_cmd+=(--excluded-check "$_check_id")
     done < "$PROWLER_EXCLUDED_CHECKS_FILE"
@@ -164,13 +165,21 @@ sr_require_json "$OCSF_PATH" '
 TOTAL_FINDINGS="$(sr_json_number "$OCSF_PATH" 'length' 'prowler ocsf report')"
 FAIL_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "FAIL")] | length' 'prowler ocsf report')"
 PASS_COUNT="$(sr_json_number "$OCSF_PATH" '[.[] | select((.status_code // "" | ascii_upcase) == "PASS")] | length' 'prowler ocsf report')"
-# Prowler v5 exclut les MUTED du fichier OCSF — comptage depuis le CSV
+# Prowler v5 : MUTED findings dans OCSF ont status_code=FAIL
+# Les compter depuis le CSV (seul format qui expose le vrai statut MUTED)
+MUTED_COUNT=0
 CSV_PATH="$(find "$PROWLER_OUTPUT_DIR" -maxdepth 1 -type f -name '*.csv' | sort | tail -n1 || true)"
 if [[ -n "$CSV_PATH" && -f "$CSV_PATH" ]]; then
-  MUTED_COUNT="$(awk -F';' 'NR>1 {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $NF); if ($NF == "MUTED") count++} END{print count+0}' "$CSV_PATH" || echo 0)"
-else
-  MUTED_COUNT=0
+  MUTED_COUNT="$(awk -F';' 'NR>1 {
+    gsub(/\r/, "")
+    n=split($0, a, ";")
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", a[n])
+    if (a[n] == "MUTED") count++
+  } END{print count+0}' "$CSV_PATH" 2>/dev/null || echo 0)"
 fi
+
+# Soustraire les MUTED du FAIL_COUNT (Prowler v5 les inclut dans FAIL)
+FAIL_COUNT=$(( FAIL_COUNT - MUTED_COUNT ))
 
 RUN_ID="$(python - <<'PY'
 import uuid
