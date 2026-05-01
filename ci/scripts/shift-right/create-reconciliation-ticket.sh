@@ -15,6 +15,7 @@ sr_require_command jq curl
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
 OPA_CUSTODIAN_POLICIES="${OPA_CUSTODIAN_POLICIES:-}"
+OPA_PROWLER_CUSTODIAN_POLICIES="${OPA_PROWLER_CUSTODIAN_POLICIES:-}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-}"
 OPA_PROWLER_CORRELATION_ID="${OPA_PROWLER_CORRELATION_ID:-}"
 CI_PROJECT_URL="${CI_PROJECT_URL:-unknown}"
@@ -23,6 +24,14 @@ CI_COMMIT_REF_NAME="${CI_COMMIT_REF_NAME:-unknown}"
 CI_COMMIT_SHA="${CI_COMMIT_SHA:-unknown}"
 
 TOTAL_CRITICAL=$((OPA_DRIFT_CRITICAL_COUNT + OPA_PROWLER_CRITICAL_COUNT))
+ALL_RUNTIME_POLICIES="$(jq -nr \
+  --arg drift "$OPA_CUSTODIAN_POLICIES" \
+  --arg prowler "$OPA_PROWLER_CUSTODIAN_POLICIES" \
+  '[($drift|split(",")[]?), ($prowler|split(",")[]?)]
+   | map(gsub("^\\s+|\\s+$";""))
+   | map(select(length > 0))
+   | unique
+   | join(",")')"
 CORRELATION_ID="${OPA_CORRELATION_ID:-$OPA_PROWLER_CORRELATION_ID}"
 if [[ -z "$CORRELATION_ID" ]]; then
   CORRELATION_ID="unknown"
@@ -56,7 +65,7 @@ DESCRIPTION="$(cat <<EOF
 - Branch: \`${CI_COMMIT_REF_NAME}\`
 - Commit: \`${CI_COMMIT_SHA}\`
 - Critical findings: drift=${OPA_DRIFT_CRITICAL_COUNT}, prowler=${OPA_PROWLER_CRITICAL_COUNT}
-- Runtime policies executed/planned: \`${OPA_CUSTODIAN_POLICIES}\`
+- Runtime policies executed/planned: \`${ALL_RUNTIME_POLICIES}\`
 
 ### Required actions
 1. Update Terraform source of truth for remediated resources.
@@ -84,7 +93,7 @@ sr_audit "WARN" "ticket_create_start" "creating reconciliation issue" \
     --arg title "$TITLE" \
     --arg project_id "$CI_PROJECT_ID" \
     --arg pipeline_id "$CI_PIPELINE_ID" \
-    --arg policies "$OPA_CUSTODIAN_POLICIES" \
+    --arg policies "$ALL_RUNTIME_POLICIES" \
     '{
       correlation_id: $correlation_id,
       title: $title,

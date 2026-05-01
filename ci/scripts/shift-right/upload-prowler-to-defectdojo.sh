@@ -67,14 +67,14 @@ CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id 
 EFFECTIVE_DECISION_MAP="$(jq '
   (.result.effective_violations // .result.violations // [])
   | map(select(.check_id != null and .resource_id != null and .check_id != "" and .resource_id != ""))
-  | map({ key: (.check_id + "|" + .resource_id), value: . })
+  | map({ key: (.check_id + "|" + .resource_id + "|" + ((.resource_type // "unknown") | ascii_downcase)), value: . })
   | from_entries
 ' "$OPA_DECISION_PATH")"
 
 EFFECTIVE_MAP="$(jq '
   (.result.effective_violations // .result.violations // [])
   | map(select(.check_id != null and .resource_id != null and .check_id != "" and .resource_id != ""))
-  | map({ key: (.check_id + "|" + .resource_id), value: true })
+  | map({ key: (.check_id + "|" + .resource_id + "|" + ((.resource_type // "unknown") | ascii_downcase)), value: true })
   | from_entries
 ' "$OPA_DECISION_PATH")"
 
@@ -118,7 +118,7 @@ jq -c \
   {
     findings: [
       (.prowler.items // [])[] as $item |
-      (($item.check_id // "") + "|" + ($item.resource_id // "")) as $k |
+      (($item.check_id // "") + "|" + ($item.resource_id // "") + "|" + (($item.resource_type // "unknown") | ascii_downcase)) as $k |
       select($effective_map[$k]) |
       ($effective_decisions[$k] // error("missing_opa_effective_violation:" + $k)) as $decision |
       {

@@ -264,6 +264,7 @@ custodian-autofix:
     expire_in: 30 days
     paths:
       - .cloudsentinel/custodian_audit.jsonl
+      - .cloudsentinel/custodian.env
     reports:
       dotenv: .cloudsentinel/custodian.env
 
@@ -351,3 +352,4 @@ enforce-shift-right:
     expire_in: 30 days
     paths:
       - .cloudsentinel/shift_right_enforcement_audit.jsonl
+      - .cloudsentinel/gate.env

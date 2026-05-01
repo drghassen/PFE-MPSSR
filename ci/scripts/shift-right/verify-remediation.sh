@@ -20,7 +20,6 @@ sr_init_guard "shift-right/verify-remediation" "$AUDIT_FILE"
 sr_require_command jq timeout
 sr_require_nonempty_file "$DRIFT_DECISION_FILE" "opa drift decision"
 sr_require_nonempty_file "$PROWLER_DECISION_FILE" "opa prowler decision"
-sr_require_file "$CUSTODIAN_ENV_FILE" "custodian env"
 
 OPA_DRIFT_CRITICAL_COUNT="${OPA_DRIFT_CRITICAL_COUNT:-0}"
 OPA_PROWLER_CRITICAL_COUNT="${OPA_PROWLER_CRITICAL_COUNT:-0}"
@@ -30,6 +29,18 @@ OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-unknown}"
 OPA_PROWLER_CORRELATION_ID="${OPA_PROWLER_CORRELATION_ID:-unknown}"
 VERIFICATION_MAX_RETRIES="${VERIFICATION_MAX_RETRIES:-3}"
 VERIFICATION_TIMEOUT_SECONDS="${VERIFICATION_TIMEOUT_SECONDS:-30}"
+REMEDIATION_FAILED_STATE="false"
+REMEDIATION_SKIP_REASON_STATE=""
+
+write_verify_env_file() {
+  {
+    echo "REMEDIATION_FAILED=${REMEDIATION_FAILED_STATE}"
+    echo "REMEDIATION_SKIP_REASON=${REMEDIATION_SKIP_REASON_STATE}"
+  } > "$ENV_FILE"
+}
+
+trap write_verify_env_file EXIT
+write_verify_env_file
 
 _env_key() {
   local file="$1" key="$2" default="${3:-}"
@@ -38,8 +49,18 @@ _env_key() {
   printf '%s' "${val:-$default}"
 }
 
-CUSTODIAN_DRY_RUN="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_DRY_RUN" "true")"
-CUSTODIAN_EXECUTED="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_EXECUTED" "false")"
+CUSTODIAN_DRY_RUN="${CUSTODIAN_DRY_RUN:-true}"
+CUSTODIAN_EXECUTED="${CUSTODIAN_EXECUTED:-false}"
+if [[ -f "$CUSTODIAN_ENV_FILE" ]]; then
+  CUSTODIAN_DRY_RUN="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_DRY_RUN" "$CUSTODIAN_DRY_RUN")"
+  CUSTODIAN_EXECUTED="$(_env_key "$CUSTODIAN_ENV_FILE" "CUSTODIAN_EXECUTED" "$CUSTODIAN_EXECUTED")"
+else
+  sr_audit "WARN" "custodian_env_missing" "custodian env artifact missing; using dotenv fallback values" "$(sr_build_details \
+    --arg custodian_env_file "$CUSTODIAN_ENV_FILE" \
+    --arg custodian_dry_run "$CUSTODIAN_DRY_RUN" \
+    --arg custodian_executed "$CUSTODIAN_EXECUTED" \
+    '{custodian_env_file:$custodian_env_file, custodian_dry_run:($custodian_dry_run=="true"), custodian_executed:($custodian_executed=="true")}')"
+fi
 
 _emit_runtime_state() {
   local finding_id="$1"
@@ -116,10 +137,9 @@ CANDIDATES_JSON="$(collect_candidates)"
 CANDIDATE_COUNT="$(jq -r 'length' <<< "$CANDIDATES_JSON")"
 
 if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" && "$OPA_PROWLER_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
-  {
-    echo "REMEDIATION_FAILED=false"
-    echo "REMEDIATION_SKIP_REASON=no_auto_remediation_required"
-  } > "$ENV_FILE"
+  REMEDIATION_FAILED_STATE="false"
+  REMEDIATION_SKIP_REASON_STATE="no_auto_remediation_required"
+  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{timestamp:$timestamp, total_candidates:0, verified:0, failed:0, skipped:true, skip_reason:"no_auto_remediation_required"}' > "$SUMMARY_FILE"
 
@@ -128,10 +148,9 @@ if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" && "$OPA_PROWLER_REQUIRES_AUTO_
 fi
 
 if [[ "$CUSTODIAN_DRY_RUN" == "true" ]]; then
-  {
-    echo "REMEDIATION_FAILED=false"
-    echo "REMEDIATION_SKIP_REASON=custodian_dry_run"
-  } > "$ENV_FILE"
+  REMEDIATION_FAILED_STATE="false"
+  REMEDIATION_SKIP_REASON_STATE="custodian_dry_run"
+  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson candidates "$CANDIDATE_COUNT" '{timestamp:$timestamp, total_candidates:$candidates, verified:0, failed:0, skipped:true, skip_reason:"custodian_dry_run"}' > "$SUMMARY_FILE"
 
@@ -140,10 +159,9 @@ if [[ "$CUSTODIAN_DRY_RUN" == "true" ]]; then
 fi
 
 if [[ "$CANDIDATE_COUNT" -eq 0 ]]; then
-  {
-    echo "REMEDIATION_FAILED=false"
-    echo "REMEDIATION_SKIP_REASON=no_runtime_candidates"
-  } > "$ENV_FILE"
+  REMEDIATION_FAILED_STATE="false"
+  REMEDIATION_SKIP_REASON_STATE="no_runtime_candidates"
+  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{timestamp:$timestamp, total_candidates:0, verified:0, failed:0, skipped:true, skip_reason:"no_runtime_candidates"}' > "$SUMMARY_FILE"
 
@@ -152,10 +170,9 @@ if [[ "$CANDIDATE_COUNT" -eq 0 ]]; then
 fi
 
 if [[ "$CUSTODIAN_EXECUTED" != "true" ]]; then
-  {
-    echo "REMEDIATION_FAILED=false"
-    echo "REMEDIATION_SKIP_REASON=custodian_not_executed"
-  } > "$ENV_FILE"
+  REMEDIATION_FAILED_STATE="false"
+  REMEDIATION_SKIP_REASON_STATE="custodian_not_executed"
+  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson candidates "$CANDIDATE_COUNT" '{timestamp:$timestamp, total_candidates:$candidates, verified:0, failed:0, skipped:true, skip_reason:"custodian_not_executed"}' > "$SUMMARY_FILE"
 
@@ -218,10 +235,9 @@ else
   remediation_failed=false
 fi
 
-{
-  echo "REMEDIATION_FAILED=${remediation_failed}"
-  echo "REMEDIATION_SKIP_REASON="
-} > "$ENV_FILE"
+REMEDIATION_FAILED_STATE="${remediation_failed}"
+REMEDIATION_SKIP_REASON_STATE=""
+write_verify_env_file
 
 jq -cn \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
