@@ -84,3 +84,8 @@ shift-right/prowler/output/prowler-report.json
 output/
 reports/
 *.tfplan
+
+# Local test & verification artifacts (not in CI pipeline)
+tests/
+integration-tests/
+verification/
