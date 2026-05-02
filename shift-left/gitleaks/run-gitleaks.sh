@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
 # non-root user, triggering "dubious ownership" and silently skipping all
 # git-history scanning. Mark the directory trusted before any git call.
 if [[ -n "${CI:-}" ]]; then
-  mkdir -p "${HOME:-/home/nonroot}"
+  export HOME=/tmp
   git config --global --add safe.directory "${CI_PROJECT_DIR:-$PWD}"
 fi
 
