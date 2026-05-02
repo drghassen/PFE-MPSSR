@@ -290,6 +290,7 @@ verify-remediation:
     when: always
     expire_in: 30 days
     paths:
+      - .cloudsentinel/remediation_verify.env
       - .cloudsentinel/remediation_verify.jsonl
       - .cloudsentinel/runtime-state/
     reports:
