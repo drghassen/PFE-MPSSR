@@ -1,9 +1,10 @@
 .cloudsentinel/
-# aaaaaaaaa
+
 # Python cache / bytecode
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 
 # Terraform
 .terraform/
