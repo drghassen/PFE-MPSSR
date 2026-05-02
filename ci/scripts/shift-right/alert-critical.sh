@@ -88,6 +88,11 @@ resolve_channel() {
         printf 'gitlab'
         return 0
       fi
+      # CI_JOB_TOKEN is always injected by GitLab CI — use it as a fallback
+      if [[ -n "${CI_API_V4_URL:-}" && -n "${CI_PROJECT_ID:-}" && -n "${CI_JOB_TOKEN:-}" ]]; then
+        printf 'gitlab'
+        return 0
+      fi
       return 1
       ;;
     *)
@@ -154,7 +159,12 @@ if [[ "$CHANNEL" == "teams" ]]; then
     sr_fail "failed to deliver Teams alert" 1 "$(sr_build_details --arg channel "$CHANNEL" '{channel:$channel}')"
   fi
 else
-  sr_require_env CI_API_V4_URL CI_PROJECT_ID GITLAB_API_TOKEN
+  sr_require_env CI_API_V4_URL CI_PROJECT_ID
+  GITLAB_AUTH_TOKEN="${GITLAB_API_TOKEN:-${CI_JOB_TOKEN:-}}"
+  if [[ -z "$GITLAB_AUTH_TOKEN" ]]; then
+    sr_fail "no GitLab auth token available (set GITLAB_API_TOKEN or ensure CI_JOB_TOKEN is present)" 1 \
+      "$(sr_build_details --arg channel "$CHANNEL" '{channel:$channel}')"
+  fi
   BODY="## ${ALERT_SUBJECT}
 
 - Priority: ${ALERT_PRIORITY}
@@ -179,8 +189,13 @@ else
     --arg block_reason "$BLOCK_REASON" \
     '{title:$title, description:$description, labels:$labels, priority:$priority, l3_count:$l3_count, l2_count:$l2_count, pipeline_correlation_id:$pipeline_correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason}')"
 
+  if [[ -n "${GITLAB_API_TOKEN:-}" ]]; then
+    GITLAB_AUTH_HEADER="PRIVATE-TOKEN: ${GITLAB_API_TOKEN}"
+  else
+    GITLAB_AUTH_HEADER="JOB-TOKEN: ${CI_JOB_TOKEN}"
+  fi
   if ! retry_request timeout "$ALERT_TIMEOUT_SECONDS" curl -sS -f -X POST "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/issues" \
-      -H "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+      -H "$GITLAB_AUTH_HEADER" \
       -H "Content-Type: application/json" \
       --data-binary "$PAYLOAD" \
       -o /dev/null; then
