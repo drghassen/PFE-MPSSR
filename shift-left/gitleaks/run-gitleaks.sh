@@ -7,6 +7,14 @@ err()  { echo "[CloudSentinel][Gitleaks][ERROR] $*" >&2; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib_scanner_utils.sh"
 
+# Git ≥ 2.35 refuses to operate on repos owned by a different UID.
+# Docker CI runners clone as root while the container process runs as a
+# non-root user, triggering "dubious ownership" and silently skipping all
+# git-history scanning. Mark the directory trusted before any git call.
+if [[ -n "${CI:-}" ]]; then
+  git config --global --add safe.directory "${CI_PROJECT_DIR:-$PWD}"
+fi
+
 REPO_ROOT="$(cs_get_repo_root)"
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
