@@ -25,6 +25,7 @@
     "engine_version": "{{ cloudsentinel.engine_version }}",
     "tenant_id": {{ cloudsentinel.tenant_id | tojson }},
     "subscription_id": {{ cloudsentinel.subscription_id | tojson }},
+    "pipeline_correlation_id": {{ cloudsentinel.pipeline_correlation_id | default(none) | tojson }},
     "terraform_workspace": "{{ cloudsentinel.terraform_workspace }}",
     "terraform_working_dir": "{{ cloudsentinel.terraform_working_dir }}",
     "started_at": "{{ cloudsentinel.started_at }}",

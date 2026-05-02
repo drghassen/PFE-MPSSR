@@ -83,6 +83,33 @@ if [[ "$DRIFT_ENGINE_EXIT_CODE" -ne 0 && "$DRIFT_ENGINE_EXIT_CODE" -ne 2 ]]; the
 fi
 
 sr_require_nonempty_file "$DRIFT_REPORT_PATH" "drift report"
+
+REPORT_PIPELINE_CORRELATION_ID="$(jq -er '.cloudsentinel.pipeline_correlation_id // empty' "$DRIFT_REPORT_PATH" 2>/dev/null || true)"
+if [[ -z "$REPORT_PIPELINE_CORRELATION_ID" ]]; then
+  tmp_report="$(mktemp)"
+  if ! jq --arg pipeline_correlation_id "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID" \
+    '.cloudsentinel.pipeline_correlation_id = $pipeline_correlation_id' \
+    "$DRIFT_REPORT_PATH" > "$tmp_report"; then
+    rm -f "$tmp_report"
+    sr_fail "failed to normalize drift report pipeline correlation id" 1 \
+      "$(sr_build_details --arg report_path "$DRIFT_REPORT_PATH" '{report_path:$report_path}')"
+  fi
+  mv "$tmp_report" "$DRIFT_REPORT_PATH"
+  sr_audit "WARN" "drift_report_pipeline_correlation_id_injected" \
+    "drift report missing pipeline_correlation_id; injected wrapper correlation id" \
+    "$(sr_build_details \
+      --arg report_path "$DRIFT_REPORT_PATH" \
+      --arg pipeline_correlation_id "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID" \
+      '{report_path:$report_path, pipeline_correlation_id:$pipeline_correlation_id}')"
+elif [[ "$REPORT_PIPELINE_CORRELATION_ID" != "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID" ]]; then
+  sr_fail "drift report pipeline correlation id mismatch" 1 \
+    "$(sr_build_details \
+      --arg report_path "$DRIFT_REPORT_PATH" \
+      --arg report_pipeline_correlation_id "$REPORT_PIPELINE_CORRELATION_ID" \
+      --arg expected_pipeline_correlation_id "$CLOUDSENTINEL_PIPELINE_CORRELATION_ID" \
+      '{report_path:$report_path, report_pipeline_correlation_id:$report_pipeline_correlation_id, expected_pipeline_correlation_id:$expected_pipeline_correlation_id}')"
+fi
+
 sr_require_json "$DRIFT_REPORT_PATH" '
   type == "object"
   and (.cloudsentinel | type == "object")

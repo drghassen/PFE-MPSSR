@@ -32,6 +32,7 @@
         "engine_version": { "type": "string" },
         "tenant_id": { "type": ["string", "null"] },
         "subscription_id": { "type": ["string", "null"] },
+        "pipeline_correlation_id": { "type": ["string", "null"] },
         "terraform_workspace": { "type": "string" },
         "terraform_working_dir": { "type": "string" },
         "started_at": { "type": "string", "format": "date-time" },
