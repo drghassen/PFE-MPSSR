@@ -2,9 +2,8 @@ resource "azurerm_recovery_services_vault" "this" {
   name                = var.vault_name
   location            = var.location
   resource_group_name = var.resource_group_name
-  sku                 = "Standard"
-  soft_delete_enabled = true
-  immutability        = "Unlocked"
+  sku          = "Standard"
+  immutability = "Unlocked"
   tags                = var.tags
 
   identity {

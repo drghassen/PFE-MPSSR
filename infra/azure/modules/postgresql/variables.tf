@@ -80,17 +80,6 @@ variable "log_analytics_workspace_id" {
   type        = string
 }
 
-variable "ssl_minimal_tls_version" {
-  description = "Minimum TLS version enforced on client connections. CIS 4.3.7 requires TLS1_2 minimum."
-  type        = string
-  default     = "TLS1_2"
-
-  validation {
-    condition     = contains(["TLS1_2", "TLS1_3", "TLSEnforcementDisabled"], var.ssl_minimal_tls_version)
-    error_message = "ssl_minimal_tls_version must be TLS1_2 or TLS1_3. TLSEnforcementDisabled is accepted only to allow explicit insecure opt-out."
-  }
-}
-
 variable "tags" {
   description = "Common tags."
   type        = map(string)

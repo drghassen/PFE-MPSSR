@@ -29,9 +29,8 @@ resource "azurerm_postgresql_flexible_server" "this" {
   public_network_access_enabled = false
   tags                          = var.tags
 
-  # CIS 4.3.7 / CKV2_CS_AZ_036 — absent attribute defaults to TLS 1.0 in Azure.
-  # Explicitly enforce TLS 1.2 minimum; TLS 1.0 and 1.1 are cryptographically broken.
-  ssl_minimal_tls_version_enforced = var.ssl_minimal_tls_version
+  # CIS 4.3.7 — PostgreSQL Flexible Server enforces TLS 1.2+ by default in azurerm 4.x;
+  # ssl_minimal_tls_version_enforced was a Single Server attribute and was removed in provider 4.0.
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
 }
