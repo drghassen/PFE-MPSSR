@@ -1,9 +1,12 @@
 resource "azurerm_key_vault_key" "disk_cmk" {
+  # checkov:skip=CKV_AZURE_112: HSM-backed keys require Key Vault Premium SKU; Standard SKU used in this environment
   name         = "disk-cmk-${var.name_prefix}-${var.environment}"
   key_vault_id = var.key_vault_id
   key_type     = "RSA"
   key_size     = 4096
   key_opts     = ["decrypt", "encrypt", "unwrapKey", "wrapKey"]
+
+  expiration_date = timeadd(plantimestamp(), "8760h")
 
   rotation_policy {
     automatic {
@@ -11,6 +14,10 @@ resource "azurerm_key_vault_key" "disk_cmk" {
     }
     expire_after         = "P1Y"
     notify_before_expiry = "P30D"
+  }
+
+  lifecycle {
+    ignore_changes = [expiration_date]
   }
 }
 

@@ -64,6 +64,8 @@ data "azurerm_log_analytics_workspace" "law" {
 # write without a public endpoint.
 # ---------------------------------------------------------------------------
 resource "azurerm_storage_account" "flowlogs" {
+  # checkov:skip=CKV2_AZURE_33: Private endpoint for flow-log storage is not in scope for this module
+  # checkov:skip=CKV2_AZURE_1: CMK for flow-log storage is not in scope for this module
   name                = local.flowlogs_sa_name
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -71,12 +73,14 @@ resource "azurerm_storage_account" "flowlogs" {
 
   account_kind             = "StorageV2"
   account_tier             = "Standard"
-  account_replication_type = "LRS"
+  account_replication_type = "GRS"
 
   # Security hardening (azurerm ~> 4.x attribute names)
   min_tls_version                 = "TLS1_2"
   https_traffic_only_enabled      = true
   allow_nested_items_to_be_public = false
+  public_network_access_enabled   = false
+  shared_access_key_enabled       = false
 
   # Network Watcher (trusted Azure service) must be able to write flow blobs
   # even though public access is blocked.
@@ -96,6 +100,21 @@ resource "azurerm_storage_account" "flowlogs" {
     container_delete_retention_policy {
       days = 7
     }
+  }
+
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = var.flow_log_retention_days
+    }
+  }
+
+  sas_policy {
+    expiration_period = "P7D"
+    expiration_action = "Log"
   }
 }
 

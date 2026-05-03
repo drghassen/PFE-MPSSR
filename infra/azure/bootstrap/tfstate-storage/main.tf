@@ -70,6 +70,10 @@ data "azurerm_log_analytics_workspace" "law" {
 #   (no ForceNew, no recreation, no connectivity loss)
 # ---------------------------------------------------------------------------
 resource "azurerm_storage_account" "tfstate" {
+  # checkov:skip=CKV_AZURE_35: Phase 2 — default_action=Deny requires GitLab runner IPs allowlisted before switching
+  # checkov:skip=CKV_AZURE_59: Phase 2 — public_network_access_enabled=false requires self-hosted runners on Azure VNet
+  # checkov:skip=CKV2_AZURE_33: Phase 3 — private endpoint requires runner VNet migration (scaffold below)
+  # checkov:skip=CKV2_AZURE_1: Phase 3 — CMK requires dedicated Key Vault setup (scaffold below)
   name                = var.storage_account_name
   resource_group_name = var.resource_group_name
   location            = var.location
@@ -81,7 +85,7 @@ resource "azurerm_storage_account" "tfstate" {
   #     --query "{kind:kind, tier:sku.tier, replication:sku.name}"
   account_kind             = "StorageV2"
   account_tier             = "Standard"
-  account_replication_type = "LRS"
+  account_replication_type = "GRS"
 
   # ── Phase 1: safe in-place security hardening ────────────────────────────
 
@@ -94,11 +98,9 @@ resource "azurerm_storage_account" "tfstate" {
   # Prevent any blob from accidentally being made public
   allow_nested_items_to_be_public = false
 
-  # Keep access keys enabled for backward compatibility.
-  # Phase 2 hardening: set to false once confirmed all tooling uses AAD auth.
-  # Current CI already uses ARM_STORAGE_USE_AZUREAD=true — safe to disable
-  # access keys in Phase 2 after validating no SAS tokens are in use.
-  shared_access_key_enabled = true
+  # Shared key access disabled — CI uses ARM_STORAGE_USE_AZUREAD=true for AAD-only auth.
+  # CKV2_AZURE_40 / CIS 3.10: enforce Azure AD auth exclusively.
+  shared_access_key_enabled = false
 
   # ── Infrastructure encryption (PHASE 3 — DO NOT ENABLE HERE) ────────────
   # infrastructure_encryption_enabled = true
@@ -133,6 +135,21 @@ resource "azurerm_storage_account" "tfstate" {
     container_delete_retention_policy {
       days = var.container_soft_delete_retention_days
     }
+  }
+
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = 7
+    }
+  }
+
+  sas_policy {
+    expiration_period = "P7D"
+    expiration_action = "Log"
   }
 
   # ── Network rules: Phase 1 (no behavioral change) ────────────────────────

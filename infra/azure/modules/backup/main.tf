@@ -6,6 +6,10 @@ resource "azurerm_recovery_services_vault" "this" {
   soft_delete_enabled = true
   immutability        = "Unlocked"
   tags                = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 }
 
 resource "azurerm_backup_policy_vm" "daily" {
