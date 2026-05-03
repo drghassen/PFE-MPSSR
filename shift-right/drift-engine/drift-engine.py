@@ -772,6 +772,14 @@ def main(argv: list[str]) -> int:
     if plan_json:
         summary, items = normalize_terraform_plan(plan_json)
         drift_items = items
+        
+        # If Terraform detected changes (exit code 2) but our normalizer 
+        # filtered out all items (e.g. only data sources changed), 
+        # override detected status to False and exit_code to 0.
+        if detected and not drift_items:
+            logger.info("drift_ignored_all_items_filtered", run_id=run_id)
+            detected = False
+            exit_code = 0
 
         # ============================================================
         # OPA EVALUATION (Shift-Right Decision Point)

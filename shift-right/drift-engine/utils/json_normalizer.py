@@ -335,16 +335,27 @@ def normalize_terraform_plan(
         provider_name = str(rc.get("provider_name") or "")
         if provider_name:
             provider_names.add(provider_name)
+            
+        if mode == "data":
+            continue
 
         before = change.get("before")
         after = change.get("after")
 
         changed_paths = _diff_paths(before, after)
+        
+        is_noop_or_read = actions == ["no-op"] or actions == ["read"]
 
         # For `plan -refresh-only`, provider often reports `actions=["no-op"]` even when
         # the state is refreshed to different values. Treat "no-op + diff" as drift.
-        if not changed_paths:
+        if not changed_paths and is_noop_or_read:
             continue
+            
+        if not changed_paths:
+            # Fallback to indicate something changed even if our diff couldn't find it
+            # (e.g. sensitive fields or unknown fields changed).
+            changed_paths = ["(sensitive or unknown)"]
+
         if address:
             seen.add(address)
 
@@ -381,11 +392,18 @@ def normalize_terraform_plan(
                 continue
             before = out_change.get("before")
             after = out_change.get("after")
-            changed_paths = _diff_paths(before, after)
-            if not changed_paths:
-                continue
             actions = _safe_list_str(out_change.get("actions")) or ["update"]
             action_key = _actions_key(actions)
+            
+            changed_paths = _diff_paths(before, after)
+            is_noop_or_read = actions == ["no-op"] or actions == ["read"]
+            
+            if not changed_paths and is_noop_or_read:
+                continue
+                
+            if not changed_paths:
+                changed_paths = ["(sensitive or unknown)"]
+
             resources_by_action[action_key] = resources_by_action.get(action_key, 0) + 1
 
             items.append(
