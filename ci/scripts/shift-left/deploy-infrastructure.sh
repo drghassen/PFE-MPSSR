@@ -123,6 +123,8 @@ tofu -chdir="${TF_ROOT_DIR}" init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
+export TF_VAR_location="${TF_VAR_location:-norwayeast}"
+echo "[deploy] TF_VAR_location=${TF_VAR_location}"
 export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 [ -n "${TF_VAR_tenant_id}" ] || { echo "[deploy][ERROR] TF_VAR_tenant_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_tenant_id is set"

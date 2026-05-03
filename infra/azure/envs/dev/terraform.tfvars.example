@@ -1,7 +1,7 @@
 subscription_id         = "00000000-0000-0000-0000-000000000000"
 tenant_id               = "00000000-0000-0000-0000-000000000000"
 name_prefix             = "csdemo01"
-location                = "westeurope"
+location                = "norwayeast"
 vm_admin_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGreplaceME user@host"
 postgres_admin_password = "ChangeMe-Use-Secret-Manager-Not-Git"
 
