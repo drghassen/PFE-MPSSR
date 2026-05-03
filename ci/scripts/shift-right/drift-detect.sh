@@ -47,6 +47,15 @@ sr_require_nonempty_file "$DRIFT_CONFIG_PATH" "drift engine config"
 sr_require_nonempty_file "$DRIFT_ENGINE_ENTRYPOINT" "drift engine entrypoint"
 
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
+export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
+export TF_VAR_vm_admin_ssh_public_key="${TF_VAR_vm_admin_ssh_public_key:-${TF_VAR_admin_ssh_public_key:-}}"
+
+# Bridge TFSTATE_* CI convention → TF_BACKEND_* expected by the drift engine's TerraformRunner.
+export TF_BACKEND_RESOURCE_GROUP_NAME="${TF_BACKEND_RESOURCE_GROUP_NAME:-${TFSTATE_RESOURCE_GROUP:-}}"
+export TF_BACKEND_STORAGE_ACCOUNT_NAME="${TF_BACKEND_STORAGE_ACCOUNT_NAME:-${TFSTATE_STORAGE_ACCOUNT:-}}"
+export TF_BACKEND_CONTAINER_NAME="${TF_BACKEND_CONTAINER_NAME:-${TFSTATE_CONTAINER:-}}"
+export TF_BACKEND_KEY="${TF_BACKEND_KEY:-${TFSTATE_KEY:-}}"
+export TF_BACKEND_USE_AZUREAD_AUTH="${TF_BACKEND_USE_AZUREAD_AUTH:-true}"
 # OPA evaluation is intentionally delegated to the external opa-drift-decision job.
 # The drift engine's built-in OPA guard is disabled here to avoid redundant evaluation.
 export OPA_ENABLED="${OPA_ENABLED:-false}"
