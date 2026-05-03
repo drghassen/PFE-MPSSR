@@ -10,6 +10,12 @@ definition:
     - cond_type: "attribute"
       resource_types:
         - "azurerm_key_vault"
+      attribute: "rbac_authorization_enabled"
+      operator: "equals"
+      value: true
+    - cond_type: "attribute"
+      resource_types:
+        - "azurerm_key_vault"
       attribute: "enable_rbac_authorization"
       operator: "equals"
       value: true

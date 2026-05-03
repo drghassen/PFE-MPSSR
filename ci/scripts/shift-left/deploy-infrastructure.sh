@@ -38,7 +38,7 @@ required_vars=(
   TFSTATE_RESOURCE_GROUP
   TFSTATE_STORAGE_ACCOUNT
   TFSTATE_CONTAINER
-  TF_VAR_admin_ssh_public_key
+  TF_VAR_postgres_admin_password
 )
 for name in "${required_vars[@]}"; do
   if [ -z "${!name:-}" ]; then
@@ -46,9 +46,17 @@ for name in "${required_vars[@]}"; do
     exit 2
   fi
 done
+
+# Backward-compatible bridge: old variable name -> new Azure modular env variable.
+export TF_VAR_vm_admin_ssh_public_key="${TF_VAR_vm_admin_ssh_public_key:-${TF_VAR_admin_ssh_public_key:-}}"
+if [[ -z "${TF_VAR_vm_admin_ssh_public_key}" ]]; then
+  echo "[deploy][ERROR] missing required variable: TF_VAR_vm_admin_ssh_public_key (or legacy TF_VAR_admin_ssh_public_key)" >&2
+  exit 2
+fi
+
 SSH_PUBKEY_REGEX='^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp(256|384|521))[[:space:]]+[A-Za-z0-9+/]+={0,2}([[:space:]].*)?$'
-if ! printf '%s' "${TF_VAR_admin_ssh_public_key}" | grep -Eq "${SSH_PUBKEY_REGEX}"; then
-  echo "[deploy][ERROR] TF_VAR_admin_ssh_public_key must be a valid OpenSSH public key (ssh-ed25519, ecdsa-sha2-nistp256/384/521, or ssh-rsa)." >&2
+if ! printf '%s' "${TF_VAR_vm_admin_ssh_public_key}" | grep -Eq "${SSH_PUBKEY_REGEX}"; then
+  echo "[deploy][ERROR] TF_VAR_vm_admin_ssh_public_key must be a valid OpenSSH public key (ssh-ed25519, ecdsa-sha2-nistp256/384/521, or ssh-rsa)." >&2
   echo "[deploy][ERROR] Recommended: ssh-keygen -t ed25519 -C \"gitlab-ci\" -f ~/.ssh/student_secure_ed25519" >&2
   exit 2
 fi
@@ -104,7 +112,9 @@ if [[ -z "${TFSTATE_KEY_SAFE}" || "${TFSTATE_KEY_SAFE}" == ".tfstate" ]]; then
   exit 2
 fi
 
-tofu -chdir=infra/envs/dev init -input=false \
+TF_ROOT_DIR="${TF_ROOT_DIR:-infra/azure/envs/dev}"
+
+tofu -chdir="${TF_ROOT_DIR}" init -input=false \
   -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
   -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
   -backend-config="container_name=${TFSTATE_CONTAINER}" \
@@ -113,9 +123,12 @@ tofu -chdir=infra/envs/dev init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
-tofu -chdir=infra/envs/dev plan -input=false -out=tfplan
-tofu -chdir=infra/envs/dev apply -input=false -auto-approve tfplan
-tofu -chdir=infra/envs/dev output -json \
+export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
+[ -n "${TF_VAR_tenant_id}" ] || { echo "[deploy][ERROR] TF_VAR_tenant_id is empty"; exit 2; }
+echo "[deploy] TF_VAR_tenant_id is set"
+tofu -chdir="${TF_ROOT_DIR}" plan -input=false -out=tfplan
+tofu -chdir="${TF_ROOT_DIR}" apply -input=false -auto-approve tfplan
+tofu -chdir="${TF_ROOT_DIR}" output -json \
   | jq 'to_entries
         | map(if .value.sensitive == true
               then .value.value = "REDACTED"

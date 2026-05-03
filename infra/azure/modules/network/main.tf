@@ -15,11 +15,11 @@ resource "azurerm_subnet" "app" {
 }
 
 resource "azurerm_subnet" "private_endpoints" {
-  name                                      = var.private_endpoints_subnet_name
-  resource_group_name                       = var.resource_group_name
-  virtual_network_name                      = azurerm_virtual_network.this.name
-  address_prefixes                          = [var.private_endpoints_subnet_cidr]
-  private_endpoint_network_policies         = "Disabled"
+  name                                          = var.private_endpoints_subnet_name
+  resource_group_name                           = var.resource_group_name
+  virtual_network_name                          = azurerm_virtual_network.this.name
+  address_prefixes                              = [var.private_endpoints_subnet_cidr]
+  private_endpoint_network_policies             = "Disabled"
   private_link_service_network_policies_enabled = false
 }
 
@@ -177,6 +177,111 @@ resource "azurerm_network_security_group" "data" {
   }
 }
 
+resource "azurerm_network_security_group" "bastion" {
+  name                = "${var.name_prefix}-nsg-bastion"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  # Required Azure Bastion ingress controls.
+  security_rule {
+    name                       = "allow-https-from-internet"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-gatewaymanager-443"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "GatewayManager"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-azure-load-balancer-443"
+    priority                   = 120
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-bastion-internal-8080-5701"
+    priority                   = 130
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["8080", "5701"]
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
+  # Required Azure Bastion egress controls.
+  security_rule {
+    name                       = "allow-ssh-rdp-to-vnet"
+    priority                   = 100
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["22", "3389"]
+    source_address_prefix      = "*"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
+  security_rule {
+    name                       = "allow-bastion-egress-internal-8080-5701"
+    priority                   = 110
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["8080", "5701"]
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "VirtualNetwork"
+  }
+
+  security_rule {
+    name                       = "allow-azurecloud-443"
+    priority                   = 120
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "443"
+    source_address_prefix      = "*"
+    destination_address_prefix = "AzureCloud"
+  }
+
+  security_rule {
+    name                       = "allow-internet-80"
+    priority                   = 130
+    direction                  = "Outbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "Internet"
+  }
+}
+
 resource "azurerm_subnet_network_security_group_association" "app" {
   subnet_id                 = azurerm_subnet.app.id
   network_security_group_id = azurerm_network_security_group.app.id
@@ -190,4 +295,9 @@ resource "azurerm_subnet_network_security_group_association" "private_endpoints"
 resource "azurerm_subnet_network_security_group_association" "data" {
   subnet_id                 = azurerm_subnet.data.id
   network_security_group_id = azurerm_network_security_group.data.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "bastion" {
+  subnet_id                 = azurerm_subnet.bastion.id
+  network_security_group_id = azurerm_network_security_group.bastion.id
 }

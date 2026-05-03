@@ -274,7 +274,7 @@ deploy-infrastructure:
     expire_in: 30 days
     paths:
       - .cloudsentinel/terraform_outputs_dev.json
-      - infra/envs/dev/tfplan
+      - infra/azure/envs/dev/tfplan
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/'
 trigger-deploy-tools-rebuild:

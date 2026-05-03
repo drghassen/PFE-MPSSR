@@ -48,6 +48,9 @@ paths = [
   # Specific audited test directories — intentionally narrow, not whole tests?/fixtures/
   # trees, because staging credentials have been found in generic fixture directories.
   '''(^|/)infra/azure/student-secure/tests/''',
+  # Historical security test module removed from active codebase; still appears
+  # in CI history scans and contains intentionally fake PAT samples.
+  '''(^|/)infra/azure/student-secure/modules/compute/main\.tf$''',
   '''(^|/)infra/azure/dev/tests/gitleaks/fixtures/''',
   # E2E and pre-commit smoke tests embed intentional fake AWS creds (AKIA1234567890ABCDEF)
   # as scanner-detection fixtures — not real credentials.
@@ -56,6 +59,8 @@ paths = [
   # Historical repo layout: same test dirs before the infra/azure/dev/ prefix was added.
   '''(^|/)tests/gitleaks/fixtures/''',
   '''(^|/)tests/pre-commit/''',
+  # Historical root-level E2E file with intentional fake AWS credentials.
+  '''(^|/)tests/e2e/test-shift-left-all\.sh$''',
   '''(^|/)shift-left/checkov/tests/fixtures/''',
   '''(^|/)shift-left/gitleaks/tests/fixtures/''',
   '''(^|/)shift-left/trivy/tests/fixtures/''',
