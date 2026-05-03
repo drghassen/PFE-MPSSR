@@ -63,6 +63,24 @@ variable "encryption_at_host_enabled" {
   default     = false
 }
 
+variable "disk_encryption_set_id" {
+  description = "Disk Encryption Set ID for CMK encryption of OS and data disks. Null uses platform-managed keys."
+  type        = string
+  default     = null
+}
+
+variable "vtpm_enabled" {
+  description = "Enable vTPM for Trusted Launch (Prowler: vm_trusted_launch_enabled). Requires Gen2 VM image."
+  type        = bool
+  default     = true
+}
+
+variable "secure_boot_enabled" {
+  description = "Enable Secure Boot for Trusted Launch (Prowler: vm_trusted_launch_enabled). Requires Gen2 VM image."
+  type        = bool
+  default     = true
+}
+
 variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID for diagnostics."
   type        = string

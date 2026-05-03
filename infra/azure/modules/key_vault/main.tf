@@ -11,7 +11,7 @@ resource "azurerm_key_vault" "this" {
   tags                          = var.tags
 
   network_acls {
-    bypass         = "None"
+    bypass         = var.network_acl_bypass
     default_action = "Deny"
   }
 }
@@ -63,8 +63,11 @@ resource "azurerm_monitor_diagnostic_setting" "kv" {
   target_resource_id         = azurerm_key_vault.this.id
   log_analytics_workspace_id = var.log_analytics_workspace_id
 
+  # Explicit AuditEvent required by Prowler azure_keyvault_logging_enabled check.
+  # Key Vault exposes only this one log category; allLogs category_group is
+  # NOT inspected by Prowler (it reads the logs[] array, not categoryGroups[]).
   enabled_log {
-    category_group = "allLogs"
+    category = "AuditEvent"
   }
 
   enabled_metric {

@@ -2,14 +2,93 @@
   "cloudsentinel": {
     "exceptions": {
       "schema_version": "2.0.0",
-      "generated_at": "2099-01-01T00:00:00Z",
+      "generated_at": "2026-05-03T00:00:00Z",
       "metadata": {
-        "source": "compose-default",
-        "total_raw_risk_acceptances": 0,
-        "total_valid_exceptions": 0,
+        "source": "security-review",
+        "total_raw_risk_acceptances": 4,
+        "total_valid_exceptions": 4,
         "total_dropped": 0
       },
-      "exceptions": []
+      "exceptions": [
+        {
+          "id": "storage_smb_channel_encryption_with_secure_algorithm",
+          "check_id": "storage_smb_channel_encryption_with_secure_algorithm",
+          "resource_scope": "sttfstateghassen01",
+          "resource_group": "rg-terraform-state",
+          "classification": "NOT_APPLICABLE_TO_TERRAFORM_STATE",
+          "severity_original": "MEDIUM",
+          "risk_accepted": false,
+          "reason": "Terraform remote state backend uses Azure Blob Storage accessed over HTTPS (REST API). Azure Files SMB protocol is not configured and not used. This check evaluates SMB channel encryption which is irrelevant for blob-only storage accounts.",
+          "compensating_controls": [
+            "HTTPS-only enforced (https_traffic_only_enabled = true)",
+            "TLS 1.2 minimum enforced",
+            "All data-in-transit uses TLS 1.2 encrypted HTTPS"
+          ],
+          "accepted_by": "security-team",
+          "review_date": "2026-11-03"
+        },
+        {
+          "id": "storage_ensure_encryption_with_customer_managed_keys",
+          "check_id": "storage_ensure_encryption_with_customer_managed_keys",
+          "resource_scope": "sttfstateghassen01",
+          "resource_group": "rg-terraform-state",
+          "classification": "ARCHITECTURAL_CHANGE_REQUIRED",
+          "severity_original": "HIGH",
+          "risk_accepted": true,
+          "reason": "CMK (Customer Managed Keys) on the Terraform state backend creates a critical circular dependency: Key Vault unavailability (any cause) makes the state account inaccessible, blocking ALL infrastructure operations. Additionally, Azure for Students subscription has quota constraints on Key Vault operations. Phase 3 migration plan required before enablement.",
+          "compensating_controls": [
+            "Data encrypted at rest with Microsoft-managed AES-256 keys",
+            "Storage account access restricted to Azure AD identities (ARM_STORAGE_USE_AZUREAD=true)",
+            "No access keys exposed to CI environment",
+            "Blob versioning and soft-delete enabled (30-day state recovery window)",
+            "Diagnostic logging capturing all StorageRead/Write/Delete operations"
+          ],
+          "remediation_phase": "PHASE_3",
+          "remediation_plan": "Create new SA with CMK in isolated KV, migrate blobs via azcopy, update TFSTATE_STORAGE_ACCOUNT CI variable, run tofu init -migrate-state, validate, delete old SA",
+          "accepted_by": "security-team",
+          "review_date": "2026-11-03"
+        },
+        {
+          "id": "storage_infrastructure_encryption_is_enabled",
+          "check_id": "storage_infrastructure_encryption_is_enabled",
+          "resource_scope": "sttfstateghassen01",
+          "resource_group": "rg-terraform-state",
+          "classification": "ARCHITECTURAL_CHANGE_REQUIRED",
+          "severity_original": "LOW",
+          "risk_accepted": true,
+          "reason": "azurerm provider ~> 4.x treats infrastructure_encryption_enabled as ForceNew. Enabling this attribute in Terraform DESTROYS the existing storage account and creates a new empty one, permanently losing all .tfstate blobs. A full state migration procedure is required. Severity is LOW; blast radius of incorrect remediation is CRITICAL.",
+          "compensating_controls": [
+            "Standard AES-256 platform encryption at rest (single layer)",
+            "Physical security controls at Azure datacenter layer (ISO 27001)",
+            "Blob versioning preserves state history"
+          ],
+          "remediation_phase": "PHASE_3",
+          "remediation_plan": "Create new SA with infrastructure_encryption_enabled=true, azcopy sync state blobs, update CI backend-config, tofu init -migrate-state, delete old SA",
+          "accepted_by": "security-team",
+          "review_date": "2026-11-03"
+        },
+        {
+          "id": "storage_ensure_private_endpoints_in_storage_accounts",
+          "check_id": "storage_ensure_private_endpoints_in_storage_accounts",
+          "resource_scope": "sttfstateghassen01",
+          "resource_group": "rg-terraform-state",
+          "classification": "ARCHITECTURAL_CHANGE_REQUIRED",
+          "severity_original": "MEDIUM",
+          "risk_accepted": true,
+          "reason": "GitLab CI/CD uses shared SaaS runners with dynamic IP addresses that cannot reach private endpoints. Enabling a private endpoint without migrating to self-hosted runners on the same Azure VNet would immediately break ALL terraform init/plan/apply operations in CI. Requires complete CI/CD network architecture redesign.",
+          "compensating_controls": [
+            "No public blob access (allow_nested_items_to_be_public = false)",
+            "Azure AD RBAC authentication only (no anonymous or SAS access to state)",
+            "Network default_action=Allow restricted to AzureServices/Logging/Metrics bypass",
+            "Audit log captures all storage operations",
+            "Service principal authentication with 90-day credential rotation policy enforced"
+          ],
+          "remediation_phase": "PHASE_3",
+          "remediation_plan": "Provision self-hosted GitLab runner VM in Azure VNet, configure private DNS zone privatelink.blob.core.windows.net, create private endpoint on storage account, switch network_rules default_action to Deny, validate CI pipeline end-to-end",
+          "accepted_by": "security-team",
+          "review_date": "2026-11-03"
+        }
+      ]
     }
   }
 }

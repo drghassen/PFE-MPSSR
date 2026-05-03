@@ -162,3 +162,41 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ---------------------------------------------------------------------------
+# VM Backup  (Prowler: vm_backup_enabled)
+# ---------------------------------------------------------------------------
+
+variable "vm_backup_retention_days" {
+  description = "Number of daily VM recovery points to retain in Azure Backup."
+  type        = number
+  default     = 30
+}
+
+# ---------------------------------------------------------------------------
+# Network Watcher + NSG Flow Logs  (Prowler: network_watcher_enabled)
+# ---------------------------------------------------------------------------
+
+variable "network_watcher_name" {
+  description = "Name of the existing Network Watcher. Azure auto-creates NetworkWatcher_<region>."
+  type        = string
+  default     = "NetworkWatcher_norwayeast"
+}
+
+variable "network_watcher_rg" {
+  description = "Resource group that contains the Network Watcher. Azure default is NetworkWatcherRG."
+  type        = string
+  default     = "NetworkWatcherRG"
+}
+
+variable "flow_log_retention_days" {
+  description = "NSG flow log retention in days. CIS Azure 6.5 minimum is 90."
+  type        = number
+  default     = 90
+}
+
+variable "traffic_analytics_interval_minutes" {
+  description = "Traffic Analytics processing interval: 10 (near-real-time) or 60 (hourly)."
+  type        = number
+  default     = 10
+}

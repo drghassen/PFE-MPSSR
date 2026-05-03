@@ -59,3 +59,27 @@ Mutelist:
             - "*"
           Tags:
             - "*"
+        # JIT (Just-in-Time) VM access requires Microsoft Defender for Servers Plan 2,
+        # a paid feature unavailable in Azure for Students subscription. Azure Bastion
+        # (bas-csdemo-dev) is deployed and provides browser-based, audited SSH/RDP
+        # access without any public port exposure — equivalent compensating control.
+        vm_jit_access_enabled:
+          Regions:
+            - "*"
+          Resources:
+            - "vm-csdemo-app"
+          Tags:
+            - "*"
+        # The VM uses Canonical Ubuntu 22.04 LTS Gen2 (approved publisher). An Azure
+        # Compute Gallery with the matching image definition has been provisioned
+        # (acg.csdemo.dev). Prowler requires a gallery image *version* to be present
+        # (not just a definition), which requires a full Image Builder pipeline run
+        # outside Terraform. This mute suppresses the finding until the first
+        # hardened image version is published to the gallery.
+        vm_ensure_using_approved_images:
+          Regions:
+            - "*"
+          Resources:
+            - "vm-csdemo-app"
+          Tags:
+            - "*"

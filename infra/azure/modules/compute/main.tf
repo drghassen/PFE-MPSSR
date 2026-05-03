@@ -26,6 +26,8 @@ resource "azurerm_linux_virtual_machine" "this" {
   network_interface_ids           = [azurerm_network_interface.this.id]
   custom_data                     = local.cloud_init
   encryption_at_host_enabled      = var.encryption_at_host_enabled
+  vtpm_enabled                    = var.vtpm_enabled
+  secure_boot_enabled             = var.secure_boot_enabled
   tags                            = merge({ "cs:role" = "app" }, var.tags)
 
   identity {
@@ -38,10 +40,11 @@ resource "azurerm_linux_virtual_machine" "this" {
   }
 
   os_disk {
-    name                 = "${var.vm_name}-osdisk"
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = var.os_disk_size_gb
+    name                   = "${var.vm_name}-osdisk"
+    caching                = "ReadWrite"
+    storage_account_type   = "Premium_LRS"
+    disk_size_gb           = var.os_disk_size_gb
+    disk_encryption_set_id = var.disk_encryption_set_id
   }
 
   source_image_reference {

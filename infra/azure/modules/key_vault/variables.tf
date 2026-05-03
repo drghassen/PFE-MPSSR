@@ -57,6 +57,12 @@ variable "app_principal_id" {
   type        = string
 }
 
+variable "network_acl_bypass" {
+  description = "Azure services that can bypass the Key Vault network ACL. Set to 'AzureServices' when a Disk Encryption Set uses this vault for CMK (Prowler: vm_ensure_attached_disks_encrypted_with_cmk)."
+  type        = string
+  default     = "AzureServices"
+}
+
 variable "grant_app_kv_secrets_user_role" {
   description = "Create Key Vault Secrets User role assignment for app principal."
   type        = bool

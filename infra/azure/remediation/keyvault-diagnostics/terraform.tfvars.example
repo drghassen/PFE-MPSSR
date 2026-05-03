@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in real values before applying.
+# Do NOT commit terraform.tfvars to source control.
+
+resource_group_name          = "rg-cloudsentinel-dev"
+key_vault_name               = "kv-cloudsentinel-dev"
+log_analytics_workspace_name = "law-cloudsentinel-dev"
+log_analytics_workspace_rg   = "rg-cloudsentinel-dev"
+diagnostic_setting_name      = "kv-cloudsentinel-dev-diag"

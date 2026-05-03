@@ -1,0 +1,31 @@
+# Copy to terraform.tfvars before running bootstrap apply.
+# Never commit terraform.tfvars with real subscription/tenant IDs to public repos.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+
+resource_group_name  = "rg-terraform-state"
+location             = "norwayeast"
+storage_account_name = "sttfstateghassen01"
+state_container_name = "tfstate"
+
+# Phase 1 safe hardening
+blob_soft_delete_retention_days      = 30
+container_soft_delete_retention_days = 7
+
+# Diagnostic logging — fill in if you have a Log Analytics Workspace
+# Leave empty to skip diagnostic setting creation.
+log_analytics_workspace_name = ""   # e.g. "law-csdemo-dev"
+log_analytics_workspace_rg   = ""   # e.g. "rg-csdemo-dev"
+
+# Phase 2 ONLY — leave empty during Phase 1
+# Fill with all GitLab runner egress IPs before switching to default_action = "Deny"
+allowed_ip_ranges = []
+
+tags = {
+  managed_by  = "terraform-bootstrap"
+  purpose     = "terraform-remote-state"
+  criticality = "critical"
+  project     = "cloudsentinel"
+  environment = "shared"
+}

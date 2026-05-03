@@ -1,6 +1,11 @@
 {
   "azure": [
     "appinsights_ensure_is_configured",
+
+    "storage_smb_channel_encryption_with_secure_algorithm",
+    "storage_ensure_encryption_with_customer_managed_keys",
+    "storage_infrastructure_encryption_is_enabled",
+    "storage_ensure_private_endpoints_in_storage_accounts",
     "defender_additional_email_configured_with_a_security_contact",
     "defender_assessments_vm_endpoint_protection_installed",
     "defender_attack_path_notifications_properly_configured",

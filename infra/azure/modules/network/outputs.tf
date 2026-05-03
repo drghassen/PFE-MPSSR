@@ -27,3 +27,23 @@ output "bastion_subnet_id" {
   description = "Bastion subnet ID."
   value       = azurerm_subnet.bastion.id
 }
+
+output "nsg_app_id" {
+  description = "Resource ID of the application-subnet NSG."
+  value       = azurerm_network_security_group.app.id
+}
+
+output "nsg_private_endpoints_id" {
+  description = "Resource ID of the private-endpoints-subnet NSG."
+  value       = azurerm_network_security_group.private_endpoints.id
+}
+
+output "nsg_data_id" {
+  description = "Resource ID of the data-subnet NSG."
+  value       = azurerm_network_security_group.data.id
+}
+
+output "nsg_bastion_id" {
+  description = "Resource ID of the bastion-subnet NSG."
+  value       = azurerm_network_security_group.bastion.id
+}
