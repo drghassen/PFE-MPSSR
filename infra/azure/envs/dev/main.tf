@@ -171,12 +171,9 @@ module "network_watcher" {
   log_analytics_workspace_name = local.names.workspace
   log_analytics_workspace_rg   = module.resource_group.name
 
-  # Pass all four NSGs so every network boundary gets flow-logged.
-  nsgs = {
-    app               = module.network.nsg_app_id
-    private-endpoints = module.network.nsg_private_endpoints_id
-    data              = module.network.nsg_data_id
-    bastion           = module.network.nsg_bastion_id
+  # One VNet flow log covers all subnets/NSGs (NSG flow logs retired 2025-06-30).
+  vnets = {
+    vnet = module.network.vnet_id
   }
 
   flow_log_retention_days            = var.flow_log_retention_days

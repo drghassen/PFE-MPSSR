@@ -9,8 +9,8 @@ output "storage_account_name" {
 }
 
 output "flow_log_ids" {
-  description = "Map of NSG key to flow log resource ID."
-  value       = { for k, v in azurerm_network_watcher_flow_log.nsg : k => v.id }
+  description = "Map of VNet key to flow log resource ID."
+  value       = { for k, v in azurerm_network_watcher_flow_log.vnet : k => v.id }
 }
 
 output "network_watcher_id" {

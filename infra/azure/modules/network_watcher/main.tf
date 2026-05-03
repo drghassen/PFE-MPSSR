@@ -1,18 +1,20 @@
 # =============================================================================
-# CloudSentinel — Network Watcher + NSG Flow Logs
+# CloudSentinel — Network Watcher + VNet Flow Logs
 # Finding  : network_watcher_enabled  (Prowler HIGH)
 # CIS Azure : 6.4  Network Watcher enabled in each region
-#             6.5  NSG flow log retention >= 90 days
-#             6.6  Traffic Analytics enabled on NSG flow logs
+#             6.5  Flow log retention >= 90 days
+#             6.6  Traffic Analytics enabled on flow logs
 # =============================================================================
 #
 # DESIGN NOTES
 #   • Never recreates the Network Watcher — it is referenced via data source.
 #   • A dedicated storage account is created for flow-log blobs; it is the
 #     ONLY new persistent resource besides the flow log objects themselves.
-#   • One azurerm_network_watcher_flow_log is created per NSG via for_each.
-#     Keys in var.nsgs become part of the resource name; use stable, slug-safe
-#     keys (e.g. "app", "data", "private-endpoints", "bastion").
+#   • One azurerm_network_watcher_flow_log is created per VNet via for_each.
+#     Keys in var.vnets become part of the resource name; use stable, slug-safe
+#     keys (e.g. "vnet", "spoke-vnet").
+#   • NSG flow logs were retired by Azure on 2025-06-30; VNet flow logs are
+#     the replacement and capture all traffic at the VNet scope.
 #   • Flow log version 2 is required by Traffic Analytics.
 #
 # =============================================================================
@@ -57,7 +59,7 @@ data "azurerm_log_analytics_workspace" "law" {
 }
 
 # ---------------------------------------------------------------------------
-# STORAGE ACCOUNT — dedicated to NSG flow log blobs
+# STORAGE ACCOUNT — dedicated to VNet flow log blobs
 #
 # Network Watcher writes raw flow blobs here before Traffic Analytics reads
 # them. The account must allow the AzureServices bypass so the platform can
@@ -69,7 +71,7 @@ resource "azurerm_storage_account" "flowlogs" {
   name                = local.flowlogs_sa_name
   resource_group_name = var.resource_group_name
   location            = var.location
-  tags                = merge(var.tags, { purpose = "nsg-flow-logs" })
+  tags                = merge(var.tags, { purpose = "vnet-flow-logs" })
 
   account_kind             = "StorageV2"
   account_tier             = "Standard"
@@ -119,25 +121,29 @@ resource "azurerm_storage_account" "flowlogs" {
 }
 
 # ---------------------------------------------------------------------------
-# NSG FLOW LOGS — one resource per NSG, keyed by var.nsgs map
+# VNET FLOW LOGS — one resource per VNet, keyed by var.vnets map
+#
+# VNet flow logs replace NSG flow logs (retired by Azure 2025-06-30).
+# They capture all traffic flowing through the VNet (covering every subnet
+# and NSG boundary) with the same Traffic Analytics enrichment.
 #
 # Version 2 enables the enriched schema required by Traffic Analytics.
 # The resource_group_name must be the Network Watcher's RG (Azure constraint),
 # NOT the application resource group.
 # ---------------------------------------------------------------------------
-resource "azurerm_network_watcher_flow_log" "nsg" {
-  for_each = var.nsgs
+resource "azurerm_network_watcher_flow_log" "vnet" {
+  for_each = var.vnets
 
   # Name must be unique within the Network Watcher scope.
-  name = "${replace(each.key, "_", "-")}-nsg-flowlog"
+  name = "${replace(each.key, "_", "-")}-vnet-flowlog"
 
   # Must point to the Network Watcher's own resource group.
   resource_group_name  = data.azurerm_network_watcher.this.resource_group_name
   network_watcher_name = data.azurerm_network_watcher.this.name
 
-  network_security_group_id = each.value
-  storage_account_id        = azurerm_storage_account.flowlogs.id
-  enabled                   = true
+  target_resource_id = each.value
+  storage_account_id = azurerm_storage_account.flowlogs.id
+  enabled            = true
 
   # Version 2 is required for Traffic Analytics enrichment.
   version = 2

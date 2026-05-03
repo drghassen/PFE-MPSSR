@@ -40,24 +40,23 @@ variable "log_analytics_workspace_rg" {
   type        = string
 }
 
-variable "nsgs" {
+variable "vnets" {
   description = <<-EOT
-    Map of logical NSG key to NSG resource ID.
+    Map of logical VNet key to VNet resource ID.
     Keys must be stable, slug-safe strings (lowercase, hyphens ok) — they become
     part of the flow log resource name and Terraform state address.
+    NSG flow logs were retired by Azure on 2025-06-30; one VNet flow log covers
+    all subnets and NSG boundaries within the VNet.
     Example:
-      nsgs = {
-        app               = "/subscriptions/.../nsg-app"
-        private-endpoints = "/subscriptions/.../nsg-pe"
-        data              = "/subscriptions/.../nsg-data"
-        bastion           = "/subscriptions/.../nsg-bastion"
+      vnets = {
+        vnet = "/subscriptions/.../vnet-myapp-dev"
       }
   EOT
   type        = map(string)
 }
 
 variable "flow_log_retention_days" {
-  description = "Number of days to retain NSG flow logs. CIS Azure 6.5 requires >= 90."
+  description = "Number of days to retain VNet flow logs. CIS Azure 6.5 requires >= 90."
   type        = number
   default     = 90
 
