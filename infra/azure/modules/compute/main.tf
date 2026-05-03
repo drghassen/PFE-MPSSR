@@ -25,7 +25,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   allow_extension_operations      = false
   network_interface_ids           = [azurerm_network_interface.this.id]
   custom_data                     = local.cloud_init
-  encryption_at_host_enabled      = true
+  encryption_at_host_enabled      = var.encryption_at_host_enabled
   tags                            = merge({ "cs:role" = "app" }, var.tags)
 
   identity {

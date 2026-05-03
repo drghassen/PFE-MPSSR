@@ -57,6 +57,12 @@ variable "grant_rg_reader" {
   default     = true
 }
 
+variable "encryption_at_host_enabled" {
+  description = "Enable host-based encryption for VM (requires Microsoft.Compute/EncryptionAtHost feature)."
+  type        = bool
+  default     = false
+}
+
 variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID for diagnostics."
   type        = string

@@ -37,6 +37,12 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
   server_id = azurerm_postgresql_flexible_server.this.id
   charset   = "UTF8"
   collation = "en_US.utf8"
+
+  timeouts {
+    create = "60m"
+    read   = "5m"
+    delete = "30m"
+  }
 }
 
 resource "azurerm_monitor_diagnostic_setting" "postgres" {

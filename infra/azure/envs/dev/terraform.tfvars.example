@@ -12,4 +12,5 @@ postgres_admin_password = "ChangeMe-Use-Secret-Manager-Not-Git"
 # data_subnet_cidr              = "10.40.2.0/24"
 # bastion_subnet_cidr           = "10.40.4.0/26"
 # vm_size                       = "Standard_B2s"
+# vm_encryption_at_host_enabled = false
 # postgres_sku_name             = "GP_Standard_D2s_v3"

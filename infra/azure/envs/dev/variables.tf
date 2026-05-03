@@ -91,6 +91,12 @@ variable "vm_os_disk_size_gb" {
   default     = 64
 }
 
+variable "vm_encryption_at_host_enabled" {
+  description = "Enable host encryption for VM (set true only if subscription feature is enabled)."
+  type        = bool
+  default     = false
+}
+
 variable "cloud_init" {
   description = "Optional cloud-init content for VM bootstrap."
   type        = string

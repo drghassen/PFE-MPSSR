@@ -128,8 +128,30 @@ echo "[deploy] TF_VAR_location=${TF_VAR_location}"
 export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 [ -n "${TF_VAR_tenant_id}" ] || { echo "[deploy][ERROR] TF_VAR_tenant_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_tenant_id is set"
-tofu -chdir="${TF_ROOT_DIR}" plan -input=false -out=tfplan
-tofu -chdir="${TF_ROOT_DIR}" apply -input=false -auto-approve tfplan
+export TF_VAR_vm_encryption_at_host_enabled="${TF_VAR_vm_encryption_at_host_enabled:-true}"
+echo "[deploy] TF_VAR_vm_encryption_at_host_enabled=${TF_VAR_vm_encryption_at_host_enabled}"
+
+TF_PARALLELISM="${TF_PARALLELISM:-2}"
+TF_APPLY_ATTEMPTS="${TF_APPLY_ATTEMPTS:-2}"
+PLAN_FILE="tfplan"
+
+for attempt in $(seq 1 "${TF_APPLY_ATTEMPTS}"); do
+  echo "[deploy] plan/apply attempt ${attempt}/${TF_APPLY_ATTEMPTS} (parallelism=${TF_PARALLELISM})"
+  tofu -chdir="${TF_ROOT_DIR}" plan -input=false -parallelism="${TF_PARALLELISM}" -out="${PLAN_FILE}"
+  if tofu -chdir="${TF_ROOT_DIR}" apply -input=false -auto-approve "${PLAN_FILE}"; then
+    echo "[deploy] apply succeeded on attempt ${attempt}"
+    break
+  fi
+
+  if [[ "${attempt}" -ge "${TF_APPLY_ATTEMPTS}" ]]; then
+    echo "[deploy][ERROR] apply failed after ${TF_APPLY_ATTEMPTS} attempts." >&2
+    exit 1
+  fi
+
+  echo "[deploy][WARN] apply failed (transient Azure error suspected). Retrying in 30 seconds..." >&2
+  sleep 30
+done
+
 tofu -chdir="${TF_ROOT_DIR}" output -json \
   | jq 'to_entries
         | map(if .value.sensitive == true

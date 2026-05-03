@@ -21,6 +21,7 @@ resource "azurerm_subnet" "private_endpoints" {
   address_prefixes                              = [var.private_endpoints_subnet_cidr]
   private_endpoint_network_policies             = "Disabled"
   private_link_service_network_policies_enabled = false
+  depends_on                                    = [azurerm_subnet.app]
 }
 
 resource "azurerm_subnet" "data" {
@@ -39,6 +40,7 @@ resource "azurerm_subnet" "data" {
       ]
     }
   }
+  depends_on = [azurerm_subnet.private_endpoints]
 }
 
 resource "azurerm_subnet" "bastion" {
@@ -46,6 +48,7 @@ resource "azurerm_subnet" "bastion" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.bastion_subnet_cidr]
+  depends_on           = [azurerm_subnet.data]
 }
 
 resource "azurerm_network_security_group" "app" {

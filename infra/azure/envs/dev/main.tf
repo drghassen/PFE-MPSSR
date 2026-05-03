@@ -65,6 +65,7 @@ module "compute" {
   admin_ssh_public_key       = var.vm_admin_ssh_public_key
   vm_size                    = var.vm_size
   os_disk_size_gb            = var.vm_os_disk_size_gb
+  encryption_at_host_enabled = var.vm_encryption_at_host_enabled
   cloud_init                 = var.cloud_init
   log_analytics_workspace_id = module.monitoring.workspace_id
   tags                       = local.tags
