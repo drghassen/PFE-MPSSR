@@ -58,6 +58,23 @@ variable "network_acl_bypass" {
   default     = "AzureServices"
 }
 
+variable "public_network_access_enabled" {
+  description = "Allow public network access to the Key Vault. Set to true in dev so the CI/CD runner (not in VNet) can manage CMK keys. Set to false in prod where a self-hosted runner with VNet access is used."
+  type        = bool
+  default     = false
+}
+
+variable "network_acl_default_action" {
+  description = "Default network ACL action: 'Allow' (all public IPs permitted) or 'Deny' (only explicit rules)."
+  type        = string
+  default     = "Deny"
+
+  validation {
+    condition     = contains(["Allow", "Deny"], var.network_acl_default_action)
+    error_message = "network_acl_default_action must be 'Allow' or 'Deny'."
+  }
+}
+
 variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID for diagnostics."
   type        = string

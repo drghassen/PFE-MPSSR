@@ -96,6 +96,11 @@ module "key_vault" {
   virtual_network_id          = module.network.vnet_id
   log_analytics_workspace_id  = module.monitoring.workspace_id
   tags                        = local.tags
+
+  # The GitLab CI runner is not inside the VNet, so public access must be open
+  # in dev to allow Terraform to manage CMK keys. RBAC still gates all access.
+  public_network_access_enabled = true
+  network_acl_default_action    = "Allow"
 }
 
 resource "azurerm_role_assignment" "vm_kv_secrets_user" {

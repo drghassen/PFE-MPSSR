@@ -1,4 +1,5 @@
 resource "azurerm_key_vault" "this" {
+  # checkov:skip=CKV_AZURE_189: public access is intentionally enabled in dev so the CI/CD runner (not in VNet) can manage CMK keys
   name                          = var.key_vault_name
   location                      = var.location
   resource_group_name           = var.resource_group_name
@@ -7,12 +8,12 @@ resource "azurerm_key_vault" "this" {
   purge_protection_enabled      = var.purge_protection_enabled
   soft_delete_retention_days    = var.soft_delete_retention_days
   rbac_authorization_enabled    = true
-  public_network_access_enabled = false
+  public_network_access_enabled = var.public_network_access_enabled
   tags                          = var.tags
 
   network_acls {
     bypass         = var.network_acl_bypass
-    default_action = "Deny"
+    default_action = var.network_acl_default_action
   }
 }
 
