@@ -1,0 +1,15 @@
+subscription_id         = "00000000-0000-0000-0000-000000000000"
+tenant_id               = "00000000-0000-0000-0000-000000000000"
+name_prefix             = "csdemo01"
+location                = "westeurope"
+vm_admin_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGreplaceME user@host"
+postgres_admin_password = "ChangeMe-Use-Secret-Manager-Not-Git"
+
+# Optional overrides
+# vnet_cidr                     = "10.40.0.0/16"
+# app_subnet_cidr               = "10.40.1.0/24"
+# private_endpoints_subnet_cidr = "10.40.3.0/24"
+# data_subnet_cidr              = "10.40.2.0/24"
+# bastion_subnet_cidr           = "10.40.4.0/26"
+# vm_size                       = "Standard_B2s"
+# postgres_sku_name             = "GP_Standard_D2s_v3"
