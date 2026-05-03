@@ -39,7 +39,7 @@ drift-detect:
   before_script: []
   variables:
     GIT_STRATEGY: fetch
-    TF_WORKING_DIR: "${CI_PROJECT_DIR}/infra/envs/dev"
+    TF_WORKING_DIR: "${CI_PROJECT_DIR}/infra/azure/envs/dev"
     DRIFT_OUTPUT_PATH: "${CI_PROJECT_DIR}/shift-right/drift-engine/output/drift-report.json"
     TF_PLUGIN_CACHE_DIR: "${CI_PROJECT_DIR}/.cloudsentinel/tf-plugin-cache"
     # Upload to DefectDojo is handled by dedicated job `upload-drift-to-defectdojo`.
