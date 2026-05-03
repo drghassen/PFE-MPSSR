@@ -1,3 +1,13 @@
+data "azurerm_client_config" "current" {}
+
+# Grant the Terraform caller Key Vault Crypto Officer so it can create/rotate the CMK.
+# Without this, a CI/CD SP with no pre-existing KV role assignment gets a 403.
+resource "azurerm_role_assignment" "terraform_kv_crypto_officer" {
+  scope                = var.key_vault_id
+  role_definition_name = "Key Vault Crypto Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_key_vault_key" "disk_cmk" {
   # checkov:skip=CKV_AZURE_112: HSM-backed keys require Key Vault Premium SKU; Standard SKU used in this environment
   name         = "disk-cmk-${var.name_prefix}-${var.environment}"
@@ -19,6 +29,8 @@ resource "azurerm_key_vault_key" "disk_cmk" {
   lifecycle {
     ignore_changes = [expiration_date]
   }
+
+  depends_on = [azurerm_role_assignment.terraform_kv_crypto_officer]
 }
 
 resource "azurerm_disk_encryption_set" "this" {

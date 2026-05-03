@@ -115,7 +115,7 @@ resource "azurerm_storage_account" "flowlogs" {
   }
 
   sas_policy {
-    expiration_period = "P7D"
+    expiration_period = "07.00:00:00"
     expiration_action = "Log"
   }
 }
