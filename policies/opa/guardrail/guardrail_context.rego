@@ -26,12 +26,17 @@ import rego.v1
 # ---------------------------------------------------------------------------
 # Protected resource registry — loaded from data file
 # Shape: [{ arm_resource_name: "sttfstate...", resource_address: "module.x.azurerm_storage_account.y", ... }]
+#
+# NOTE: Do NOT use object.get(data, [...], []) here. Passing the root `data`
+# document causes OPA's static recursion checker to see a dependency on the
+# entire data tree (including rules in this package), producing spurious
+# rego_recursion_error cycles. A direct path reference scopes the dependency
+# precisely to the external data key and avoids the false positive.
 # ---------------------------------------------------------------------------
-_registry := object.get(
-  data,
-  ["cloudsentinel", "protected_resources", "terraform_state_backends"],
-  [],
-)
+_registry := entries if {
+  entries := data.cloudsentinel.protected_resources.terraform_state_backends
+  is_array(entries)
+} else := []
 
 _backend_arm_names := {name |
   some entry in _registry
