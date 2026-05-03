@@ -52,14 +52,12 @@ resource "azurerm_private_endpoint" "vault" {
 }
 
 resource "azurerm_role_assignment" "app_kv_secrets_user" {
-  count                = var.app_principal_id == null ? 0 : 1
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.app_principal_id
 }
 
 resource "azurerm_monitor_diagnostic_setting" "kv" {
-  count                      = var.log_analytics_workspace_id == null ? 0 : 1
   name                       = "${var.key_vault_name}-diag"
   target_resource_id         = azurerm_key_vault.this.id
   log_analytics_workspace_id = var.log_analytics_workspace_id

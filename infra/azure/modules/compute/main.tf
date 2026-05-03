@@ -62,7 +62,6 @@ resource "azurerm_role_assignment" "rg_reader" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "vm" {
-  count                      = var.log_analytics_workspace_id == null ? 0 : 1
   name                       = "${var.vm_name}-diag"
   target_resource_id         = azurerm_linux_virtual_machine.this.id
   log_analytics_workspace_id = var.log_analytics_workspace_id

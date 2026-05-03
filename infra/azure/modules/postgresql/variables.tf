@@ -76,9 +76,8 @@ variable "backup_retention_days" {
 }
 
 variable "log_analytics_workspace_id" {
-  description = "Optional Log Analytics workspace ID for diagnostics."
+  description = "Log Analytics workspace ID for diagnostics."
   type        = string
-  default     = null
 }
 
 variable "tags" {

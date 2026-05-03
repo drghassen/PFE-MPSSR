@@ -53,15 +53,13 @@ variable "soft_delete_retention_days" {
 }
 
 variable "app_principal_id" {
-  description = "Optional application principal to grant Key Vault read access."
+  description = "Application principal ID granted Key Vault secrets read access."
   type        = string
-  default     = null
 }
 
 variable "log_analytics_workspace_id" {
-  description = "Optional Log Analytics workspace ID for diagnostics."
+  description = "Log Analytics workspace ID for diagnostics."
   type        = string
-  default     = null
 }
 
 variable "tags" {
