@@ -88,16 +88,21 @@ module "compute" {
 module "key_vault" {
   source = "../../modules/key_vault"
 
-  resource_group_name            = module.resource_group.name
-  location                       = module.resource_group.location
-  key_vault_name                 = local.names.key_vault
-  tenant_id                      = var.tenant_id
-  private_endpoints_subnet_id    = module.network.private_endpoints_subnet_id
-  virtual_network_id             = module.network.vnet_id
-  app_principal_id               = module.compute.principal_id
-  grant_app_kv_secrets_user_role = var.key_vault_grant_app_secrets_user_role
-  log_analytics_workspace_id     = module.monitoring.workspace_id
-  tags                           = local.tags
+  resource_group_name         = module.resource_group.name
+  location                    = module.resource_group.location
+  key_vault_name              = local.names.key_vault
+  tenant_id                   = var.tenant_id
+  private_endpoints_subnet_id = module.network.private_endpoints_subnet_id
+  virtual_network_id          = module.network.vnet_id
+  log_analytics_workspace_id  = module.monitoring.workspace_id
+  tags                        = local.tags
+}
+
+resource "azurerm_role_assignment" "vm_kv_secrets_user" {
+  count                = var.key_vault_grant_app_secrets_user_role ? 1 : 0
+  scope                = module.key_vault.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = module.compute.principal_id
 }
 
 module "disk_encryption" {
