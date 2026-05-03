@@ -97,6 +97,12 @@ variable "vm_encryption_at_host_enabled" {
   default     = false
 }
 
+variable "vm_grant_rg_reader" {
+  description = "Grant Reader role on RG to VM managed identity (requires roleAssignments/write)."
+  type        = bool
+  default     = false
+}
+
 variable "cloud_init" {
   description = "Optional cloud-init content for VM bootstrap."
   type        = string
@@ -143,6 +149,12 @@ variable "log_analytics_retention_days" {
   description = "Log Analytics retention days."
   type        = number
   default     = 90
+}
+
+variable "key_vault_grant_app_secrets_user_role" {
+  description = "Grant Key Vault Secrets User role to VM identity (requires roleAssignments/write)."
+  type        = bool
+  default     = false
 }
 
 variable "tags" {

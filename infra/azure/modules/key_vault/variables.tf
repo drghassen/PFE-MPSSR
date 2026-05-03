@@ -57,6 +57,12 @@ variable "app_principal_id" {
   type        = string
 }
 
+variable "grant_app_kv_secrets_user_role" {
+  description = "Create Key Vault Secrets User role assignment for app principal."
+  type        = bool
+  default     = false
+}
+
 variable "log_analytics_workspace_id" {
   description = "Log Analytics workspace ID for diagnostics."
   type        = string

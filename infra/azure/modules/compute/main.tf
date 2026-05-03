@@ -66,10 +66,6 @@ resource "azurerm_monitor_diagnostic_setting" "vm" {
   target_resource_id         = azurerm_linux_virtual_machine.this.id
   log_analytics_workspace_id = var.log_analytics_workspace_id
 
-  enabled_log {
-    category_group = "allLogs"
-  }
-
   enabled_metric {
     category = "AllMetrics"
   }

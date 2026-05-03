@@ -52,6 +52,7 @@ resource "azurerm_private_endpoint" "vault" {
 }
 
 resource "azurerm_role_assignment" "app_kv_secrets_user" {
+  count                = var.grant_app_kv_secrets_user_role ? 1 : 0
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.app_principal_id

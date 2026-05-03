@@ -130,6 +130,50 @@ export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 echo "[deploy] TF_VAR_tenant_id is set"
 export TF_VAR_vm_encryption_at_host_enabled="${TF_VAR_vm_encryption_at_host_enabled:-true}"
 echo "[deploy] TF_VAR_vm_encryption_at_host_enabled=${TF_VAR_vm_encryption_at_host_enabled}"
+export TF_VAR_vm_grant_rg_reader="${TF_VAR_vm_grant_rg_reader:-false}"
+echo "[deploy] TF_VAR_vm_grant_rg_reader=${TF_VAR_vm_grant_rg_reader}"
+export TF_VAR_key_vault_grant_app_secrets_user_role="${TF_VAR_key_vault_grant_app_secrets_user_role:-false}"
+echo "[deploy] TF_VAR_key_vault_grant_app_secrets_user_role=${TF_VAR_key_vault_grant_app_secrets_user_role}"
+
+import_if_exists() {
+  local tf_address="$1"
+  local azure_id="$2"
+
+  if tofu -chdir="${TF_ROOT_DIR}" state show "${tf_address}" >/dev/null 2>&1; then
+    echo "[deploy] state already contains ${tf_address}"
+    return 0
+  fi
+
+  if az resource show --ids "${azure_id}" >/dev/null 2>&1; then
+    echo "[deploy] importing existing resource into state: ${tf_address}"
+    tofu -chdir="${TF_ROOT_DIR}" import "${tf_address}" "${azure_id}"
+  else
+    echo "[deploy] resource not found in Azure for ${tf_address}, no import needed"
+  fi
+}
+
+if command -v az >/dev/null 2>&1; then
+  az login --service-principal \
+    --username "${ARM_CLIENT_ID}" \
+    --password "${ARM_CLIENT_SECRET}" \
+    --tenant "${ARM_TENANT_ID}" \
+    --output none >/dev/null 2>&1 || true
+
+  NAME_PREFIX="${TF_VAR_name_prefix:-csdemo}"
+  ENVIRONMENT_NAME="${TF_VAR_environment:-dev}"
+  RG_NAME="rg-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+  VNET_NAME="vnet-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+
+  import_if_exists \
+    "module.key_vault.azurerm_private_dns_zone.vault" \
+    "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net"
+
+  import_if_exists \
+    "module.network.azurerm_subnet.private_endpoints" \
+    "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-pe"
+else
+  echo "[deploy][WARN] az CLI not found in deploy image; skipping auto-import preflight."
+fi
 
 TF_PARALLELISM="${TF_PARALLELISM:-2}"
 TF_APPLY_ATTEMPTS="${TF_APPLY_ATTEMPTS:-2}"

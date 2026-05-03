@@ -66,6 +66,7 @@ module "compute" {
   vm_size                    = var.vm_size
   os_disk_size_gb            = var.vm_os_disk_size_gb
   encryption_at_host_enabled = var.vm_encryption_at_host_enabled
+  grant_rg_reader            = var.vm_grant_rg_reader
   cloud_init                 = var.cloud_init
   log_analytics_workspace_id = module.monitoring.workspace_id
   tags                       = local.tags
@@ -74,15 +75,16 @@ module "compute" {
 module "key_vault" {
   source = "../../modules/key_vault"
 
-  resource_group_name         = module.resource_group.name
-  location                    = module.resource_group.location
-  key_vault_name              = local.names.key_vault
-  tenant_id                   = var.tenant_id
-  private_endpoints_subnet_id = module.network.private_endpoints_subnet_id
-  virtual_network_id          = module.network.vnet_id
-  app_principal_id            = module.compute.principal_id
-  log_analytics_workspace_id  = module.monitoring.workspace_id
-  tags                        = local.tags
+  resource_group_name            = module.resource_group.name
+  location                       = module.resource_group.location
+  key_vault_name                 = local.names.key_vault
+  tenant_id                      = var.tenant_id
+  private_endpoints_subnet_id    = module.network.private_endpoints_subnet_id
+  virtual_network_id             = module.network.vnet_id
+  app_principal_id               = module.compute.principal_id
+  grant_app_kv_secrets_user_role = var.key_vault_grant_app_secrets_user_role
+  log_analytics_workspace_id     = module.monitoring.workspace_id
+  tags                           = local.tags
 }
 
 module "postgresql" {
