@@ -104,19 +104,21 @@ resource "azurerm_storage_account" "flowlogs" {
     }
   }
 
-  queue_properties {
-    logging {
-      delete                = true
-      read                  = true
-      write                 = true
-      version               = "1.0"
-      retention_policy_days = var.flow_log_retention_days
-    }
-  }
-
   sas_policy {
     expiration_period = "07.00:00:00"
     expiration_action = "Log"
+  }
+}
+
+resource "azurerm_storage_account_queue_properties" "flowlogs" {
+  storage_account_id = azurerm_storage_account.flowlogs.id
+
+  logging {
+    delete                = true
+    read                  = true
+    write                 = true
+    version               = "1.0"
+    retention_policy_days = var.flow_log_retention_days
   }
 }
 

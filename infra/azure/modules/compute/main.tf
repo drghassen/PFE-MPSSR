@@ -22,7 +22,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   size                            = var.vm_size
   admin_username                  = var.admin_username
   disable_password_authentication = true
-  allow_extension_operations      = false
+  allow_extension_operations      = true
   network_interface_ids           = [azurerm_network_interface.this.id]
   custom_data                     = local.cloud_init
   encryption_at_host_enabled      = var.encryption_at_host_enabled
