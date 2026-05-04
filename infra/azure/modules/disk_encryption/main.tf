@@ -25,7 +25,7 @@ resource "azurerm_disk_encryption_set" "this" {
   name                      = "des-${var.name_prefix}-${var.environment}"
   location                  = var.location
   resource_group_name       = var.resource_group_name
-  key_vault_key_id          = azurerm_key_vault_key.disk_cmk.id
+  key_vault_key_id          = azurerm_key_vault_key.disk_cmk.versionless_id
   auto_key_rotation_enabled = true
 
   identity {
