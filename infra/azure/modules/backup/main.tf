@@ -25,6 +25,10 @@ resource "azurerm_backup_policy_vm" "daily" {
   retention_daily {
     count = var.backup_retention_days
   }
+
+  enhanced {
+    consistency_mode = "ApplicationConsistent"
+  }
 }
 
 resource "azurerm_backup_protected_vm" "this" {
