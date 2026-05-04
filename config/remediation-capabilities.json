@@ -31,6 +31,21 @@
       "custodian_policy": "deny-public-storage",
       "verification_script": "verify_storage_private.sh"
     },
+    "prowler:network_security_group_unrestricted_inbound_access_ssh": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-nsg-no-open-inbound",
+      "verification_script": "verify_nsg_no_open_inbound.sh"
+    },
+    "prowler:network_security_group_unrestricted_inbound_access_rdp": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-nsg-no-open-inbound",
+      "verification_script": "verify_nsg_no_open_inbound.sh"
+    },
+    "prowler:network_security_group_unrestricted_inbound_access": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-nsg-no-open-inbound",
+      "verification_script": "verify_nsg_no_open_inbound.sh"
+    },
     "CKV_AWS_21": {
       "remediation_supported": false
     }

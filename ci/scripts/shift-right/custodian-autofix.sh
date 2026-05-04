@@ -133,12 +133,13 @@ for policy_name in "${triggered_policies[@]}"; do
   policy_file="${CUSTODIAN_POLICIES_DIR}/${policy_name}.yml"
 
   if [[ ! -f "$policy_file" ]]; then
-    sr_audit "WARN" "policy_file_missing" \
-      "policy YAML not found for '${policy_name}' — skipping" \
+    sr_audit "ERROR" "policy_file_missing" \
+      "policy YAML not found for '${policy_name}' — L3 remediation cannot proceed" \
       "$(sr_build_details \
         --arg policy "$policy_name" \
         --arg file   "$policy_file" \
         '{policy:$policy, file:$file}')"
+    failed_policies+=("$policy_name")
     continue
   fi
 

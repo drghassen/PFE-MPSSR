@@ -143,8 +143,10 @@ fi
 if [[ "$TOTAL_L3" -gt 0 \
    && "$CUSTODIAN_DRY_RUN" == "false" \
    && "$CUSTODIAN_EXECUTED" == "false" ]]; then
-  GATE_STATUS="SOFT_PASS"
+  GATE_STATUS="HARD_FAIL"
   GATE_REASON="l3_custodian_not_executed"
+  sr_fail "L3 findings require auto-remediation but Custodian never executed (missing policy YAML or pre-execution failure)" 1 \
+    "$(sr_build_details --argjson total_l3 "$TOTAL_L3" '{total_l3:$total_l3, custodian_executed:false}')"
 fi
 
 if [[ "$TOTAL_L3" -eq 0 \

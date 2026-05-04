@@ -75,6 +75,9 @@ _prowler_exception_is_expired(ex) if {
 # ── Exception ID accessor ──
 _prowler_exception_id(ex) := lower(trim_space(object.get(ex, "id", "")))
 
+# ── Helper: itère sur le tableau exceptions (pas les clés racine du store) ──
+_prowler_exceptions_list := object.get(_prowler_exceptions_store, "exceptions", [])
+
 # ── Validation d'une exception prowler ──
 # Criteria (12):
 #   1. source == "defectdojo"
@@ -127,7 +130,7 @@ valid_prowler_exception(ex) if {
 
 # Exceptions that are enabled in the store but fail field validation (excluding expired).
 invalid_enabled_prowler_exception_ids[ex_id] if {
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	ex_id := _prowler_exception_id(ex)
 	ex_id != ""
 	not valid_prowler_exception(ex)
@@ -136,7 +139,7 @@ invalid_enabled_prowler_exception_ids[ex_id] if {
 
 # Exceptions that are enabled in the store but have passed their expires_at.
 expired_enabled_prowler_exception_ids[ex_id] if {
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	ex_id := _prowler_exception_id(ex)
 	ex_id != ""
 	_prowler_exception_is_expired(ex)
@@ -144,27 +147,27 @@ expired_enabled_prowler_exception_ids[ex_id] if {
 
 # Exceptions whose status field is not "approved".
 exception_status_not_approved_prowler_ids[ex_id] if {
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	ex.status != "approved"
 	ex_id := _prowler_exception_id(ex)
 }
 
 # Exceptions missing the approved_by field.
 exception_missing_approved_by_prowler_ids[ex_id] if {
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	object.get(ex, "approved_by", "") == ""
 	ex_id := _prowler_exception_id(ex)
 }
 
 # Exceptions missing or empty expires_at — flagged separately for visibility.
 exception_missing_expires_at_prowler_ids[ex_id] if {
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	_prowler_exception_expires_at(ex) == ""
 	ex_id := _prowler_exception_id(ex)
 }
 
 # Active (non-expired) valid exceptions — safe list for matching.
 active_valid_prowler_exceptions := [ex |
-	ex := _prowler_exceptions_store[_]
+	ex := _prowler_exceptions_list[_]
 	valid_prowler_exception(ex)
 ]
