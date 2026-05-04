@@ -110,18 +110,6 @@ resource "azurerm_storage_account" "flowlogs" {
   }
 }
 
-resource "azurerm_storage_account_queue_properties" "flowlogs" {
-  storage_account_id = azurerm_storage_account.flowlogs.id
-
-  logging {
-    delete                = true
-    read                  = true
-    write                 = true
-    version               = "1.0"
-    retention_policy_days = var.flow_log_retention_days
-  }
-}
-
 # ---------------------------------------------------------------------------
 # VNET FLOW LOGS — one resource per VNet, keyed by var.vnets map
 #
