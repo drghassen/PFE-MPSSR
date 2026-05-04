@@ -16,6 +16,8 @@ resource "azurerm_backup_policy_vm" "daily" {
   resource_group_name = var.resource_group_name
   recovery_vault_name = azurerm_recovery_services_vault.this.name
   timezone            = "UTC"
+  # Trusted Launch VMs (vtpm + secure boot) require Enhanced policy.
+  policy_type         = "Enhanced"
 
   backup {
     frequency = "Daily"
@@ -25,8 +27,6 @@ resource "azurerm_backup_policy_vm" "daily" {
   retention_daily {
     count = var.backup_retention_days
   }
-
-  instant_restore_required = false
 }
 
 resource "azurerm_backup_protected_vm" "this" {
