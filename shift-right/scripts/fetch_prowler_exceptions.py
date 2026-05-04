@@ -82,10 +82,41 @@ except ImportError:
     logger = _StructuredLogger(__name__)  # type: ignore[assignment]
 
 
-PROWLER_EXCEPTION_SCHEMA_VERSION = "1.0.0"
+PROWLER_EXCEPTION_SCHEMA_VERSION = "2.0.0"
 _DESCRIPTION_FIELD_RE = re.compile(
     r"(?im)^\s*-\s*([A-Za-z][A-Za-z _-]+?)\s*:\s*(.+?)\s*$"
 )
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers  (mirrors shift-left fetch_validation.py)
+# ---------------------------------------------------------------------------
+
+
+def _has_wildcard(text: str) -> bool:
+    return "*" in text or "?" in text
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_datetime_strict(value: Any) -> "datetime | None":
+    """Parse RFC3339 / ISO-8601 datetime. Returns None on any failure."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text or text == "None":
+        return None
+    if len(text) == 10:
+        text = f"{text}T00:00:00+00:00"
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, AttributeError):
+        return None
 
 
 def _stable_exception_id(finding: dict[str, Any]) -> str:
@@ -293,6 +324,143 @@ def _parse_ra_to_exception(
     }
 
 
+# ---------------------------------------------------------------------------
+# Post-parse validation  (mirrors shift-left validate_normalized_exception)
+# ---------------------------------------------------------------------------
+
+
+def _validate_prowler_exception(
+    ex: "dict[str, Any]",
+    approver_allowlist: "set[str] | None" = None,
+    enforce_approver_allowlist: bool = False,
+) -> "tuple[bool, str, str]":
+    """
+    Validate a normalised prowler exception against 11+ governance criteria.
+    Returns (is_valid, reason_code, detail_message).
+    Mirrors shift-left validate_normalized_exception() from fetch_validation.py.
+    """
+    requested_by = _clean_text(ex.get("requested_by"))
+    approved_by = _clean_text(ex.get("approved_by"))
+
+    if not requested_by or not approved_by:
+        return False, "four_eyes_violation", "requested_by and approved_by are mandatory"
+    if requested_by == approved_by:
+        return False, "four_eyes_violation", "requested_by equals approved_by"
+    if enforce_approver_allowlist and approver_allowlist:
+        if approved_by not in approver_allowlist:
+            return False, "four_eyes_violation", "approved_by is not in approver allowlist"
+
+    if _clean_text(ex.get("source")) != "defectdojo":
+        return False, "invalid_source", "source must be defectdojo"
+
+    if _clean_text(ex.get("status")) != "approved":
+        return False, "invalid_status", "status must be approved"
+
+    check_id = _clean_text(ex.get("check_id"))
+    if not check_id:
+        return False, "missing_fields", "check_id is required"
+    if _has_wildcard(check_id):
+        return False, "wildcard_forbidden", "wildcards in check_id are forbidden"
+
+    resource_id = _clean_text(ex.get("resource_id"))
+    if not resource_id:
+        return False, "missing_fields", "resource_id is required"
+    if _has_wildcard(resource_id):
+        return False, "wildcard_forbidden", "wildcards in resource_id are forbidden"
+
+    resource_type = _clean_text(ex.get("resource_type"))
+    if not resource_type:
+        return False, "missing_fields", "resource_type is required"
+    if _has_wildcard(resource_type):
+        return False, "wildcard_forbidden", "wildcards in resource_type are forbidden"
+
+    approved_at_str = _clean_text(ex.get("approved_at"))
+    if not approved_at_str:
+        return False, "missing_fields", "approved_at is required"
+    approved_at = _parse_datetime_strict(approved_at_str)
+    if not approved_at:
+        return False, "invalid_timestamp", "approved_at is not a valid RFC3339 datetime"
+    if approved_at > _now_utc():
+        return False, "invalid_timestamp", "approved_at cannot be in the future"
+
+    expires_at_raw = ex.get("expires_at")
+    if not expires_at_raw:
+        return False, "missing_fields", "expires_at is required for all shift-right exceptions"
+    expires_at_str = _clean_text(expires_at_raw)
+    if not expires_at_str:
+        return False, "missing_fields", "expires_at must not be empty"
+    expires_at = _parse_datetime_strict(expires_at_str)
+    if not expires_at:
+        return False, "invalid_timestamp", "expires_at is not a valid RFC3339 datetime"
+    if _now_utc() >= expires_at:
+        return False, "expired", "exception has already expired"
+    if approved_at >= expires_at:
+        return False, "invalid_timestamp", "approved_at must be strictly before expires_at"
+
+    environments = ex.get("environments", [])
+    if not isinstance(environments, list) or len(environments) == 0:
+        return False, "missing_scope", "environments scope is required"
+
+    return True, "", ""
+
+
+def _emit_prowler_audit_event(
+    audit_file: str,
+    finding_id: Any,
+    exception: "dict[str, Any] | None",
+    status: str,
+    reason: "str | None" = None,
+) -> None:
+    """Append one JSONL event to the audit log (mirrors shift-left emit_audit_event)."""
+    if not audit_file:
+        return
+    import pathlib
+    pathlib.Path(audit_file).parent.mkdir(parents=True, exist_ok=True)
+    event: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "defectdojo",
+        "action": "normalize_prowler_exception",
+        "finding_id": str(finding_id) if finding_id is not None else "",
+        "output": exception,
+        "status": status,
+    }
+    if reason:
+        event["reason"] = reason
+    try:
+        line = json.dumps(event, separators=(",", ":"), sort_keys=True)
+    except (TypeError, ValueError):
+        line = json.dumps({
+            "timestamp": event["timestamp"],
+            "source": "defectdojo",
+            "action": "normalize_prowler_exception",
+            "finding_id": event["finding_id"],
+            "status": status,
+            "reason": reason or "",
+            "_serialization_error": True,
+        }, separators=(",", ":"))
+    with open(audit_file, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def _deduplicate_prowler_exceptions(
+    exceptions: "list[dict[str, Any]]",
+) -> "list[dict[str, Any]]":
+    """Deduplicate by stable SHA-256 ID, keeping first occurrence (mirrors shift-left)."""
+    by_id: "dict[str, dict[str, Any]]" = {}
+    for ex in exceptions:
+        ex_id = _clean_text(ex.get("id"))
+        if not ex_id:
+            continue
+        if ex_id not in by_id:
+            by_id[ex_id] = ex
+    return [by_id[k] for k in sorted(by_id.keys())]
+
+
+# ---------------------------------------------------------------------------
+# DefectDojo fetch
+# ---------------------------------------------------------------------------
+
+
 def fetch_risk_acceptances(
     base_url: str, api_key: str, engagement: str
 ) -> list[dict[str, Any]]:
@@ -430,6 +598,33 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Print exceptions without writing to disk",
     )
+    parser.add_argument(
+        "--audit-log",
+        default=os.getenv(
+            "PROWLER_EXCEPTIONS_AUDIT_LOG",
+            ".cloudsentinel/03_core_artifacts/prowler_exceptions_audit.jsonl",
+        ),
+        help="Path for per-exception JSONL audit trail",
+    )
+    parser.add_argument(
+        "--dropped-output",
+        default=os.getenv(
+            "PROWLER_DROPPED_EXCEPTIONS_PATH",
+            ".cloudsentinel/prowler_dropped_exceptions.json",
+        ),
+        help="Path for dropped/rejected exceptions report",
+    )
+    parser.add_argument(
+        "--enforce-approver-allowlist",
+        action="store_true",
+        default=os.getenv("PROWLER_ENFORCE_APPROVER_ALLOWLIST", "").lower() in ("1", "true", "yes"),
+        help="Reject exceptions whose approver is not in the allowlist",
+    )
+    parser.add_argument(
+        "--approver-allowlist",
+        default=os.getenv("PROWLER_APPROVER_ALLOWLIST", ""),
+        help="Comma-separated list of allowed approver usernames",
+    )
     args = parser.parse_args(argv)
 
     if not args.base_url:
@@ -473,8 +668,20 @@ def main(argv: list[str]) -> int:
 
     logger.info("prowler_risk_acceptances_fetched", count=len(raw_ras))
 
+    approver_allowlist: set[str] | None = None
+    if args.enforce_approver_allowlist and args.approver_allowlist:
+        approver_allowlist = {
+            u.strip() for u in args.approver_allowlist.split(",") if u.strip()
+        }
+
+    import pathlib
+
+    audit_log_path = pathlib.Path(args.audit_log)
+    audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+
     scope = _build_scope(args.environment)
     exceptions: list[dict[str, Any]] = []
+    dropped: list[dict[str, Any]] = []
     skipped = 0
 
     for ra in raw_ras:
@@ -482,12 +689,44 @@ def main(argv: list[str]) -> int:
         if ex is None:
             skipped += 1
             continue
+
+        finding_id = ex.get("finding_id") or ra.get("id", "unknown")
+        ok, reason, detail = _validate_prowler_exception(
+            ex,
+            approver_allowlist=approver_allowlist,
+            enforce_approver_allowlist=args.enforce_approver_allowlist,
+        )
+
+        if not ok:
+            _emit_prowler_audit_event(
+                str(audit_log_path), finding_id, ex, "dropped", reason=reason
+            )
+            dropped.append(
+                {
+                    "finding_id": finding_id,
+                    "reason": reason,
+                    "detail": detail,
+                    "exception": ex,
+                }
+            )
+            logger.warning(
+                "prowler_exception_dropped",
+                finding_id=finding_id,
+                reason=reason,
+                detail=detail,
+            )
+            continue
+
+        _emit_prowler_audit_event(str(audit_log_path), finding_id, ex, "accepted")
         exceptions.append(ex)
+
+    exceptions = _deduplicate_prowler_exceptions(exceptions)
 
     logger.info(
         "prowler_exceptions_built",
         total=len(exceptions),
         skipped=skipped,
+        dropped=len(dropped),
     )
 
     output_doc = {
@@ -502,6 +741,7 @@ def main(argv: list[str]) -> int:
                     "raw_risk_acceptances": len(raw_ras),
                     "valid_exceptions": len(exceptions),
                     "skipped_findings": skipped,
+                    "dropped_count": len(dropped),
                 },
                 "exceptions": exceptions,
             }
@@ -512,8 +752,6 @@ def main(argv: list[str]) -> int:
         print(json.dumps(output_doc, indent=2))
         return 0
 
-    import pathlib
-
     out_path = pathlib.Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
@@ -521,6 +759,26 @@ def main(argv: list[str]) -> int:
         encoding="utf-8",
     )
     logger.info("prowler_exceptions_written", path=str(out_path))
+
+    dropped_path = pathlib.Path(args.dropped_output)
+    dropped_path.parent.mkdir(parents=True, exist_ok=True)
+    dropped_doc = {
+        "cloudsentinel": {
+            "prowler_dropped_exceptions": {
+                "schema_version": PROWLER_EXCEPTION_SCHEMA_VERSION,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "environment": args.environment,
+                "total_dropped": len(dropped),
+                "entries": dropped,
+            }
+        }
+    }
+    dropped_path.write_text(
+        json.dumps(dropped_doc, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    logger.info("prowler_dropped_exceptions_written", path=str(dropped_path), count=len(dropped))
+
     return 0
 
 

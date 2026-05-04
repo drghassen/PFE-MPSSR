@@ -2,6 +2,22 @@
 set -euo pipefail
 
 # Shared fail-closed helpers for CloudSentinel shift-right scripts.
+# Convention:
+#   sr_*   → functions defined in this library (sr = shift-right)
+#   SR_*   → exported environment variables
+#   CS_*   → shared CloudSentinel variables (HMAC key, base dir)
+
+# ---------------------------------------------------------------------------
+# Canonical artifact directory layout
+# ---------------------------------------------------------------------------
+SR_BASE_DIR="${SR_BASE_DIR:-.cloudsentinel}"
+SR_GOV_DIR="${SR_BASE_DIR}/02_governance"
+SR_CORE_DIR="${SR_BASE_DIR}/03_core_artifacts"
+SR_DECISIONS_DIR="${SR_BASE_DIR}/04_decisions"
+SR_SNAPSHOTS_DIR="${SR_BASE_DIR}/05_snapshots"
+SR_AUDIT_FILE="${SR_BASE_DIR}/03_core_artifacts/sr_audit_events.jsonl"
+
+export SR_BASE_DIR SR_GOV_DIR SR_CORE_DIR SR_DECISIONS_DIR SR_SNAPSHOTS_DIR SR_AUDIT_FILE
 
 SHIFT_RIGHT_STAGE="${SHIFT_RIGHT_STAGE:-unknown}"
 SHIFT_RIGHT_AUDIT_FILE="${SHIFT_RIGHT_AUDIT_FILE:-.cloudsentinel/shift-right-audit.jsonl}"
@@ -32,7 +48,13 @@ sr_init_guard() {
   SHIFT_RIGHT_AUDIT_FILE="$audit_file"
   CLOUDSENTINEL_PIPELINE_CORRELATION_ID="$(sr_derive_pipeline_correlation_id)"
   export CLOUDSENTINEL_PIPELINE_CORRELATION_ID
-  mkdir -p "$(dirname "$SHIFT_RIGHT_AUDIT_FILE")"
+
+  mkdir -p \
+    "${SR_GOV_DIR}" \
+    "${SR_CORE_DIR}" \
+    "${SR_DECISIONS_DIR}" \
+    "${SR_SNAPSHOTS_DIR}" \
+    "$(dirname "$SHIFT_RIGHT_AUDIT_FILE")"
 }
 
 _sr_plain_log() {
@@ -228,4 +250,71 @@ sr_assert_positive_if_expected() {
   if (( expected > 0 && actual == 0 )); then
     sr_fail "$message" 1 "$(jq -cn --argjson expected "$expected" --argjson actual "$actual" '{expected:$expected,actual:$actual}')"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# HMAC-SHA256 signing utilities
+# ---------------------------------------------------------------------------
+# Mirrors sl_sign_file / sl_verify_file from shift-left sentinel-guard.sh.
+#
+# Design:
+#   - The HMAC is computed over FILE CONTENT only (not the path).
+#   - The .hmac sidecar stores only the hex digest.
+#   - This makes the artifact tree relocatable: moving a file does NOT
+#     invalidate its .hmac, because the path is never part of the signed data.
+#   - The CI key must be injected as CS_HMAC_KEY env var (masked CI variable).
+#
+# Security guarantee: unlike plain sha256sum, HMAC requires the secret key
+# to produce a valid digest. An attacker who can write to the snapshot
+# directory cannot forge a .hmac sidecar without CS_HMAC_KEY.
+# ---------------------------------------------------------------------------
+
+sr_sign_file() {
+  local file="${1:?file is required}"
+  local hmac_file="${file}.hmac"
+  sr_require_env CS_HMAC_KEY
+  sr_require_nonempty_file "$file" "$(basename "$file")"
+
+  local digest
+  digest="$(
+    openssl dgst -sha256 \
+      -hmac "${CS_HMAC_KEY}" \
+      -hex \
+      "$file" \
+    | awk '{print $NF}'
+  )"
+  printf '%s\n' "$digest" > "$hmac_file"
+  sr_audit "INFO" "hmac_sign" \
+    "HMAC-SHA256 signed" \
+    "$(sr_build_details --arg f "$file" --arg h "$hmac_file" '{file:$f,sidecar:$h}')"
+}
+
+sr_verify_file() {
+  local file="${1:?file is required}"
+  local hmac_file="${file}.hmac"
+  sr_require_env CS_HMAC_KEY
+  sr_require_nonempty_file "$file"      "$(basename "$file")"
+  sr_require_nonempty_file "$hmac_file" "$(basename "$hmac_file")"
+
+  local expected actual
+  expected="$(cat "$hmac_file")"
+  actual="$(
+    openssl dgst -sha256 \
+      -hmac "${CS_HMAC_KEY}" \
+      -hex \
+      "$file" \
+    | awk '{print $NF}'
+  )"
+
+  if [[ "$expected" != "$actual" ]]; then
+    sr_fail "HMAC verification FAILED – chain of trust broken" 2 \
+      "$(sr_build_details \
+         --arg f   "$file" \
+         --arg exp "$expected" \
+         --arg got "$actual" \
+         '{file:$f,expected:$exp,actual:$got}')"
+  fi
+  sr_audit "INFO" "hmac_verify" \
+    "HMAC-SHA256 verified OK" \
+    "$(sr_build_details --arg f "$file" '{file:$f}')"
 }

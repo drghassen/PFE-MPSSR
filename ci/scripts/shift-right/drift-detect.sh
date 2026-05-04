@@ -14,7 +14,7 @@ DRIFT_ENGINE_ENV_FILE="${OUTPUT_DIR}/drift_engine.env"
 DRIFT_EXCEPTIONS_FILE="${OUTPUT_DIR}/drift_exceptions.json"
 EXCEPTIONS_FETCH_MODE="${EXCEPTIONS_FETCH_MODE:-strict}"
 DRIFT_EXCEPTIONS_SNAPSHOT_PATH="${DRIFT_EXCEPTIONS_SNAPSHOT_PATH:-${OUTPUT_DIR}/last-known-good/drift_exceptions.json}"
-DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH="${DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH:-${DRIFT_EXCEPTIONS_SNAPSHOT_PATH}.sha256}"
+DRIFT_EXCEPTIONS_SNAPSHOT_HMAC_PATH="${DRIFT_EXCEPTIONS_SNAPSHOT_PATH}.hmac"
 DRIFT_DEGRADED_ARTIFACT="${DRIFT_DEGRADED_ARTIFACT:-${OUTPUT_DIR}/drift_degraded_mode.json}"
 AUDIT_FILE="${OUTPUT_DIR}/drift_detect_audit.jsonl"
 TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-${REPO_ROOT}/.cloudsentinel/tf-plugin-cache}"
@@ -41,7 +41,7 @@ fi
 mkdir -p "$(dirname "$DRIFT_REPORT_PATH")" "$OUTPUT_DIR" "$TF_PLUGIN_CACHE_DIR"
 
 sr_init_guard "shift-right/drift-detection" "$AUDIT_FILE"
-sr_require_command jq python sha256sum
+sr_require_command jq python openssl
 sr_require_env ARM_SUBSCRIPTION_ID
 sr_require_nonempty_file "$DRIFT_CONFIG_PATH" "drift engine config"
 sr_require_nonempty_file "$DRIFT_ENGINE_ENTRYPOINT" "drift engine entrypoint"
@@ -160,7 +160,7 @@ fi
 if [[ -z "$FETCH_ERROR" ]]; then
   mkdir -p "$(dirname "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH")"
   cp "$DRIFT_EXCEPTIONS_FILE" "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH"
-  (cd "$(dirname "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH")" && sha256sum "$(basename "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH")" > "$(basename "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH")")
+  sr_sign_file "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH"
 else
   if [[ "$EXCEPTIONS_FETCH_MODE" != "degraded" ]]; then
     sr_fail "failed to fetch drift exceptions from DefectDojo in strict mode" 1 \
@@ -168,23 +168,22 @@ else
   fi
 
   sr_require_nonempty_file "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" "drift exceptions snapshot"
-  sr_require_nonempty_file "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH" "drift exceptions snapshot signature"
-  if ! (cd "$(dirname "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH")" && sha256sum -c "$(basename "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH")" >/dev/null 2>&1); then
-    sr_fail "degraded mode enabled but drift snapshot signature verification failed" 1 \
-      "$(jq -cn --arg snapshot "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" --arg sig "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH" '{snapshot:$snapshot,signature:$sig}')"
-  fi
+  sr_verify_file "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH"
 
   cp "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" "$DRIFT_EXCEPTIONS_FILE"
   jq -cn \
     --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg mode "$EXCEPTIONS_FETCH_MODE" \
     --arg snapshot "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" \
-    --arg signature "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH" \
+    --arg hmac_sidecar "$DRIFT_EXCEPTIONS_SNAPSHOT_HMAC_PATH" \
     --arg reason "defectdojo_fetch_failed_snapshot_used" \
-    '{timestamp:$timestamp, mode:$mode, snapshot:$snapshot, signature:$signature, reason:$reason}' > "$DRIFT_DEGRADED_ARTIFACT"
+    '{timestamp:$timestamp, mode:$mode, snapshot:$snapshot, hmac_sidecar:$hmac_sidecar, reason:$reason}' > "$DRIFT_DEGRADED_ARTIFACT"
 
-  sr_audit "WARN" "exceptions_degraded_mode" "DefectDojo unavailable, using signed drift snapshot" \
-    "$(sr_build_details --arg snapshot "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" --arg signature "$DRIFT_EXCEPTIONS_SNAPSHOT_SIG_PATH" '{snapshot:$snapshot, signature:$signature}')"
+  sr_audit "WARN" "exceptions_degraded_mode" "DefectDojo unavailable, using HMAC-verified drift snapshot" \
+    "$(sr_build_details \
+       --arg snapshot "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" \
+       --arg hmac_sidecar "$DRIFT_EXCEPTIONS_SNAPSHOT_HMAC_PATH" \
+       '{snapshot:$snapshot, hmac_sidecar:$hmac_sidecar}')"
 fi
 
 sr_require_nonempty_file "$DRIFT_EXCEPTIONS_FILE" "drift exceptions"

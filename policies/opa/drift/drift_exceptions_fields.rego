@@ -1,5 +1,7 @@
 # ==============================================================================
 # Shift-Right Drift — exception validation (wildcards, scope, approval)
+# Schema version: 2.0.0 — expires_at mandatory, approved_at < expires_at,
+# diagnostic sets matching shift-left gate_exceptions_validate.rego pattern.
 # ==============================================================================
 
 package cloudsentinel.shiftright.drift
@@ -9,7 +11,6 @@ import rego.v1
 # ── Wildcard guard helpers ──
 # Wildcards (* or ?) in resource_type or resource_id are not allowed in drift
 # exceptions. They create overly broad exceptions that could mask real violations.
-# These helpers detect wildcards so valid_drift_exception() can reject such entries.
 
 _drift_exception_has_wildcard(ex) if {
 	contains(object.get(ex, "resource_type", ""), "*")
@@ -30,8 +31,6 @@ _drift_exception_has_wildcard(ex) if {
 # ── Scope environment matching helpers ──
 #
 # SECURITY: unscoped exceptions (absent or empty environments list) are REJECTED.
-# An exception with no environment scope would silently match prod, staging and dev,
-# granting a blanket waiver across the entire fleet — this is a governance violation.
 # Every drift exception MUST declare at least one target environment explicitly.
 
 valid_env_scope(ex) if {
@@ -40,8 +39,6 @@ valid_env_scope(ex) if {
 	input.environment in envs
 }
 
-# Repos and branches remain optional-scope (absent = matches all repos/branches).
-# Only environment scope is mandatory because environment determines blast radius.
 valid_repo_scope(ex) if {
 	not ex.repos
 }
@@ -66,34 +63,110 @@ valid_branch_scope(ex) if {
 	input.branch in ex.branches
 }
 
+# ── Temporal helpers ──
+
+_drift_exception_expires_at(ex) := trim_space(object.get(ex, "expires_at", ""))
+
+_drift_exception_approved_at(ex) := trim_space(object.get(ex, "approved_at", ""))
+
+_drift_exception_is_expired(ex) if {
+	_drift_exception_expires_at(ex) != ""
+	time.now_ns() >= time.parse_rfc3339_ns(_drift_exception_expires_at(ex))
+}
+
+# ── Exception ID accessor ──
+_drift_exception_id(ex) := lower(trim_space(object.get(ex, "id", "")))
+
 # ── Validation d'une exception drift ──
+# Criteria (12):
+#   1. source == "defectdojo"
+#   2. status == "approved"
+#   3. requested_by non-empty
+#   4. approved_by non-empty
+#   5. four-eyes: requested_by != approved_by
+#   6. resource_type non-empty, no wildcards
+#   7. resource_id non-empty, no wildcards
+#   8. approved_at valid RFC3339, in the past
+#   9. expires_at MANDATORY, valid RFC3339, in the future
+#  10. approved_at < expires_at (temporal cross-validation)
+#  11. environments non-empty, matches input.environment
+#  12. repo/branch scope (optional — absent = matches all)
+
 valid_drift_exception(ex) if {
-	# Source vérifiée : seul DefectDojo peut émettre des exceptions
+	# 1. Source verified
 	ex.source == "defectdojo"
-	# Status approuvé
+	# 2. Status approved
 	ex.status == "approved"
-	# Champs identité non vides
+	# 3-4. Identity fields non-empty
 	ex.requested_by != ""
 	ex.approved_by != ""
-	ex.resource_type != ""
-	# Four-eyes principle : le demandeur ne peut pas être son propre approbateur
+	# 5. Four-eyes principle
 	ex.requested_by != ex.approved_by
-	# Temporalité : approuvée dans le passé
-	time.parse_rfc3339_ns(ex.approved_at) <= time.now_ns()
-
-	# Expiration optionnelle
-	not _is_expired(ex)
-
-	# Scope strict
+	# 6. resource_type non-empty
+	ex.resource_type != ""
+	# 7. resource_id non-empty
+	ex.resource_id != ""
+	# 8. approved_at: valid RFC3339 in the past
+	approved_ns := time.parse_rfc3339_ns(_drift_exception_approved_at(ex))
+	approved_ns <= time.now_ns()
+	# 9. expires_at: MANDATORY — reject if absent or empty
+	_drift_exception_expires_at(ex) != ""
+	expires_ns := time.parse_rfc3339_ns(_drift_exception_expires_at(ex))
+	# 9b. Not yet expired
+	time.now_ns() < expires_ns
+	# 10. approved_at strictly before expires_at
+	approved_ns < expires_ns
+	# 11. Environment scope strict
 	valid_env_scope(ex)
+	# 12. Repo/branch scope
 	valid_repo_scope(ex)
 	valid_branch_scope(ex)
-
-	# Sécurité : les wildcards (* ou ?) sont interdits dans resource_type et resource_id
+	# No wildcards
 	not _drift_exception_has_wildcard(ex)
 }
 
-_is_expired(ex) if {
-	ex.expires_at
-	time.now_ns() >= time.parse_rfc3339_ns(ex.expires_at)
+# ── Diagnostic sets (mirror gate_exceptions_validate.rego pattern) ──
+
+# Exceptions that are enabled in the store but fail field validation (excluding expired).
+invalid_enabled_drift_exception_ids[ex_id] if {
+	ex := _drift_exceptions_store[_]
+	ex_id := _drift_exception_id(ex)
+	ex_id != ""
+	not valid_drift_exception(ex)
+	not _drift_exception_is_expired(ex)
 }
+
+# Exceptions that are enabled in the store but have passed their expires_at.
+expired_enabled_drift_exception_ids[ex_id] if {
+	ex := _drift_exceptions_store[_]
+	ex_id := _drift_exception_id(ex)
+	ex_id != ""
+	_drift_exception_is_expired(ex)
+}
+
+# Exceptions whose status field is not "approved".
+exception_status_not_approved_drift_ids[ex_id] if {
+	ex := _drift_exceptions_store[_]
+	ex.status != "approved"
+	ex_id := _drift_exception_id(ex)
+}
+
+# Exceptions missing the approved_by field.
+exception_missing_approved_by_drift_ids[ex_id] if {
+	ex := _drift_exceptions_store[_]
+	object.get(ex, "approved_by", "") == ""
+	ex_id := _drift_exception_id(ex)
+}
+
+# Exceptions missing or empty expires_at — flagged separately for visibility.
+exception_missing_expires_at_drift_ids[ex_id] if {
+	ex := _drift_exceptions_store[_]
+	_drift_exception_expires_at(ex) == ""
+	ex_id := _drift_exception_id(ex)
+}
+
+# Active (non-expired) valid exceptions — safe list for matching.
+active_valid_drift_exceptions := [ex |
+	ex := _drift_exceptions_store[_]
+	valid_drift_exception(ex)
+]
