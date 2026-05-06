@@ -87,7 +87,7 @@ class DefectDojoSection(BaseModel):
     api_key: str = ""
     engagement_id: str = ""
     test_title: str = "CloudSentinel Drift Engine"
-    close_old_findings: bool = True
+    close_old_findings: bool = False
     deduplication_on_engagement: bool = True
     minimum_severity: str = "Info"
 
@@ -327,6 +327,7 @@ def build_report_context(
     plan_result: dict[str, Any],
     drift_summary: dict[str, Any],
     drift_items: list[dict[str, Any]],
+    drift_filtered_items: list[dict[str, Any]],
     errors: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Builds the Jinja2 context used to render `drift-report.json`."""
@@ -408,6 +409,7 @@ def build_report_context(
         "exit_code": exit_code,
         "summary": drift_summary,
         "items": drift_items,
+        "filtered_items": drift_filtered_items,
     }
 
     return {
@@ -592,10 +594,12 @@ def main(argv: list[str]) -> int:
     init_result: dict[str, Any] = {}
     plan_result: dict[str, Any] = {}
     drift_items: list[dict[str, Any]] = []
+    drift_filtered_items: list[dict[str, Any]] = []
     drift_summary_obj: dict[str, Any] = {
         "resources_changed": 0,
         "resources_by_action": {},
         "provider_names": [],
+        "filtered_count": 0,
     }
 
     def emit_report(*, finished_at: datetime, exit_code: int, detected: bool) -> None:
@@ -612,6 +616,7 @@ def main(argv: list[str]) -> int:
             plan_result=plan_result,
             drift_summary=drift_summary_obj,
             drift_items=drift_items,
+            drift_filtered_items=drift_filtered_items,
             errors=errors,
         )
         report_payload = render_report(template_path, context)
@@ -772,12 +777,25 @@ def main(argv: list[str]) -> int:
     if plan_json:
         summary, items = normalize_terraform_plan(plan_json)
         drift_items = items
-        
-        # If Terraform detected changes (exit code 2) but our normalizer 
-        # filtered out all items (e.g. only data sources changed), 
-        # override detected status to False and exit_code to 0.
+        drift_filtered_items = summary.filtered_items
+
+        # Terraform signalled changes (exit_code=2) but every detected item
+        # was non-actionable (data sources, pure no-op reads).  Downgrade to
+        # clean so OPA and downstream jobs see a consistent state.
         if detected and not drift_items:
-            logger.info("drift_ignored_all_items_filtered", run_id=run_id)
+            logger.info(
+                "drift_ignored_all_items_filtered",
+                run_id=run_id,
+                filtered_count=len(summary.filtered_items),
+                filtered=[
+                    {
+                        "address": f.get("address"),
+                        "type": f.get("type"),
+                        "filter_reason": f.get("filter_reason"),
+                    }
+                    for f in summary.filtered_items
+                ],
+            )
             detected = False
             exit_code = 0
 
@@ -852,6 +870,7 @@ def main(argv: list[str]) -> int:
             "resources_changed": summary.resources_changed,
             "resources_by_action": summary.resources_by_action,
             "provider_names": summary.provider_names,
+            "filtered_count": len(summary.filtered_items),
         }
     else:
         errors.append(

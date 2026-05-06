@@ -166,7 +166,8 @@ jq -c \
          allow_legacy_exceptions: true,
          allow_degraded: false
        },
-       capabilities: (($capabilities[0].capabilities // {})),
+       capabilities: (($capabilities[0].capabilities // {})
+                       | with_entries(select(.key | startswith("prowler:")))),
        findings: [
          (.prowler.items // [])[] | {
            check_id: .check_id,
@@ -291,6 +292,45 @@ EXC_SEV_INFO="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.
   printf '  %-24s%s\n'   "Excepted (suppressed)" "$EXCEPTED_VIOLATIONS"
   printf '  %-24s%s\n'   "Active exceptions"     "$VALID_EXCEPTIONS"
   printf '  %-24s%s\n'   "Active exceptions sev" "C:${EXC_SEV_CRITICAL} H:${EXC_SEV_HIGH} M:${EXC_SEV_MEDIUM} L:${EXC_SEV_LOW} I:${EXC_SEV_INFO}"
+  printf '  ──────────────────────────────\n'
+  if [[ "$AUTO_REMEDIATION_CANDIDATES" -eq 1 ]]; then
+    printf '  Cloud Custodian Orders         (1 dispatch)\n'
+  else
+    printf '  Cloud Custodian Orders         (%d dispatches)\n' "$AUTO_REMEDIATION_CANDIDATES"
+  fi
+  if [[ "$AUTO_REMEDIATION_CANDIDATES" -gt 0 ]]; then
+    _cust_idx=0
+    while IFS=$'\t' read -r _pol _check _res _rtype _region _sev _script; do
+      _cust_idx=$((_cust_idx + 1))
+      printf '  [%d] Policy  : %s\n'  "$_cust_idx" "$_pol"
+      printf '      Check   : %s\n'               "$_check"
+      printf '      Resource: %s\n'               "$_res"
+      printf '      Type    : %s\n'               "$_rtype"
+      printf '      Region  : %s\n'               "$_region"
+      printf '      Severity: %s\n'               "$_sev"
+      [[ -n "$_script" ]] && printf '      Verify  : %s\n' "$_script"
+    done < <(jq -r '
+      [ (.result.effective_violations // .result.violations // [])[]
+        | select((.requires_remediation // false) == true
+              and (.custodian_policy // "") != "") ]
+      | sort_by(
+          if   .severity == "CRITICAL" then 0
+          elif .severity == "HIGH"     then 1
+          elif .severity == "MEDIUM"   then 2
+          else 3 end
+        )[]
+      | [ .custodian_policy,
+          (.check_id     // ""),
+          .resource_id,
+          (.resource_type // "unknown"),
+          (.region        // "global"),
+          .severity,
+          (.verification_script // "") ]
+      | @tsv
+    ' "$DECISION_FILE")
+  else
+    printf '  (none — no runtime remediation candidates this run)\n'
+  fi
   printf '  ──────────────────────────────\n'
 } >&2
 

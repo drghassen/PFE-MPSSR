@@ -154,6 +154,27 @@ GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 
 sr_assert_eq "$GENERATED_COUNT" "$OPA_EFFECTIVE_VIOLATIONS" "prowler upload effective findings count mismatch with OPA decision"
 sr_assert_positive_if_expected "$OPA_EFFECTIVE_VIOLATIONS" "$GENERATED_COUNT" "prowler upload generated zero effective findings from non-empty effective OPA input"
 
+# Skip the upload entirely when there are no effective violations.
+#
+# Prowler findings covered by active Risk Acceptances are excluded from
+# GENERATED_COUNT (OPA filters them as excepted).  Uploading an empty findings
+# file with close_old_findings=true would instruct DefectDojo to close every
+# existing finding for this test, which silently destroys the Risk Acceptances
+# attached to those findings — even when they have not expired.
+# A run where every finding is excepted has nothing new to report; the existing
+# findings and their RAs must remain intact until they naturally expire or are
+# revoked.
+if [[ "$GENERATED_COUNT" -eq 0 ]]; then
+  sr_audit "INFO" "stage_skip" \
+    "no effective prowler violations; skipping DefectDojo upload to preserve active risk acceptances" \
+    "$(jq -cn \
+      --argjson prowler_count   "$PROWLER_ITEM_COUNT" \
+      --argjson opa_raw         "$OPA_RAW_VIOLATIONS" \
+      --argjson opa_effective   "$OPA_EFFECTIVE_VIOLATIONS" \
+      '{prowler_count:$prowler_count,opa_raw_violations:$opa_raw,opa_effective_violations:$opa_effective}')"
+  exit 0
+fi
+
 if [[ "$PROWLER_UPLOAD_DRY_RUN" == "true" ]]; then
   jq -cn \
     --arg status "dry_run" \

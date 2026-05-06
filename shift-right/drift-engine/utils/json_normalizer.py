@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 logger = logging.getLogger(__name__)
@@ -12,6 +12,9 @@ class DriftSummary:
     resources_changed: int
     resources_by_action: dict[str, int]
     provider_names: list[str]
+    # Items Terraform detected but that the normalizer classified as non-actionable
+    # (data sources, pure no-op reads).  Kept for observability / audit trail.
+    filtered_items: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _actions_key(actions: list[str]) -> str:
@@ -317,6 +320,7 @@ def normalize_terraform_plan(
     """
 
     items: list[dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     provider_names: set[str] = set()
     resources_by_action: dict[str, int] = {}
 
@@ -335,20 +339,38 @@ def normalize_terraform_plan(
         provider_name = str(rc.get("provider_name") or "")
         if provider_name:
             provider_names.add(provider_name)
-            
+
+        # Data sources are read-only lookups managed by the provider, not by IaC.
+        # They refresh on every plan and are not security-relevant drift.
         if mode == "data":
+            filtered.append({
+                "address": address,
+                "mode": mode,
+                "type": rtype,
+                "name": name,
+                "actions": actions,
+                "filter_reason": "data_source",
+            })
             continue
 
         before = change.get("before")
         after = change.get("after")
 
         changed_paths = _diff_paths(before, after)
-        
+
         is_noop_or_read = actions == ["no-op"] or actions == ["read"]
 
         # For `plan -refresh-only`, provider often reports `actions=["no-op"]` even when
         # the state is refreshed to different values. Treat "no-op + diff" as drift.
         if not changed_paths and is_noop_or_read:
+            filtered.append({
+                "address": address,
+                "mode": mode,
+                "type": rtype,
+                "name": name,
+                "actions": actions,
+                "filter_reason": "noop_read_no_change",
+            })
             continue
             
         if not changed_paths:
@@ -437,6 +459,7 @@ def normalize_terraform_plan(
         resources_changed=len(items),
         resources_by_action=resources_by_action,
         provider_names=sorted(provider_names),
+        filtered_items=filtered,
     )
     return summary, items
 

@@ -140,6 +140,23 @@ GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 
 sr_assert_eq "$GENERATED_COUNT" "$OPA_EFFECTIVE_VIOLATIONS" "drift upload effective findings count mismatch with OPA decision"
 sr_assert_positive_if_expected "$OPA_EFFECTIVE_VIOLATIONS" "$GENERATED_COUNT" "drift upload generated zero effective findings from non-empty effective OPA input"
 
+# Skip the upload entirely when there are no effective violations.
+#
+# Sending an empty findings file to DefectDojo with close_old_findings=true would
+# instruct it to close every finding from the previous run, which silently destroys
+# any Risk Acceptances attached to those findings — even when they have not expired.
+# A clean scan has nothing to report; existing findings and their RAs must be preserved.
+if [[ "$GENERATED_COUNT" -eq 0 ]]; then
+  sr_audit "INFO" "stage_skip" \
+    "no effective drift violations; skipping DefectDojo upload to preserve active risk acceptances" \
+    "$(jq -cn \
+      --argjson drift_count          "$DRIFT_COUNT" \
+      --argjson opa_raw              "$OPA_RAW_VIOLATIONS" \
+      --argjson opa_effective        "$OPA_EFFECTIVE_VIOLATIONS" \
+      '{drift_count:$drift_count,opa_raw_violations:$opa_raw,opa_effective_violations:$opa_effective}')"
+  exit 0
+fi
+
 HTTP_CODE="$(curl -sS -L --post301 --post302 \
   -o "$DOJO_RESPONSE_FILE" \
   -w "%{http_code}" \

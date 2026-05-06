@@ -14,6 +14,26 @@ is_degraded if {
 	object.get(input, "meta", {}).mode == "DEGRADED"
 }
 
+# ── Sensor identity guard ─────────────────────────────────────────────────────
+# Reject any input that does not originate from the drift engine.
+# Prowler findings sent to this OPA (by misconfiguration or injection) would
+# silently fall through _malformed_finding_decision() as L1/manual_review —
+# a fail-open that must be caught here before evaluation begins.
+
+deny contains msg if {
+	src := object.get(input, "source", "")
+	src != "drift-engine"
+	msg := sprintf("sensor_mismatch: expected source 'drift-engine', got '%v'", [src])
+}
+
+deny contains msg if {
+	scan := object.get(input, "scan_type", "")
+	scan != "shift-right-drift"
+	msg := sprintf("sensor_mismatch: expected scan_type 'shift-right-drift', got '%v'", [scan])
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+
 deny contains msg if {
 	is_degraded
 	not object.get(object.get(input, "meta", {}), "allow_degraded", false)

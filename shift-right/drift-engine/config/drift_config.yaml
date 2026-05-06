@@ -36,7 +36,7 @@ defectdojo:
   api_key: ${DEFECTDOJO_API_KEY:-}
   engagement_id: ${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}
   test_title: CloudSentinel Drift Engine
-  close_old_findings: true
+  close_old_findings: false
   deduplication_on_engagement: true
   minimum_severity: Info
 

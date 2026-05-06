@@ -13,7 +13,7 @@ class DefectDojoConfig:
     api_key: str
     engagement_id: int
     test_title: str
-    close_old_findings: bool = True
+    close_old_findings: bool = False
     deduplication_on_engagement: bool = True
     minimum_severity: str = "Info"
     timeout_s: int = 30

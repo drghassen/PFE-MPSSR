@@ -33,10 +33,6 @@ output "network_default_action" {
   value       = azurerm_storage_account.tfstate.network_rules[0].default_action
 }
 
-output "ci_state_contributor_assignment_ids" {
-  description = "Role assignment IDs granting Storage Blob Data Contributor to CI SPs."
-  value       = { for k, v in azurerm_role_assignment.ci_state_contributor : k => v.id }
-}
 
 output "diagnostic_setting_id" {
   description = "Resource ID of the diagnostic setting (empty if LAW not configured)."
