@@ -269,26 +269,29 @@ if [[ "$L2_COUNT" -gt 0 || "$L3_COUNT" -gt 0 ]]; then
   OPA_PROWLER_REQUIRES_TICKET=true
 fi
 
-# ── OPA Policy Decision Table ───────────────────────────────────────────────
+# ── Decision Report ──────────────────────────────────────────────────────────
+EXC_SEV_CRITICAL="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.severity // "") == "CRITICAL")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_HIGH="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.severity // "") == "HIGH")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_MEDIUM="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.severity // "") == "MEDIUM")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_LOW="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.severity // "") == "LOW")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_INFO="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.severity // "") == "INFO")] | length' "$EXCEPTIONS_FILE")"
 {
-  printf '┌────────────────────────────────────────────────────────────────────────────────┐\n'
-  printf '│ %-78s │\n' "CloudSentinel OPA — Prowler Policy Evaluation"
-  printf '│ %-78s │\n' "Mode: ENFORCING  |  Fail-closed: ${FAIL_CLOSED}  |  Env: ${ENVIRONMENT}  |  Branch: ${BRANCH_NAME}"
-  printf '├────────────────────────────────────────────────────────────────────────────────┤\n'
-  if [[ "$OPA_PROWLER_BLOCK" == "true" ]]; then
-    if [[ "$OPA_PROWLER_BLOCK_REASON" == "manual_review_only" ]]; then
-      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — manual-review-only findings"
-    else
-      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
-    fi
-  else
-    printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
-  fi
-  printf '│ %-78s │\n' \
-    "  Deny: ${OPA_PROWLER_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}  |  ManualReview: ${MANUAL_REVIEW_VIOLATIONS}"
-  printf '│ %-78s │\n' \
-    "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
-  printf '└────────────────────────────────────────────────────────────────────────────────┘\n'
+  printf '══════════════════════════════════════════\n'
+  printf '  Decision Report\n'
+  printf '══════════════════════════════════════════\n'
+  printf '  %-15s: %s\n' "Environment"  "$ENVIRONMENT"
+  printf '  %-15s: %s\n' "OPA Engine"   "server"
+  printf '  %-24s%s\n'   "Severity"     "Effective (post-exception)"
+  printf '  %-24s%s\n'   "CRITICAL"     "$EFFECTIVE_CRITICAL"
+  printf '  %-24s%s\n'   "HIGH"         "$EFFECTIVE_HIGH"
+  printf '  %-24s%s\n'   "MEDIUM"       "$EFFECTIVE_MEDIUM"
+  printf '  %-24s%s\n'   "LOW"          "$EFFECTIVE_LOW"
+  printf '  ──────────────────────────────\n'
+  printf '  %-24s%s\n'   "Total failed"          "$EFFECTIVE_VIOLATIONS"
+  printf '  %-24s%s\n'   "Excepted (suppressed)" "$EXCEPTED_VIOLATIONS"
+  printf '  %-24s%s\n'   "Active exceptions"     "$VALID_EXCEPTIONS"
+  printf '  %-24s%s\n'   "Active exceptions sev" "C:${EXC_SEV_CRITICAL} H:${EXC_SEV_HIGH} M:${EXC_SEV_MEDIUM} L:${EXC_SEV_LOW} I:${EXC_SEV_INFO}"
+  printf '  ──────────────────────────────\n'
 } >&2
 
 {

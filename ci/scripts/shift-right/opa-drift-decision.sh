@@ -272,40 +272,29 @@ if [[ "$L2_COUNT" -gt 0 || "$L3_COUNT" -gt 0 ]]; then
   OPA_DRIFT_REQUIRES_TICKET=true
 fi
 
-# ── OPA Policy Decision Table ──────────────────────────────────────────────────
+# ── Decision Report ──────────────────────────────────────────────────────────
+EXC_SEV_CRITICAL="$(jq '[.cloudsentinel.drift_exceptions.exceptions[]? | select((.severity // "") == "CRITICAL")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_HIGH="$(jq '[.cloudsentinel.drift_exceptions.exceptions[]? | select((.severity // "") == "HIGH")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_MEDIUM="$(jq '[.cloudsentinel.drift_exceptions.exceptions[]? | select((.severity // "") == "MEDIUM")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_LOW="$(jq '[.cloudsentinel.drift_exceptions.exceptions[]? | select((.severity // "") == "LOW")] | length' "$EXCEPTIONS_FILE")"
+EXC_SEV_INFO="$(jq '[.cloudsentinel.drift_exceptions.exceptions[]? | select((.severity // "") == "INFO")] | length' "$EXCEPTIONS_FILE")"
 {
-  printf '┌────────────────────────────────────────────────────────────────────────────────┐\n'
-  printf '│ %-78s │\n' "CloudSentinel OPA — Drift Policy Evaluation"
-  printf '│ %-78s │\n' "Mode: ENFORCING  |  Fail-closed: ${FAIL_CLOSED}  |  Env: ${ENVIRONMENT}  |  Branch: ${BRANCH_NAME}"
-  printf '├────────────────────────────────────────────────────────────────────────────────┤\n'
-  if [[ "$OPA_DRIFT_BLOCK" == "true" ]]; then
-    if [[ "$OPA_DRIFT_BLOCK_REASON" == "manual_review_only" ]]; then
-      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — manual-review-only findings"
-    else
-      printf '│ %-78s │\n' "  DECISION: BLOCK  <<< pipeline blocked — actionable violations found"
-    fi
-  else
-    printf '│ %-78s │\n' "  DECISION: ALLOW  — no gate-blocking violations"
-  fi
-  printf '│ %-78s │\n' \
-    "  Deny: ${OPA_DRIFT_DENY}  |  Deny count: ${DENY_COUNT}  |  Raw: ${RAW_VIOLATIONS}  |  Effective: ${EFFECTIVE_VIOLATIONS}  |  Actionable: ${ACTIONABLE_EFFECTIVE_VIOLATIONS}  |  ManualReview: ${MANUAL_REVIEW_VIOLATIONS}"
-  printf '│ %-78s │\n' \
-    "  Severity — CRITICAL: ${EFFECTIVE_CRITICAL}  HIGH: ${EFFECTIVE_HIGH}  MEDIUM: ${EFFECTIVE_MEDIUM}  LOW: ${EFFECTIVE_LOW}  |  Excepted: ${EXCEPTED_VIOLATIONS}"
-  printf '├────────────────────────────┬──────────┬────────────────────────────┬────────────────────────┤\n'
-  printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' "Resource" "Severity" "Action" "Reason"
-  printf '├────────────────────────────┼──────────┼────────────────────────────┼────────────────────────┤\n'
-  if [[ "$INPUT_COUNT" -gt 0 ]]; then
-    while IFS=$'\t' read -r _rid _sev _act _rsn; do
-      printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' \
-        "${_rid:0:26}" "${_sev:0:8}" "${_act:0:26}" "${_rsn:0:22}"
-    done < <(jq -r '
-      ((.result.effective_violations // .result.violations) // [])[] |
-      [.resource_id, (.severity // "?"), (.response_type // .action_required // "?"), (.reason // "?")] | @tsv
-    ' "$DECISION_FILE")
-  else
-    printf '│ %-26s │ %-8s │ %-26s │ %-22s │\n' "  No violations" "" "" ""
-  fi
-  printf '└────────────────────────────┴──────────┴────────────────────────────┴────────────────────────┘\n'
+  printf '══════════════════════════════════════════\n'
+  printf '  Decision Report\n'
+  printf '══════════════════════════════════════════\n'
+  printf '  %-15s: %s\n' "Environment"  "$ENVIRONMENT"
+  printf '  %-15s: %s\n' "OPA Engine"   "server"
+  printf '  %-24s%s\n'   "Severity"     "Effective (post-exception)"
+  printf '  %-24s%s\n'   "CRITICAL"     "$EFFECTIVE_CRITICAL"
+  printf '  %-24s%s\n'   "HIGH"         "$EFFECTIVE_HIGH"
+  printf '  %-24s%s\n'   "MEDIUM"       "$EFFECTIVE_MEDIUM"
+  printf '  %-24s%s\n'   "LOW"          "$EFFECTIVE_LOW"
+  printf '  ──────────────────────────────\n'
+  printf '  %-24s%s\n'   "Total failed"          "$EFFECTIVE_VIOLATIONS"
+  printf '  %-24s%s\n'   "Excepted (suppressed)" "$EXCEPTED_VIOLATIONS"
+  printf '  %-24s%s\n'   "Active exceptions"     "$VALID_EXCEPTIONS"
+  printf '  %-24s%s\n'   "Active exceptions sev" "C:${EXC_SEV_CRITICAL} H:${EXC_SEV_HIGH} M:${EXC_SEV_MEDIUM} L:${EXC_SEV_LOW} I:${EXC_SEV_INFO}"
+  printf '  ──────────────────────────────\n'
 } >&2
 
 {
