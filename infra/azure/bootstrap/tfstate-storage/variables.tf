@@ -8,6 +8,16 @@ variable "tenant_id" {
   type        = string
 }
 
+variable "ci_service_principal_object_ids" {
+  description = <<-EOT
+    Object IDs of Service Principals that need Storage Blob Data Contributor on the
+    state backend (required when shared_access_key_enabled = false).
+    Obtain with: az ad sp show --id <ARM_CLIENT_ID> --query id -o tsv
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "resource_group_name" {
   description = "Resource group hosting the Terraform state storage account."
   type        = string

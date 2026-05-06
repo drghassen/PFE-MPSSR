@@ -129,6 +129,7 @@ test_exception_removes_effective_violation if {
           "requested_by": "alice",
           "approved_by": "bob",
           "approved_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
           "environments": ["production"],
         }
       ],

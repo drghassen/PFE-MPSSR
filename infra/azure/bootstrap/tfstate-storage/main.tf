@@ -191,6 +191,21 @@ resource "azurerm_storage_account" "tfstate" {
 }
 
 # ---------------------------------------------------------------------------
+# Storage Blob Data Contributor — CI Service Principals
+#
+# Required when shared_access_key_enabled = false (AAD-only mode).
+# Subscription Owner/Contributor is not sufficient for blob data plane operations;
+# this explicit data-plane role is the only path for tofu/terraform state access.
+# ---------------------------------------------------------------------------
+resource "azurerm_role_assignment" "ci_state_contributor" {
+  for_each = toset(var.ci_service_principal_object_ids)
+
+  scope                = azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = each.value
+}
+
+# ---------------------------------------------------------------------------
 # PHASE 1 — Diagnostic logging for state account
 #
 # Captures StorageRead/Write/Delete operations on the blob service.
