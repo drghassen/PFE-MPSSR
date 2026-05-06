@@ -16,3 +16,6 @@ postgres_admin_password = "ChangeMe-Use-Secret-Manager-Not-Git"
 # vm_grant_rg_reader            = false
 # key_vault_grant_app_secrets_user_role = false
 # postgres_sku_name             = "GP_Standard_D2s_v3"
+# enable_nsg_deny_all_policy                  = true
+# nsg_deny_all_policy_assignment_location     = "norwayeast"
+# nsg_deny_all_policy_effect                  = "DeployIfNotExists"

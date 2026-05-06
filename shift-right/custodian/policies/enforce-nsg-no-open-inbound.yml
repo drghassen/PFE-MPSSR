@@ -1,71 +1,52 @@
-vars:
-  violation-tag: &violation-tag cs-violation
-
 policies:
   - name: enforce-nsg-no-open-inbound
     resource: azure.networksecuritygroup
     description: |
       Detects Azure Network Security Groups that contain at least one inbound
-      Allow rule with a wildcard source address (0.0.0.0/0, *, or Internet).
+      Allow rule with a wildcard source address (*, 0.0.0.0/0, Internet, Any).
 
       An open inbound rule on a production NSG exposes VMs and services to the
-      entire internet. This is one of the most common misconfigurations that
+      entire internet.  This is one of the most common misconfigurations that
       leads to breaches.
 
-      The filter uses a JMESPath expression to search the securityRules array
-      for any rule where:
-        direction == Inbound
-        access    == Allow
-        sourceAddressPrefix is one of: *, 0.0.0.0/0, Internet, Any
+      Filter logic:
+        1. NSGs tagged cs-open-inbound-approved=true are excluded — this covers
+           intentional public-facing NSGs such as load balancers and application
+           gateways that legitimately allow inbound traffic from the internet.
+           Tag the NSG in Terraform/IaC to suppress the alert permanently.
+        2. The remaining check uses JMESPath to find at least one inbound Allow
+           rule with a wildcard source prefix.
 
-      Dry-run mode: reports matched NSGs, takes no action.
-      Live mode:    adds explicit deny rules for wildcard inbound sources and
-      tags the NSG with cs-violation=open-inbound-rule.
+      Hybrid operating model (Enterprise):
+        - Cloud Custodian: detection + traceability tag only.
+        - Azure Policy (DeployIfNotExists): enforces DenyAllInbound baseline rule.
+        - Alerting/Ticketing: handled by CloudSentinel OPA + pipeline stages.
 
-      Important — false positive risk:
-        This filter will also match NSGs that have intentional public-facing
-        rules (e.g. a load balancer NSG). Before enabling live remediation,
-        add a tag-based exclusion filter:
-          - not:
-            - type: tagged
-              tag: cs-open-inbound-approved
-              value: "true"
+      Note on effective rules:
+        Only explicitly defined securityRules are evaluated.  Inherited rules
+        from a parent NSG or subnet (effectiveSecurityRules) require a separate
+        Network Watcher query and are out of scope for this policy.
 
-      Remediation model:
-        Custodian "close" action injects deny rules matching wildcard source
-        patterns. This is intentionally conservative and can impact workloads;
-        keep explicit business exceptions in IaC/tags.
+    # ── Filters ───────────────────────────────────────────────────────────────
 
-    # ── Filters ───────────────────────────────────────────────────────────
-    # We filter on the securityRules property using a JMESPath expression.
-    # c7n evaluates the `key` field as a JMESPath path against the full
-    # resource JSON. value_type: size + op: gt + value: 0 means "the
-    # resulting array has at least one element".
-    #
-    # Note: Azure also has "effectiveSecurityRules" which includes inherited
-    # rules from the subnet. This policy only checks explicitly defined rules
-    # on the NSG itself (securityRules), not effective rules. Effective rule
-    # scanning requires a separate network-watcher query and is out of scope.
     filters:
+      # Exclude NSGs explicitly approved for open inbound traffic.
+      # Tag the resource in IaC: cs-open-inbound-approved = "true"
+      - not:
+        - type: value
+          key: "tags.cs-open-inbound-approved"
+          value: "true"
+
+      # Match NSGs with at least one inbound Allow rule using a wildcard source.
       - type: value
         key: "properties.securityRules[?properties.direction=='Inbound' && properties.access=='Allow' && (properties.sourceAddressPrefix=='*' || properties.sourceAddressPrefix=='0.0.0.0/0' || properties.sourceAddressPrefix=='Internet' || properties.sourceAddressPrefix=='Any')]"
         value_type: size
         op: gt
         value: 0
 
+    # ── Actions ───────────────────────────────────────────────────────────────
+
     actions:
       - type: tag
-        tag: *violation-tag
+        tag: cs-violation
         value: open-inbound-rule
-      - type: close
-        direction: Inbound
-        prefix: "*"
-      - type: close
-        direction: Inbound
-        prefix: "0.0.0.0/0"
-      - type: close
-        direction: Inbound
-        prefix: "Internet"
-      - type: close
-        direction: Inbound
-        prefix: "Any"

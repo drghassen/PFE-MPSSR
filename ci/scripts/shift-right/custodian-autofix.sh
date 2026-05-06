@@ -57,10 +57,19 @@ if [[ -z "$CUSTODIAN_DRY_RUN" ]]; then
 fi
 CUSTODIAN_DRY_RUN_EFFECTIVE="$CUSTODIAN_DRY_RUN"
 
+# Enterprise guardrail: runtime auto-remediation is drift-only.
+# Prowler findings can create alerts/tickets but cannot dispatch Custodian.
+if [[ -n "$OPA_PROWLER_CUSTODIAN_POLICIES" ]]; then
+  sr_audit "WARN" "prowler_policies_ignored" \
+    "ignoring prowler custodian policies; auto-remediation scope is drift-only" \
+    "$(sr_build_details \
+      --arg prowler_policies "$OPA_PROWLER_CUSTODIAN_POLICIES" \
+      '{prowler_policies:$prowler_policies, remediation_scope:"DRIFT_ONLY"}')"
+fi
+
 ALL_CUSTODIAN_POLICIES="$(jq -nr \
   --arg drift "$OPA_CUSTODIAN_POLICIES" \
-  --arg prowler "$OPA_PROWLER_CUSTODIAN_POLICIES" \
-  '[($drift|split(",")[]?), ($prowler|split(",")[]?)]
+  '[$drift|split(",")[]?]
    | map(gsub("^\\s+|\\s+$";""))
    | map(select(length > 0))
    | unique
@@ -69,14 +78,14 @@ ALL_CUSTODIAN_POLICIES="$(jq -nr \
 # ── Early exit: nothing to do ──────────────────────────────────────────────
 # If OPA produced no runtime remediation policy names, Custodian has no work to do.
 if [[ -z "$ALL_CUSTODIAN_POLICIES" ]]; then
-  sr_audit "INFO" "skip" "no L3 (auto-remediation) findings - custodian not triggered" \
+  sr_audit "INFO" "skip" "no L3 drift auto-remediation findings - custodian not triggered" \
     "$(sr_build_details \
       --arg  policies      "$OPA_CUSTODIAN_POLICIES" \
       --arg  prowler_policies "$OPA_PROWLER_CUSTODIAN_POLICIES" \
       --arg  correlation_id "$OPA_CORRELATION_ID" \
       --argjson l3_drift "$OPA_DRIFT_L3_COUNT" \
       --argjson l3_prowler "$OPA_PROWLER_L3_COUNT" \
-      '{policies:$policies, prowler_policies:$prowler_policies, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3", remediation_scope:"L3_AUTO_REMEDIATION_ONLY", correlation_id:$correlation_id}')"
+      '{policies:$policies, prowler_policies:$prowler_policies, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3", remediation_scope:"L3_DRIFT_ONLY", correlation_id:$correlation_id}')"
   exit 0
 fi
 
@@ -90,12 +99,23 @@ fi
 : "${AZURE_CLIENT_SECRET:=${ARM_CLIENT_SECRET:-}}"
 : "${AZURE_SUBSCRIPTION_ID:=${ARM_SUBSCRIPTION_ID:-}}"
 
-export AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SUBSCRIPTION_ID
-
-# Only require credentials when we are actually going to execute Custodian.
-# In a pure "no-op skip" branch above we already exited, so reaching here
-# means at least one policy will be attempted.
-sr_require_env AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SUBSCRIPTION_ID
+if [[ -n "${AZURE_TENANT_ID}" && -n "${AZURE_CLIENT_ID}" && -n "${AZURE_CLIENT_SECRET}" && -n "${AZURE_SUBSCRIPTION_ID}" ]]; then
+  export AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SUBSCRIPTION_ID
+  sr_audit "INFO" "auth_mode" "using service principal environment credentials for custodian" \
+    "$(sr_build_details '{auth_mode:"service_principal_env"}')"
+else
+  # Fallback: use Azure CLI cached context for local/interactive runs.
+  # This keeps CI behavior strict (CI normally provides ARM_*), while enabling
+  # real local validation without rotating SP secrets.
+  if command -v az >/dev/null 2>&1 && az account show >/dev/null 2>&1; then
+    unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SUBSCRIPTION_ID
+    sr_audit "WARN" "auth_mode_fallback" "service principal env vars missing; falling back to Azure CLI authentication" \
+      "$(sr_build_details '{auth_mode:"azure_cli"}')"
+  else
+    sr_fail "missing SP credentials and Azure CLI context unavailable for fallback auth" 1 \
+      "$(sr_build_details '{expected_env:["AZURE_TENANT_ID","AZURE_CLIENT_ID","AZURE_CLIENT_SECRET","AZURE_SUBSCRIPTION_ID"],fallback:"azure_cli"}')"
+  fi
+fi
 
 sr_require_command custodian jq
 
@@ -111,7 +131,7 @@ sr_audit "INFO" "execution_start" "custodian autofix starting" \
       remediation_mode:        $remediation_mode,
       custodian_policies_dir:  $custodian_policies_dir,
       opa_policies:            $opa_policies,
-      remediation_scope:       "RUNTIME_CANDIDATES_ONLY",
+      remediation_scope:       "L3_DRIFT_ONLY",
       correlation_id:          $correlation_id
     }')"
 

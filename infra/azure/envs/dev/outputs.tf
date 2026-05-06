@@ -47,3 +47,13 @@ output "bastion_public_ip" {
   description = "Bastion public IP (only public entrypoint)."
   value       = module.bastion.public_ip
 }
+
+output "nsg_deny_all_policy_definition_id" {
+  description = "Custom Azure Policy definition ID enforcing NSG DenyAllInbound baseline."
+  value       = try(azurerm_policy_definition.nsg_deny_all_inbound_baseline[0].id, null)
+}
+
+output "nsg_deny_all_policy_assignment_id" {
+  description = "Azure Policy assignment ID for NSG DenyAllInbound baseline."
+  value       = try(azurerm_resource_group_policy_assignment.nsg_deny_all_inbound_baseline[0].id, null)
+}

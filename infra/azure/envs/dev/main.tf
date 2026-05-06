@@ -18,10 +18,14 @@ locals {
     bastion        = "bas-${var.name_prefix}-${var.environment}"
     key_vault      = "kv-${var.name_prefix}-${var.environment}"
     postgres       = "pg-${var.name_prefix}-${var.environment}"
-    backup_vault    = "rsv-${var.name_prefix}-${var.environment}"
+    backup_vault   = "rsv-${var.name_prefix}-${var.environment}"
     # Azure Compute Gallery names: only alphanumeric, dots, underscores (no hyphens).
     compute_gallery = "acg.${var.name_prefix}.${var.environment}"
   }
+
+  # Built-in role: Network Contributor
+  # Required by DeployIfNotExists remediation identity to create NSG security rules.
+  network_contributor_role_definition_id = "/subscriptions/${var.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/4d97b98b-1d4f-4787-a291-c67834d212e7"
 }
 
 module "resource_group" {
@@ -186,4 +190,154 @@ module "network_watcher" {
   tags                               = local.tags
 
   depends_on = [module.monitoring]
+}
+
+resource "azurerm_policy_definition" "nsg_deny_all_inbound_baseline" {
+  count = var.enable_nsg_deny_all_policy ? 1 : 0
+
+  name         = "cs-${var.name_prefix}-${var.environment}-nsg-denyall-dine"
+  policy_type  = "Custom"
+  mode         = "Indexed"
+  display_name = "CloudSentinel - Enforce NSG DenyAllInbound baseline"
+  description  = "DeployIfNotExists baseline that ensures a DenyAllInbound rule exists on Network Security Groups, except explicitly approved public-facing NSGs."
+
+  metadata = jsonencode({
+    category = "CloudSentinel"
+    version  = "1.0.0"
+    owner    = "cloudsentinel"
+  })
+
+  parameters = jsonencode({
+    effect = {
+      type         = "String"
+      defaultValue = var.nsg_deny_all_policy_effect
+      allowedValues = [
+        "DeployIfNotExists",
+        "Disabled"
+      ]
+      metadata = {
+        displayName = "Effect"
+        description = "Enable DeployIfNotExists enforcement or disable for break-glass."
+      }
+    }
+    excludedTagName = {
+      type         = "String"
+      defaultValue = "cs-open-inbound-approved"
+      metadata = {
+        displayName = "Exclusion tag name"
+        description = "NSGs with this tag are excluded when its value matches excludedTagValue."
+      }
+    }
+    excludedTagValue = {
+      type         = "String"
+      defaultValue = "true"
+      metadata = {
+        displayName = "Exclusion tag value"
+        description = "Tag value used to exclude intentional public-facing NSGs."
+      }
+    }
+  })
+
+  policy_rule = jsonencode({
+    if = {
+      allOf = [
+        {
+          field  = "type"
+          equals = "Microsoft.Network/networkSecurityGroups"
+        },
+        {
+          not = {
+            field  = "[concat('tags[', parameters('excludedTagName'), ']')]"
+            equals = "[parameters('excludedTagValue')]"
+          }
+        }
+      ]
+    }
+    then = {
+      effect = "[parameters('effect')]"
+      details = {
+        type = "Microsoft.Network/networkSecurityGroups/securityRules"
+        name = "[concat(field('name'), '/DenyAllInbound')]"
+        roleDefinitionIds = [
+          local.network_contributor_role_definition_id
+        ]
+        existenceCondition = {
+          allOf = [
+            {
+              field  = "Microsoft.Network/networkSecurityGroups/securityRules/access"
+              equals = "Deny"
+            },
+            {
+              field  = "Microsoft.Network/networkSecurityGroups/securityRules/direction"
+              equals = "Inbound"
+            },
+            {
+              field  = "Microsoft.Network/networkSecurityGroups/securityRules/sourceAddressPrefix"
+              equals = "*"
+            }
+          ]
+        }
+        deployment = {
+          properties = {
+            mode = "incremental"
+            template = {
+              "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+              contentVersion = "1.0.0.0"
+              parameters = {
+                nsgName = {
+                  type = "string"
+                }
+              }
+              resources = [
+                {
+                  type       = "Microsoft.Network/networkSecurityGroups/securityRules"
+                  apiVersion = "2023-09-01"
+                  name       = "[concat(parameters('nsgName'), '/DenyAllInbound')]"
+                  properties = {
+                    description              = "CloudSentinel baseline deny-all inbound (policy-managed)"
+                    priority                 = 4096
+                    access                   = "Deny"
+                    direction                = "Inbound"
+                    protocol                 = "*"
+                    sourcePortRange          = "*"
+                    destinationPortRange     = "*"
+                    sourceAddressPrefix      = "*"
+                    destinationAddressPrefix = "*"
+                  }
+                }
+              ]
+            }
+            parameters = {
+              nsgName = {
+                value = "[field('name')]"
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
+resource "azurerm_resource_group_policy_assignment" "nsg_deny_all_inbound_baseline" {
+  count = var.enable_nsg_deny_all_policy ? 1 : 0
+
+  name                 = "cs-${var.environment}-nsg-denyall-baseline"
+  resource_group_id    = module.resource_group.id
+  policy_definition_id = azurerm_policy_definition.nsg_deny_all_inbound_baseline[0].id
+  display_name         = "CloudSentinel - NSG DenyAllInbound baseline"
+  description          = "Assignment for DeployIfNotExists NSG fail-closed baseline."
+  location             = var.nsg_deny_all_policy_assignment_location
+
+  identity {
+    type = "SystemAssigned"
+  }
+}
+
+resource "azurerm_role_assignment" "nsg_deny_all_policy_identity_network_contributor" {
+  count = var.enable_nsg_deny_all_policy ? 1 : 0
+
+  scope              = module.resource_group.id
+  role_definition_id = local.network_contributor_role_definition_id
+  principal_id       = azurerm_resource_group_policy_assignment.nsg_deny_all_inbound_baseline[0].identity[0].principal_id
 }

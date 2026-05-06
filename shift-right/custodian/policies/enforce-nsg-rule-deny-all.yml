@@ -1,0 +1,47 @@
+policies:
+  - name: enforce-nsg-rule-deny-all
+    resource: azure.networksecuritygroup
+    description: |
+      Detects Azure Network Security Groups that are missing a baseline
+      deny-all inbound rule.
+
+      Context:
+        When Terraform drift is detected on an azurerm_network_security_rule
+        resource (the standalone rule object, distinct from inline rules on the
+        NSG), it means a security rule was added or mutated outside of IaC.
+        The fail-closed baseline is to ensure a DenyAll inbound rule exists at
+        priority 4096 on the NSG.
+
+      Filter logic:
+        Match NSGs where no inbound Deny rule with a wildcard source already
+        exists.  NSGs tagged cs-open-inbound-approved=true are excluded
+        (intentional public-facing NSGs, e.g. load balancers).
+
+      Hybrid operating model (Enterprise):
+        - Cloud Custodian: detection + traceability tag only.
+        - Azure Policy (DeployIfNotExists): deploys DenyAllInbound baseline.
+        - CloudSentinel pipeline: evidence + ticketing + governance.
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+
+    filters:
+      # Skip NSGs explicitly approved for open inbound (e.g. load balancers).
+      - not:
+        - type: value
+          key: "tags.cs-open-inbound-approved"
+          value: "true"
+
+      # Target NSGs that have NO inbound Deny rule with a wildcard source.
+      # Such NSGs are missing the fail-closed baseline required by Azure Policy.
+      - type: value
+        key: "properties.securityRules[?properties.direction=='Inbound' && properties.access=='Deny' && (properties.sourceAddressPrefix=='*' || properties.sourceAddressPrefix=='0.0.0.0/0')]"
+        op: eq
+        value: 0
+        value_type: size
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+
+    actions:
+      - type: tag
+        tag: cs-violation
+        value: missing-deny-all-rule

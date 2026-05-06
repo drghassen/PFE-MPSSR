@@ -64,8 +64,8 @@ SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // now | tostring | .[0:10]' "$RE
 RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 
-EFFECTIVE_DECISION_MAP="$(jq '
-  (.result.effective_violations // .result.violations // [])
+ALL_DECISION_MAP="$(jq '
+  (.result.violations // [])
   | map(select(.check_id != null and .resource_id != null and .check_id != "" and .resource_id != ""))
   | map({ key: (.check_id + "|" + .resource_id + "|" + ((.resource_type // "unknown") | ascii_downcase)), value: . })
   | from_entries
@@ -103,7 +103,7 @@ jq -c \
   --arg scan_date "$SCAN_DATE" \
   --arg run_id "$RUN_ID" \
   --arg correlation_id "$CORRELATION_ID" \
-  --argjson effective_decisions "$EFFECTIVE_DECISION_MAP" \
+  --argjson all_decisions "$ALL_DECISION_MAP" \
   --argjson effective_map "$EFFECTIVE_MAP" \
   '
   def normalize_severity($s):
@@ -119,8 +119,13 @@ jq -c \
     findings: [
       (.prowler.items // [])[] as $item |
       (($item.check_id // "") + "|" + ($item.resource_id // "") + "|" + (($item.resource_type // "unknown") | ascii_downcase)) as $k |
-      select($effective_map[$k]) |
-      ($effective_decisions[$k] // error("missing_opa_effective_violation:" + $k)) as $decision |
+      ($all_decisions[$k] // {
+        severity: "Info",
+        response_type: "unknown",
+        requires_remediation: false,
+        reason: "no_opa_decision_available"
+      }) as $decision |
+      (($effective_map[$k] // false) | not) as $is_excepted |
       {
         title: ("Prowler finding: " + (($item.check_id // "unknown") | tostring)),
         vuln_id_from_tool: ("prowler_check:" + (($item.check_id // "unknown") | tostring)),
@@ -140,7 +145,8 @@ jq -c \
           + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
           + "- OPA response_type: " + (($decision.response_type // $decision.action_required // "unknown") | tostring) + "\n"
           + "- OPA requires_remediation: " + (($decision.requires_remediation // false) | tostring) + "\n"
-          + "- OPA effective: true\n"
+          + "- OPA effective: " + (($is_excepted | not) | tostring) + "\n"
+          + "- OPA excepted [Risk Acceptance active]: " + ($is_excepted | tostring) + "\n"
           + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Apply cloud hardening control or approved exception.",
         references: ("CloudSentinel Prowler Report run_id=" + $run_id + " correlation_id=" + $correlation_id)
@@ -151,19 +157,16 @@ jq -c \
 
 sr_require_json "$GENERIC_FINDINGS_FILE" 'type == "object" and (.findings | type == "array")' "prowler generic findings"
 GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 'prowler generic findings')"
-sr_assert_eq "$GENERATED_COUNT" "$OPA_EFFECTIVE_VIOLATIONS" "prowler upload effective findings count mismatch with OPA decision"
-sr_assert_positive_if_expected "$OPA_EFFECTIVE_VIOLATIONS" "$GENERATED_COUNT" "prowler upload generated zero effective findings from non-empty effective OPA input"
+sr_assert_eq "$GENERATED_COUNT" "$OPA_RAW_VIOLATIONS" "upload findings count mismatch with OPA raw violations"
+sr_assert_positive_if_expected "$OPA_RAW_VIOLATIONS" "$GENERATED_COUNT" "upload generated zero findings"
 
-# Skip the upload entirely when there are no effective violations.
+# Skip the upload entirely when there are no raw violations.
 #
-# Prowler findings covered by active Risk Acceptances are excluded from
-# GENERATED_COUNT (OPA filters them as excepted).  Uploading an empty findings
-# file with close_old_findings=true would instruct DefectDojo to close every
-# existing finding for this test, which silently destroys the Risk Acceptances
-# attached to those findings — even when they have not expired.
-# A run where every finding is excepted has nothing new to report; the existing
-# findings and their RAs must remain intact until they naturally expire or are
-# revoked.
+# Uploading an empty findings file with close_old_findings=true would instruct
+# DefectDojo to close every existing finding for this test, which silently
+# destroys the Risk Acceptances attached to those findings — even when they have
+# not expired.  A clean scan has nothing to report; existing findings and their
+# RAs must remain intact until they naturally expire or are revoked.
 if [[ "$GENERATED_COUNT" -eq 0 ]]; then
   sr_audit "INFO" "stage_skip" \
     "no effective prowler violations; skipping DefectDojo upload to preserve active risk acceptances" \

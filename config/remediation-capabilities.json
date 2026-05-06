@@ -8,7 +8,9 @@
       "verification_script": "verify_nsg_no_open_inbound.sh"
     },
     "enforce-nsg-rule-deny-all": {
-      "remediation_supported": false
+      "remediation_supported": true,
+      "custodian_policy": "enforce-nsg-rule-deny-all",
+      "verification_script": "verify_nsg_deny_all.sh"
     },
     "enforce-vm-no-password-auth": {
       "remediation_supported": false
@@ -26,25 +28,31 @@
       "custodian_policy": "enforce-storage-tls",
       "verification_script": "verify_encryption_enabled.sh"
     },
-    "prowler:storage_default_network_access_rule_is_denied": {
+    "enforce-storage-container-private": {
       "remediation_supported": true,
-      "custodian_policy": "deny-public-storage",
+      "custodian_policy": "enforce-storage-container-private",
       "verification_script": "verify_storage_private.sh"
     },
+    "prowler:storage_default_network_access_rule_is_denied": {
+      "remediation_supported": false
+    },
+    "prowler:storage_blob_public_access_level_is_disabled": {
+      "remediation_supported": false
+    },
+    "prowler:storage_container_public_access_level_is_disabled": {
+      "remediation_supported": false
+    },
+    "prowler:storage_container_public_access_level_is_private": {
+      "remediation_supported": false
+    },
     "prowler:network_security_group_unrestricted_inbound_access_ssh": {
-      "remediation_supported": true,
-      "custodian_policy": "enforce-nsg-no-open-inbound",
-      "verification_script": "verify_nsg_no_open_inbound.sh"
+      "remediation_supported": false
     },
     "prowler:network_security_group_unrestricted_inbound_access_rdp": {
-      "remediation_supported": true,
-      "custodian_policy": "enforce-nsg-no-open-inbound",
-      "verification_script": "verify_nsg_no_open_inbound.sh"
+      "remediation_supported": false
     },
     "prowler:network_security_group_unrestricted_inbound_access": {
-      "remediation_supported": true,
-      "custodian_policy": "enforce-nsg-no-open-inbound",
-      "verification_script": "verify_nsg_no_open_inbound.sh"
+      "remediation_supported": false
     },
     "CKV_AWS_21": {
       "remediation_supported": false

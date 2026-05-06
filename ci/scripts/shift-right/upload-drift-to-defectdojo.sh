@@ -56,8 +56,8 @@ sr_assert_eq "$OPA_RAW_VIOLATIONS" "$DRIFT_COUNT" "drift upload input mismatch b
 SCAN_DATE="$(jq -r '.cloudsentinel.finished_at // .ocsf.time | tostring | .[0:10]' "$REPORT_PATH")"
 RUN_ID="$(jq -r '.cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
 CORRELATION_ID="$(jq -r '.cloudsentinel.correlation_id // .cloudsentinel.run_id // "unknown"' "$REPORT_PATH")"
-EFFECTIVE_DECISION_MAP="$(jq '
-  (.result.effective_violations // .result.violations // [])
+ALL_DECISION_MAP="$(jq '
+  (.result.violations // [])
   | map(select(.resource_id != null and .resource_id != ""))
   | map({ key: .resource_id, value: . })
   | from_entries
@@ -92,7 +92,7 @@ jq -c \
   --arg scan_date "$SCAN_DATE" \
   --arg run_id "$RUN_ID" \
   --arg correlation_id "$CORRELATION_ID" \
-  --argjson effective_decisions "$EFFECTIVE_DECISION_MAP" \
+  --argjson all_decisions "$ALL_DECISION_MAP" \
   --argjson effective_map "$EFFECTIVE_MAP" \
   '
   def normalize_severity($s):
@@ -106,8 +106,13 @@ jq -c \
   {
     findings: [
       (.drift.items // [])[] as $item |
-      select($effective_map[$item.address]) |
-      ($effective_decisions[$item.address] // error("missing_opa_effective_violation:" + ($item.address // "unknown"))) as $decision |
+      ($all_decisions[$item.address] // {
+        severity: "Info",
+        response_type: "unknown",
+        requires_remediation: false,
+        reason: "no_opa_decision_available"
+      }) as $decision |
+      (($effective_map[$item.address] // false) | not) as $is_excepted |
       {
         title: ("Terraform drift detected: " + (($item.address // "unknown") | tostring)),
         vuln_id_from_tool: ("drift_type:" + (($item.type // "unknown") | tostring)),
@@ -127,7 +132,8 @@ jq -c \
           + "- OPA severity: " + (($decision.severity // "UNKNOWN") | tostring) + "\n"
           + "- OPA response_type: " + (($decision.response_type // $decision.action_required // "unknown") | tostring) + "\n"
           + "- OPA requires_remediation: " + (($decision.requires_remediation // false) | tostring) + "\n"
-          + "- OPA effective: true\n"
+          + "- OPA effective: " + (($is_excepted | not) | tostring) + "\n"
+          + "- OPA excepted [Risk Acceptance active]: " + ($is_excepted | tostring) + "\n"
           + "- OPA reason: " + (($decision.reason // "") | tostring)),
         mitigation: "Reconcile Terraform state and cloud state or apply approved exception.",
         references: ("CloudSentinel Drift Report run_id=" + $run_id + " correlation_id=" + $correlation_id)
@@ -137,10 +143,10 @@ jq -c \
 
 sr_require_json "$GENERIC_FINDINGS_FILE" 'type == "object" and (.findings | type == "array")' "drift generic findings"
 GENERATED_COUNT="$(sr_json_number "$GENERIC_FINDINGS_FILE" '.findings | length' 'drift generic findings')"
-sr_assert_eq "$GENERATED_COUNT" "$OPA_EFFECTIVE_VIOLATIONS" "drift upload effective findings count mismatch with OPA decision"
-sr_assert_positive_if_expected "$OPA_EFFECTIVE_VIOLATIONS" "$GENERATED_COUNT" "drift upload generated zero effective findings from non-empty effective OPA input"
+sr_assert_eq "$GENERATED_COUNT" "$OPA_RAW_VIOLATIONS" "upload findings count mismatch with OPA raw violations"
+sr_assert_positive_if_expected "$OPA_RAW_VIOLATIONS" "$GENERATED_COUNT" "upload generated zero findings"
 
-# Skip the upload entirely when there are no effective violations.
+# Skip the upload entirely when there are no raw violations.
 #
 # Sending an empty findings file to DefectDojo with close_old_findings=true would
 # instruct it to close every finding from the previous run, which silently destroys

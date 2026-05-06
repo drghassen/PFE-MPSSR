@@ -38,6 +38,9 @@ policies:
       - type: tag
         tag: *violation-tag
         value: public-blob-access-enabled
+      - type: tag
+        tag: cs-remediation
+        value: autofix-custodian
       - type: set-firewall-rules
         default-action: Deny
         bypass-rules:

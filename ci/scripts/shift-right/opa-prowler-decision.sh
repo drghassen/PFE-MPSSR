@@ -246,6 +246,22 @@ sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "OPA
 sr_assert_int_ge "$EFFECTIVE_VIOLATIONS" "$MANUAL_REVIEW_VIOLATIONS" "OPA prowler manual-review violations exceed effective violations"
 sr_assert_int_ge "$ACTIONABLE_EFFECTIVE_VIOLATIONS" "$NON_REMEDIABLE_ACTIONABLE_VIOLATIONS" "OPA prowler non-remediable actionable violations exceed actionable violations"
 
+# Enterprise guardrail: auto-remediation is drift-only.
+# Any prowler runtime remediation output is force-neutralized before gate/env export.
+if [[ "$AUTO_REMEDIATION_CANDIDATES" -gt 0 || "$L3_COUNT" -gt 0 || -n "$OPA_PROWLER_CUSTODIAN_POLICIES" ]]; then
+  sr_audit "WARN" "auto_remediation_disabled_for_prowler" \
+    "neutralizing prowler runtime remediation candidates; policy scope is ticket+notify only" \
+    "$(sr_build_details \
+      --argjson auto_remediation_candidates "$AUTO_REMEDIATION_CANDIDATES" \
+      --argjson l3_count "$L3_COUNT" \
+      --arg custodian_policies "$OPA_PROWLER_CUSTODIAN_POLICIES" \
+      '{auto_remediation_candidates:$auto_remediation_candidates, l3_count:$l3_count, custodian_policies:$custodian_policies, remediation_scope:"DRIFT_ONLY"}')"
+fi
+
+AUTO_REMEDIATION_CANDIDATES=0
+L3_COUNT=0
+OPA_PROWLER_CUSTODIAN_POLICIES=""
+
 OPA_PROWLER_BLOCK=false
 OPA_PROWLER_DENY=false
 OPA_PROWLER_BLOCK_REASON="$BLOCK_REASON"
@@ -369,7 +385,7 @@ EXC_SEV_INFO="$(jq '[.cloudsentinel.prowler_exceptions.exceptions[]? | select((.
   echo "OPA_PROWLER_MEDIUM_COUNT=${EFFECTIVE_MEDIUM}"
   echo "OPA_PROWLER_LOW_COUNT=${EFFECTIVE_LOW}"
   echo "OPA_PROWLER_REQUIRES_EMERGENCY_ALERT=$([ "$EFFECTIVE_CRITICAL" -gt 0 ] && echo true || echo false)"
-  echo "OPA_PROWLER_REMEDIATION_SCOPE=RUNTIME_CANDIDATES_ONLY"
+  echo "OPA_PROWLER_REMEDIATION_SCOPE=DISABLED_DRIFT_ONLY_MODEL"
 } > "$ENV_FILE"
 
 sr_audit "INFO" "stage_complete" "OPA prowler decision completed" "$(sr_build_details \

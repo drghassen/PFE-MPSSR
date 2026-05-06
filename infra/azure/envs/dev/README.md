@@ -8,6 +8,7 @@ This environment deploys a modular, private-by-default Azure enclave aligned wit
 - Azure Database for PostgreSQL Flexible Server in delegated private subnet
 - Azure Bastion as the only public administration entrypoint
 - Log Analytics diagnostics for auditability and governance
+- Azure Policy DeployIfNotExists baseline for NSG `DenyAllInbound` (hybrid guardrail with Custodian)
 
 ## Prerequisites
 
@@ -36,3 +37,6 @@ terraform apply -var-file=terraform.tfvars
 - Keep `terraform.tfvars` out of Git.
 - Prefer injecting `postgres_admin_password` from CI secret store.
 - Bastion public IP is expected; application/data plane resources remain private.
+- NSG runtime drift is governed by a hybrid model:
+  - Cloud Custodian tags/alerts runtime violations.
+  - Azure Policy enforces the baseline `DenyAllInbound` rule idempotently.

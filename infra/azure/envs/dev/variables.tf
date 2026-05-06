@@ -200,3 +200,30 @@ variable "traffic_analytics_interval_minutes" {
   type        = number
   default     = 10
 }
+
+# ---------------------------------------------------------------------------
+# Azure Policy guardrail (Enterprise hybrid remediation model)
+# ---------------------------------------------------------------------------
+
+variable "enable_nsg_deny_all_policy" {
+  description = "Enable custom Azure Policy DeployIfNotExists to enforce NSG DenyAllInbound baseline."
+  type        = bool
+  default     = true
+}
+
+variable "nsg_deny_all_policy_assignment_location" {
+  description = "Azure region for the policy assignment managed identity (required when identity is enabled)."
+  type        = string
+  default     = "norwayeast"
+}
+
+variable "nsg_deny_all_policy_effect" {
+  description = "Policy effect for NSG DenyAllInbound baseline (DeployIfNotExists for enforcement, Disabled for break-glass)."
+  type        = string
+  default     = "DeployIfNotExists"
+
+  validation {
+    condition     = contains(["DeployIfNotExists", "Disabled"], var.nsg_deny_all_policy_effect)
+    error_message = "nsg_deny_all_policy_effect must be either DeployIfNotExists or Disabled."
+  }
+}

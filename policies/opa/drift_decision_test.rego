@@ -89,6 +89,18 @@ test_sql_server_password_drift_is_critical if {
 	result.severity == "CRITICAL"
 }
 
+# Storage container public access drift → CRITICAL
+test_storage_container_public_access_drift_is_critical if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_container.public",
+		"type": "azurerm_storage_container",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["container_access_type"],
+		"actions": ["update"],
+	})
+	result.severity == "CRITICAL"
+}
+
 # Key Vault access_policy → HIGH
 test_keyvault_access_policy_drift_is_high if {
 	result := evaluate_drift({
@@ -284,6 +296,28 @@ test_storage_public_blob_has_no_custodian_policy if {
 		"actions": ["update"],
 	})
 	result.custodian_policy == null
+}
+
+# Storage container + public access drift → enforce-storage-container-private
+test_storage_container_public_access_has_custodian_policy if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_container.public",
+		"type": "azurerm_storage_container",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["container_access_type"],
+		"actions": ["update"],
+	}) with input as {
+		"capabilities": {
+			"enforce-storage-container-private": {
+				"remediation_supported": true,
+				"verification_script": "verify_storage_private.sh",
+			}
+		}
+	}
+	result.action_required == "runtime_remediation"
+	result.requires_remediation == true
+	result.custodian_policy == "enforce-storage-container-private"
+	result.verification_script == "verify_storage_private.sh"
 }
 
 # NSG + security_rule → enforce-nsg-no-open-inbound (P1.3)

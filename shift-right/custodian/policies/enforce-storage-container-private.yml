@@ -1,0 +1,19 @@
+policies:
+  - name: enforce-storage-container-private
+    resource: azure.storage-container
+    description: |
+      Detects Azure Blob containers with anonymous public access enabled
+      (Blob or Container) and forces them to private (None).
+
+      This is a 100% native Cloud Custodian remediation path for container-level
+      public exposure without external helper scripts.
+
+    filters:
+      - type: value
+        key: properties.publicAccess
+        op: not-equal
+        value: None
+
+    actions:
+      - type: set-public-access
+        value: None

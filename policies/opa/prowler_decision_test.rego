@@ -39,7 +39,7 @@ test_high_finding_is_actionable_ticket_and_notify if {
   result[0].manual_review_required == false
 }
 
-test_critical_finding_without_capability_is_manual_review if {
+test_critical_finding_without_capability_is_ticket_and_notify if {
   result := violations with input as object.union(base_input, {
     "findings": [
       {
@@ -53,13 +53,13 @@ test_critical_finding_without_capability_is_manual_review if {
   })
 
   count(result) == 1
-  result[0].action_required == "manual_review"
+  result[0].action_required == "ticket_and_notify"
   result[0].requires_remediation == false
-  result[0].manual_review_required == true
+  result[0].manual_review_required == false
   result[0].custodian_policy == null
 }
 
-test_critical_finding_with_capability_is_runtime_remediation if {
+test_critical_finding_with_capability_is_ticket_and_notify if {
   in_data := object.union(base_input, {
     "capabilities": {
       "prowler:storage_default_network_access_rule_is_denied": {
@@ -81,11 +81,40 @@ test_critical_finding_with_capability_is_runtime_remediation if {
 
   result := violations with input as in_data
   count(result) == 1
-  result[0].action_required == "runtime_remediation"
-  result[0].requires_remediation == true
+  result[0].action_required == "ticket_and_notify"
+  result[0].requires_remediation == false
   result[0].manual_review_required == false
-  result[0].custodian_policy == "deny-public-storage"
-  result[0].verification_script == "verify_storage_private.sh"
+  result[0].custodian_policy == null
+  result[0].verification_script == ""
+}
+
+test_critical_container_public_check_with_capability_is_ticket_and_notify if {
+  in_data := object.union(base_input, {
+    "capabilities": {
+      "prowler:storage_container_public_access_level_is_disabled": {
+        "remediation_supported": true,
+        "custodian_policy": "enforce-storage-container-private",
+        "verification_script": "verify_storage_private.sh",
+      }
+    },
+    "findings": [
+      {
+        "check_id": "storage_container_public_access_level_is_disabled",
+        "resource_id": "/subscriptions/abc/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa/blobServices/default/containers/public",
+        "resource_type": "microsoft.storage/storageaccounts/blobservices/containers",
+        "severity": "CRITICAL",
+        "status_code": "FAIL",
+      }
+    ],
+  })
+
+  result := violations with input as in_data
+  count(result) == 1
+  result[0].action_required == "ticket_and_notify"
+  result[0].requires_remediation == false
+  result[0].manual_review_required == false
+  result[0].custodian_policy == null
+  result[0].verification_script == ""
 }
 
 test_missing_required_fields_falls_back_to_manual_review if {

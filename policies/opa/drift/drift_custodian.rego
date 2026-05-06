@@ -20,4 +20,7 @@ get_custodian_policy(finding) := "enforce-nsg-no-open-inbound" if {
 } else := "enforce-sql-password-rotation" if {
 	object.get(finding, "type", "") == "azurerm_sql_server"
 	"administrator_login_password" in object.get(finding, "changed_paths", [])
+} else := "enforce-storage-container-private" if {
+	object.get(finding, "type", "") == "azurerm_storage_container"
+	"container_access_type" in object.get(finding, "changed_paths", [])
 } else := null

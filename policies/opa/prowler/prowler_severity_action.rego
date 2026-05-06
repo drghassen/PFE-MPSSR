@@ -18,13 +18,15 @@ normalize_severity(value) := "CRITICAL" if {
 	upper(value) == "INFO"
 } else := "LOW"
 
-# Runtime posture routing semantics:
-# - CRITICAL -> runtime_remediation
+# Runtime posture routing semantics (enterprise guardrail):
+# - CRITICAL -> ticket_and_notify
 # - HIGH     -> ticket_and_notify
 # - MEDIUM   -> ticket_and_notify
 # - LOW      -> notify
 # - INFO     -> none
-determine_action(severity) := "runtime_remediation" if {
+#
+# Auto-remediation is restricted to Drift Engine findings only.
+determine_action(severity) := "ticket_and_notify" if {
 	severity == "CRITICAL"
 } else := "ticket_and_notify" if {
 	severity == "HIGH"

@@ -107,38 +107,31 @@ collect_candidates() {
     '
       def effective($doc): ($doc.result.effective_violations // $doc.result.violations // []);
 
-      (
-        [effective($drift[0])[] | select((.requires_remediation // false) == true)
-          | {
-              source: "drift",
-              finding_id: ("drift:" + (.resource_id // "unknown") + ":" + (.custodian_policy // "none")),
-              resource_id: (.resource_id // "unknown"),
-              severity: (.severity // "LOW"),
-              policy: (.custodian_policy // ""),
-              verification_script: (.verification_script // ""),
-              correlation_id: (.correlation_id // "unknown")
-            }
-        ]
-        +
-        [effective($prowler[0])[] | select((.requires_remediation // false) == true)
-          | {
-              source: "prowler",
-              finding_id: ("prowler:" + (.check_id // "unknown") + ":" + (.resource_id // "unknown")),
-              resource_id: (.resource_id // "unknown"),
-              severity: (.severity // "LOW"),
-              policy: (.custodian_policy // ""),
-              verification_script: (.verification_script // ""),
-              correlation_id: (.correlation_id // "unknown")
-            }
-        ]
-      )
+      [effective($drift[0])[] | select((.requires_remediation // false) == true)
+        | {
+            source: "drift",
+            finding_id: ("drift:" + (.resource_id // "unknown") + ":" + (.custodian_policy // "none")),
+            resource_id: (.resource_id // "unknown"),
+            severity: (.severity // "LOW"),
+            policy: (.custodian_policy // ""),
+            verification_script: (.verification_script // ""),
+            correlation_id: (.correlation_id // "unknown")
+          }
+      ]
     '
 }
 
 CANDIDATES_JSON="$(collect_candidates)"
 CANDIDATE_COUNT="$(jq -r 'length' <<< "$CANDIDATES_JSON")"
+PROWLER_RUNTIME_REQUESTED="$(jq -r '[((.result.effective_violations // .result.violations // [])[]) | select((.requires_remediation // false) == true)] | length' "$PROWLER_DECISION_FILE")"
 
-if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" && "$OPA_PROWLER_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
+if [[ "$PROWLER_RUNTIME_REQUESTED" -gt 0 ]]; then
+  sr_audit "WARN" "prowler_runtime_ignored" \
+    "prowler runtime remediation candidates ignored; verification scope is drift-only" \
+    "$(sr_build_details --argjson prowler_runtime_requested "$PROWLER_RUNTIME_REQUESTED" '{prowler_runtime_requested:$prowler_runtime_requested, remediation_scope:"L3_DRIFT_ONLY"}')"
+fi
+
+if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
   REMEDIATION_FAILED_STATE="false"
   REMEDIATION_SKIP_REASON_STATE="no_auto_remediation_required"
   write_verify_env_file
@@ -149,7 +142,7 @@ if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" && "$OPA_PROWLER_REQUIRES_AUTO_
     --argjson candidates "$CANDIDATE_COUNT" \
     --argjson l3_drift "$OPA_DRIFT_L3_COUNT" \
     --argjson l3_prowler "$OPA_PROWLER_L3_COUNT" \
-    '{candidates:$candidates, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3"}')"
+    '{candidates:$candidates, l3_drift:$l3_drift, l3_prowler:$l3_prowler, remediation_model:"L0-L3", remediation_scope:"L3_DRIFT_ONLY"}')"
   exit 0
 fi
 
@@ -214,14 +207,7 @@ while IFS= read -r candidate; do
     continue
   fi
 
-  if [[ -z "$verification_script" || "$verification_script" == "null" ]]; then
-    _emit_runtime_state "$finding_id" "$policy" "$severity" "FAILED" true false "$resource_id" "$correlation_id" "missing_verification_script"
-    failed_count=$((failed_count + 1))
-    continue
-  fi
-
-  if verification/run_verification.sh \
-      --script "$verification_script" \
+  if bash verification/run_verification.sh \
       --resource-id "$resource_id" \
       --finding-id "$finding_id" \
       --policy "$policy" \
