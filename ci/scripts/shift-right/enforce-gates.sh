@@ -65,6 +65,7 @@ else
 fi
 
 REMEDIATION_FAILED="$(_env_key "$REMEDIATION_ENV_FILE" "REMEDIATION_FAILED" "false")"
+REMEDIATION_UNVERIFIABLE="$(_env_key "$REMEDIATION_ENV_FILE" "REMEDIATION_UNVERIFIABLE" "false")"
 RECONCILIATION_TICKET_CREATED="$(_env_key "$RECONCILIATION_ENV_FILE" "RECONCILIATION_TICKET_CREATED" "false")"
 RECONCILIATION_TICKET_REQUIRED="$(_env_key "$RECONCILIATION_ENV_FILE" "RECONCILIATION_TICKET_REQUIRED" "false")"
 
@@ -100,9 +101,10 @@ sr_audit "INFO" "stage_start" "evaluating final shift-right enforcement gates" "
   --arg custodian_executed "$CUSTODIAN_EXECUTED" \
   --arg custodian_dry_run "$CUSTODIAN_DRY_RUN" \
   --arg remediation_failed "$REMEDIATION_FAILED" \
+  --arg remediation_unverifiable "$REMEDIATION_UNVERIFIABLE" \
   --arg reconciliation_ticket_created "$RECONCILIATION_TICKET_CREATED" \
   --arg reconciliation_ticket_required "$RECONCILIATION_TICKET_REQUIRED" \
-  '{opa_drift_deny:($opa_drift_deny=="true"), opa_prowler_deny:($opa_prowler_deny=="true"), total_l0:$total_l0, total_l1:$total_l1, total_l2:$total_l2, total_l3:$total_l3, custodian_executed:($custodian_executed=="true"), custodian_dry_run:($custodian_dry_run=="true"), remediation_failed:($remediation_failed=="true"), reconciliation_ticket_created:($reconciliation_ticket_created=="true"), reconciliation_ticket_required:($reconciliation_ticket_required=="true")}')"
+  '{opa_drift_deny:($opa_drift_deny=="true"), opa_prowler_deny:($opa_prowler_deny=="true"), total_l0:$total_l0, total_l1:$total_l1, total_l2:$total_l2, total_l3:$total_l3, custodian_executed:($custodian_executed=="true"), custodian_dry_run:($custodian_dry_run=="true"), remediation_failed:($remediation_failed=="true"), remediation_unverifiable:($remediation_unverifiable=="true"), reconciliation_ticket_created:($reconciliation_ticket_created=="true"), reconciliation_ticket_required:($reconciliation_ticket_required=="true")}')"
 
 if [[ "$OPA_DRIFT_DENY" == "true" ]]; then
   GATE_STATUS="HARD_FAIL"
@@ -114,6 +116,15 @@ if [[ "$OPA_PROWLER_DENY" == "true" ]]; then
   GATE_STATUS="HARD_FAIL"
   GATE_REASON="opa_prowler_deny"
   sr_fail "OPA prowler explicit deny" 1 "$(sr_build_details --arg reason "$GATE_REASON" '{reason:$reason}')"
+fi
+
+if [[ "$CUSTODIAN_DRY_RUN" == "false" \
+   && "$CUSTODIAN_EXECUTED" == "true" \
+   && "$REMEDIATION_UNVERIFIABLE" == "true" ]]; then
+  GATE_STATUS="HARD_FAIL"
+  GATE_REASON="l3_verification_unverifiable"
+  sr_fail "L3 auto-remediation executed but one or more policies have no registered verifier — add an inline verifier to verification/run_verification.sh" 1 \
+    "$(sr_build_details --argjson total_l3 "$TOTAL_L3" '{total_l3:$total_l3, remediation_unverifiable:true}')"
 fi
 
 if [[ "$CUSTODIAN_DRY_RUN" == "false" \
@@ -172,6 +183,7 @@ if [[ "$TOTAL_L3" -gt 0 \
    && "$CUSTODIAN_DRY_RUN" == "false" \
    && "$CUSTODIAN_EXECUTED" == "true" \
    && "$REMEDIATION_FAILED" != "true" \
+   && "$REMEDIATION_UNVERIFIABLE" != "true" \
    && "$RECONCILIATION_TICKET_CREATED" == "true" ]]; then
   GATE_STATUS="PASS"
   GATE_REASON="l3_verified_workflow_complete"

@@ -126,6 +126,48 @@ PAYLOAD="$(jq -cn \
   --arg labels "$TICKET_LABELS" \
   '{title: $title, description: $description, labels: $labels}')"
 
+# ── Idempotency: skip creation if an open issue already covers this correlation_id ──
+# Searches open issues labelled 'reconciliation' (max 100; sufficient for any realistic
+# backlog of unresolved drift cycles) and matches on exact title, which embeds CORRELATION_ID.
+DEDUP_SEARCH_FILE="${OUTPUT_DIR}/reconciliation_ticket_dedup.json"
+DEDUP_HTTP="$(curl -sS \
+  -o "$DEDUP_SEARCH_FILE" \
+  -w "%{http_code}" \
+  -H "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+  "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/issues?state=opened&labels=reconciliation&per_page=100")" \
+  || DEDUP_HTTP="000"
+
+if [[ "$DEDUP_HTTP" == "200" ]]; then
+  EXISTING_TICKET_URL="$(jq -r --arg title "$TITLE" \
+    '.[] | select(.title == $title) | .web_url' "$DEDUP_SEARCH_FILE" 2>/dev/null | head -1)" \
+    || EXISTING_TICKET_URL=""
+
+  if [[ -n "$EXISTING_TICKET_URL" ]]; then
+    {
+      echo "RECONCILIATION_TICKET_REQUIRED=true"
+      echo "RECONCILIATION_TICKET_CREATED=true"
+      echo "RECONCILIATION_TICKET_URL=${EXISTING_TICKET_URL}"
+      echo "RECONCILIATION_CORRELATION_ID=${CORRELATION_ID}"
+      echo "RECONCILIATION_DRIFT_CORRELATION_ID=${OPA_CORRELATION_ID}"
+      echo "RECONCILIATION_PROWLER_CORRELATION_ID=${OPA_PROWLER_CORRELATION_ID}"
+      echo "RECONCILIATION_TICKET_SKIP_REASON=ticket_already_exists"
+      echo "RECONCILIATION_TICKET_PRIORITY=${TICKET_PRIORITY}"
+    } > "$ENV_FILE"
+
+    sr_audit "INFO" "ticket_dedup" \
+      "open reconciliation issue already exists for this correlation_id; reusing existing ticket" \
+      "$(sr_build_details \
+        --arg correlation_id "$CORRELATION_ID" \
+        --arg existing_url "$EXISTING_TICKET_URL" \
+        '{correlation_id:$correlation_id,existing_url:$existing_url,action:"dedup_skip"}')"
+    exit 0
+  fi
+else
+  sr_audit "WARN" "dedup_search_failed" \
+    "idempotency pre-check failed (http ${DEDUP_HTTP}); proceeding with ticket creation" \
+    "$(sr_build_details --arg http_code "$DEDUP_HTTP" '{http_code:$http_code}')"
+fi
+
 sr_audit "WARN" "ticket_create_start" "creating reconciliation issue" \
   "$(sr_build_details \
     --arg correlation_id "$CORRELATION_ID" \

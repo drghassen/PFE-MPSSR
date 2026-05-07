@@ -243,11 +243,13 @@ export -f _require_az \
 
 _emit_state "REMEDIATION_ATTEMPTED" false 0 "verification_started"
 
-# Unknown policy: skip gracefully — we do not block what we cannot verify.
+# Unknown policy: no registered inline verifier — cannot assert verification passed.
+# Exit 3 (VERIFY_SKIP) is semantically distinct from 0 (verified), 1 (drift remains),
+# and 2 (az error). Callers must NOT count exit 3 as a successful verification.
 if ! _is_known_policy "$POLICY"; then
-  echo "policy '${POLICY}' has no inline verifier; skipping (VERIFY_SKIP)" >&2
-  _emit_state "REMEDIATION_VERIFIED" true 0 "verify_skip_unknown_policy"
-  exit 0
+  echo "policy '${POLICY}' has no registered inline verifier (VERIFY_SKIP)" >&2
+  _emit_state "VERIFY_SKIP" false 0 "verify_skip_unknown_policy"
+  exit 3
 fi
 
 attempt=1

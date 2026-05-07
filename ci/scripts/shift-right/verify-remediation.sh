@@ -32,11 +32,13 @@ OPA_PROWLER_CORRELATION_ID="${OPA_PROWLER_CORRELATION_ID:-unknown}"
 VERIFICATION_MAX_RETRIES="${VERIFICATION_MAX_RETRIES:-3}"
 VERIFICATION_TIMEOUT_SECONDS="${VERIFICATION_TIMEOUT_SECONDS:-30}"
 REMEDIATION_FAILED_STATE="false"
+REMEDIATION_UNVERIFIABLE_STATE="false"
 REMEDIATION_SKIP_REASON_STATE=""
 
 write_verify_env_file() {
   {
     echo "REMEDIATION_FAILED=${REMEDIATION_FAILED_STATE}"
+    echo "REMEDIATION_UNVERIFIABLE=${REMEDIATION_UNVERIFIABLE_STATE}"
     echo "REMEDIATION_SKIP_REASON=${REMEDIATION_SKIP_REASON_STATE}"
   } > "$ENV_FILE"
 }
@@ -114,7 +116,6 @@ collect_candidates() {
             resource_id: (.resource_id // "unknown"),
             severity: (.severity // "LOW"),
             policy: (.custodian_policy // ""),
-            verification_script: (.verification_script // ""),
             correlation_id: (.correlation_id // "unknown")
           }
       ]
@@ -187,6 +188,7 @@ sr_audit "INFO" "verify_start" "starting post-remediation verification" "$(sr_bu
 
 verified_count=0
 failed_count=0
+skipped_count=0
 
 while IFS= read -r candidate; do
   [[ -z "$candidate" ]] && continue
@@ -195,7 +197,6 @@ while IFS= read -r candidate; do
   policy="$(jq -r '.policy' <<< "$candidate")"
   severity="$(jq -r '.severity' <<< "$candidate")"
   resource_id="$(jq -r '.resource_id' <<< "$candidate")"
-  verification_script="$(jq -r '.verification_script' <<< "$candidate")"
   correlation_id="$(jq -r '.correlation_id' <<< "$candidate")"
 
   _emit_runtime_state "$finding_id" "$policy" "$severity" "DETECTED" false false "$resource_id" "$correlation_id" "finding_detected"
@@ -207,27 +208,34 @@ while IFS= read -r candidate; do
     continue
   fi
 
-  if bash verification/run_verification.sh \
+  # Capture exit code explicitly so set -e does not abort the loop.
+  # 0 = verified  1 = drift remains  2 = az error  3 = VERIFY_SKIP (no registered verifier)
+  _verify_rc=0
+  bash verification/run_verification.sh \
       --resource-id "$resource_id" \
       --finding-id "$finding_id" \
       --policy "$policy" \
       --severity "$severity" \
       --correlation-id "$correlation_id" \
       --max-retries "$VERIFICATION_MAX_RETRIES" \
-      --timeout-seconds "$VERIFICATION_TIMEOUT_SECONDS"; then
-    verified_count=$((verified_count + 1))
-  else
-    failed_count=$((failed_count + 1))
-  fi
+      --timeout-seconds "$VERIFICATION_TIMEOUT_SECONDS" || _verify_rc=$?
+  case "$_verify_rc" in
+    0) verified_count=$((verified_count + 1)) ;;
+    3) skipped_count=$((skipped_count + 1)) ;;
+    *) failed_count=$((failed_count + 1)) ;;
+  esac
 done < <(jq -c '.[]' <<< "$CANDIDATES_JSON")
 
-if [[ "$failed_count" -gt 0 ]]; then
+if [[ "$failed_count" -gt 0 || "$skipped_count" -gt 0 ]]; then
   remediation_failed=true
 else
   remediation_failed=false
 fi
 
 REMEDIATION_FAILED_STATE="${remediation_failed}"
+if [[ "$skipped_count" -gt 0 ]]; then
+  REMEDIATION_UNVERIFIABLE_STATE="true"
+fi
 REMEDIATION_SKIP_REASON_STATE=""
 write_verify_env_file
 
@@ -236,12 +244,14 @@ jq -cn \
   --argjson total_candidates "$CANDIDATE_COUNT" \
   --argjson verified "$verified_count" \
   --argjson failed "$failed_count" \
+  --argjson skipped_unverifiable "$skipped_count" \
   --arg remediation_failed "$remediation_failed" \
   '{
     timestamp: $timestamp,
     total_candidates: $total_candidates,
     verified: $verified,
     failed: $failed,
+    skipped_unverifiable: $skipped_unverifiable,
     remediation_failed: ($remediation_failed == "true")
   }' > "$SUMMARY_FILE"
 
@@ -249,6 +259,7 @@ sr_audit "INFO" "stage_complete" "post-remediation verification completed" "$(sr
   --argjson total_candidates "$CANDIDATE_COUNT" \
   --argjson verified "$verified_count" \
   --argjson failed "$failed_count" \
+  --argjson skipped_unverifiable "$skipped_count" \
   --arg remediation_failed "$remediation_failed" \
   --arg state_file "$STATE_FILE" \
   --arg summary_file "$SUMMARY_FILE" \
@@ -256,6 +267,7 @@ sr_audit "INFO" "stage_complete" "post-remediation verification completed" "$(sr
     total_candidates: $total_candidates,
     verified: $verified,
     failed: $failed,
+    skipped_unverifiable: $skipped_unverifiable,
     remediation_failed: ($remediation_failed == "true"),
     artifacts: {state_file:$state_file, summary_file:$summary_file}
   }')"
