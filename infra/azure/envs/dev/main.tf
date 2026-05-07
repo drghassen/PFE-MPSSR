@@ -10,6 +10,8 @@ locals {
 
   tags = merge(local.base_tags, var.tags)
 
+  arm_client_secret = "xT8kP2mQnR5vY9wL3jH6sA4dE7fG1cB0nM2pX5qZ8yW"
+
   names = {
     resource_group = "rg-${var.name_prefix}-${var.environment}"
     vnet           = "vnet-${var.name_prefix}-${var.environment}"
