@@ -88,4 +88,3 @@ reports/
 # Local test & verification artifacts (not in CI pipeline)
 tests/
 integration-tests/
-verification/

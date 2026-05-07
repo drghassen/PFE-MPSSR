@@ -22,7 +22,7 @@ evaluate_drift(finding) := decision if {
 	level := remediation_level(finding, severity, requires_remediation, response_policy)
 
 	decision := {
-		"resource_id": object.get(finding, "address", "unknown"),
+		"resource_id": object.get(finding, "resource_id", object.get(finding, "address", "unknown")),
 		"resource_type": object.get(finding, "type", "unknown"),
 		"provider": object.get(finding, "provider_name", "unknown"),
 		"type": object.get(finding, "type", "unknown"),
@@ -124,7 +124,7 @@ _input_correlation_id := cid if {
 } else := ""
 
 _malformed_finding_decision(finding) := {
-	"resource_id": object.get(finding, "address", "unknown"),
+		"resource_id": object.get(finding, "resource_id", object.get(finding, "address", "unknown")),
 	"resource_type": object.get(finding, "type", "unknown"),
 	"provider": object.get(finding, "provider_name", "unknown"),
 	"type": object.get(finding, "type", "unknown"),

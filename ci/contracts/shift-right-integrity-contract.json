@@ -18,7 +18,8 @@
     "HARD FAIL if OPA deny[] non-empty",
     "HARD FAIL if L3 custodian ran live and verify-remediation FAILED",
     "HARD FAIL if L3 findings present and reconciliation ticket not created",
-    "SOFT_PASS if L3 findings present and custodian in dry-run or not executed",
+    "SOFT_PASS if L3 findings present and custodian in dry-run",
+    "HARD FAIL if L3 findings present and custodian not executed in live mode",
     "SOFT_PASS if L2 findings present and reconciliation ticket not created",
     "PASS if L2 only and ticket created",
     "PASS if L0/L1 only"

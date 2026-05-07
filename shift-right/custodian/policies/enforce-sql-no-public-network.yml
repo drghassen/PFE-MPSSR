@@ -1,0 +1,43 @@
+policies:
+  - name: enforce-sql-no-public-network
+    resource: azure.sqlserver
+    description: |
+      Detects Azure SQL logical servers that remain reachable from public
+      network paths and hardens them by clearing all server-level firewall
+      rules and AzureServices bypass.
+
+      Enterprise intent:
+        - Runtime hotfix (L3): immediately remove public ingress exposure.
+        - Durable fix: enforce private connectivity and IaC reconciliation.
+
+      Notes:
+        - This policy targets SQL logical servers only (azure.sqlserver).
+        - For MySQL/PostgreSQL Flexible Server, cloud-custodian does not expose
+          an equivalent network-remediation action in current provider schema.
+
+    filters:
+      # Keep scope to servers where public networking is not explicitly disabled.
+      - not:
+        - type: value
+          key: properties.publicNetworkAccess
+          value: Disabled
+
+      # Match any server with non-empty network access rules (including the
+      # AzureServices 0.0.0.0 bypass via include-azure-services=true).
+      - not:
+        - type: firewall-rules
+          include-azure-services: true
+          equal: []
+
+    actions:
+      - type: tag
+        tag: cs-violation
+        value: sql-public-network-enabled
+      - type: tag
+        tag: cs-remediation
+        value: autofix-custodian
+      - type: set-firewall-rules
+        append: false
+        bypass-rules: []
+        ip-rules: []
+        virtual-network-rules: []

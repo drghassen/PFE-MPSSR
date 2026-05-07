@@ -89,6 +89,18 @@ test_sql_server_password_drift_is_critical if {
 	result.severity == "CRITICAL"
 }
 
+# SQL server public network drift → CRITICAL
+test_sql_server_public_network_drift_is_critical if {
+	result := evaluate_drift({
+		"address": "azurerm_mssql_server.sql",
+		"type": "azurerm_mssql_server",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["public_network_access_enabled"],
+		"actions": ["update"],
+	})
+	result.severity == "CRITICAL"
+}
+
 # Storage container public access drift → CRITICAL
 test_storage_container_public_access_drift_is_critical if {
 	result := evaluate_drift({
@@ -337,6 +349,42 @@ test_nsg_has_custodian_policy if {
 		}
 	}
 	result.custodian_policy == "enforce-nsg-no-open-inbound"
+}
+
+# SQL public network drift → enforce-sql-no-public-network
+test_sql_public_network_has_custodian_policy if {
+	result := evaluate_drift({
+		"address": "azurerm_mssql_server.sql",
+		"type": "azurerm_mssql_server",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["public_network_access_enabled"],
+		"actions": ["update"],
+	}) with input as {
+		"capabilities": {
+			"enforce-sql-no-public-network": {
+				"remediation_supported": true,
+				"verification_script": "verify_sql_no_public_network.sh",
+			}
+		}
+	}
+	result.action_required == "runtime_remediation"
+	result.requires_remediation == true
+	result.custodian_policy == "enforce-sql-no-public-network"
+	result.verification_script == "verify_sql_no_public_network.sh"
+}
+
+# When Azure resource id is available, decision must propagate it for runtime
+# verification (az cli uses resource IDs, not Terraform addresses).
+test_resource_id_prefers_provider_id if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_container.public",
+		"resource_id": "/subscriptions/000/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa/blobServices/default/containers/c1",
+		"type": "azurerm_storage_container",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["container_access_type"],
+		"actions": ["update"],
+	})
+	result.resource_id == "/subscriptions/000/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa/blobServices/default/containers/c1"
 }
 
 # Type inconnu → custodian_policy = null

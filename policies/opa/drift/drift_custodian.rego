@@ -14,13 +14,18 @@ get_custodian_policy(finding) := "enforce-nsg-no-open-inbound" if {
 } else := "enforce-nsg-rule-deny-all" if {
 	object.get(finding, "type", "") == "azurerm_network_security_rule"
 	"access" in object.get(finding, "changed_paths", [])
-} else := "enforce-vm-no-password-auth" if {
-	object.get(finding, "type", "") == "azurerm_linux_virtual_machine"
-	"admin_password" in object.get(finding, "changed_paths", [])
-} else := "enforce-sql-password-rotation" if {
-	object.get(finding, "type", "") == "azurerm_sql_server"
-	"administrator_login_password" in object.get(finding, "changed_paths", [])
+} else := "enforce-sql-no-public-network" if {
+	object.get(finding, "type", "") in {"azurerm_sql_server", "azurerm_mssql_server"}
+	_public_network_drift(finding)
 } else := "enforce-storage-container-private" if {
 	object.get(finding, "type", "") == "azurerm_storage_container"
 	"container_access_type" in object.get(finding, "changed_paths", [])
 } else := null
+
+_public_network_drift(finding) if {
+	"public_network_access_enabled" in object.get(finding, "changed_paths", [])
+}
+
+_public_network_drift(finding) if {
+	"public_network_access" in object.get(finding, "changed_paths", [])
+}

@@ -54,6 +54,17 @@ is_critical_drift(finding) if {
 	"administrator_login_password" in object.get(finding, "changed_paths", [])
 }
 
+# SQL logical server opened to public network is immediately exploitable.
+is_critical_drift(finding) if {
+	finding.type in {"azurerm_sql_server", "azurerm_mssql_server"}
+	"public_network_access_enabled" in object.get(finding, "changed_paths", [])
+}
+
+is_critical_drift(finding) if {
+	finding.type in {"azurerm_sql_server", "azurerm_mssql_server"}
+	"public_network_access" in object.get(finding, "changed_paths", [])
+}
+
 # Any drift making blob container access public is immediately exploitable.
 is_critical_drift(finding) if {
 	finding.type == "azurerm_storage_container"

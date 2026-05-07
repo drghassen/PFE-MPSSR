@@ -3,12 +3,12 @@
   "generated_by": "cloudsentinel",
   "capabilities": {
     "enforce-nsg-no-open-inbound": {
-      "remediation_supported": true,
+      "remediation_supported": false,
       "custodian_policy": "enforce-nsg-no-open-inbound",
       "verification_script": "verify_nsg_no_open_inbound.sh"
     },
     "enforce-nsg-rule-deny-all": {
-      "remediation_supported": true,
+      "remediation_supported": false,
       "custodian_policy": "enforce-nsg-rule-deny-all",
       "verification_script": "verify_nsg_deny_all.sh"
     },
@@ -32,6 +32,11 @@
       "remediation_supported": true,
       "custodian_policy": "enforce-storage-container-private",
       "verification_script": "verify_storage_private.sh"
+    },
+    "enforce-sql-no-public-network": {
+      "remediation_supported": true,
+      "custodian_policy": "enforce-sql-no-public-network",
+      "verification_script": "verify_sql_no_public_network.sh"
     },
     "prowler:storage_default_network_access_rule_is_denied": {
       "remediation_supported": false

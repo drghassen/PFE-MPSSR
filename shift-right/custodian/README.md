@@ -21,6 +21,13 @@ This enforces L3-only auto-remediation from Drift Engine only.
 3. `deny-public-storage`
 4. `enforce-storage-tls`
 5. `enforce-storage-container-private`
+6. `enforce-sql-no-public-network`
+
+### SQL runtime mode (`enforce-sql-no-public-network`)
+
+- Runtime remediation removes SQL server firewall exposure (server firewall rules = 0).
+- `publicNetworkAccess` may remain `Enabled` in this mode.
+- Strict private-only enforcement (`publicNetworkAccess=Disabled`) stays an external governance control.
 
 ## Operating Model
 
