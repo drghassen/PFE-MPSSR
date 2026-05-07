@@ -21,6 +21,8 @@ class NormalizerFindingMixin:
             return "INFRASTRUCTURE_AS_CODE"
         if raw in {"SECRET", "SECRETS"} or st == "secret":
             return "SECRETS"
+        if st == "misconfig":
+            return "INFRASTRUCTURE_AS_CODE"
         return "VULNERABILITIES"
 
     def _fingerprint(
