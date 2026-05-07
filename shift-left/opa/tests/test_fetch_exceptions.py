@@ -216,6 +216,97 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["resource"], "modules/compute/main.tf")
         self.assertEqual(ex["severity"], "CRITICAL")
 
+    def test_extract_v2_exception_infers_trivy_tool_from_ds_rule_id(self):
+        """DS-XXXX rule IDs (trivy dockerfile/config checks) must resolve to tool=trivy
+        even when unique_id_from_tool and vuln_id_from_tool are absent from DefectDojo."""
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 46,
+            "name": "Accept: DS-0002 - Image User Should Not Be 'Root'",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "razane",
+            "created": rfc3339(now - timedelta(hours=2)),
+            "expiration_date": (now + timedelta(days=2)).strftime("%Y-%m-%d"),
+            "status": "APPROVED",
+            "is_active": True,
+            "accepted_findings": [6684],
+            "accepted_finding_details": [
+                {
+                    "id": 6684,
+                    "title": "DS-0002 - Image User Should Not Be 'Root'",
+                    "severity": "High",
+                    "description": (
+                        "**Target:** ci/images/scan-tools/Dockerfile\n"
+                        "**Type:** Dockerfile Security Check\n"
+                        "Running containers with 'root' user can lead to a container escape situation."
+                    ),
+                    "file_path": "ci/images/scan-tools/Dockerfile",
+                    "unique_id_from_tool": None,
+                    "vuln_id_from_tool": None,
+                    "tags": ["config", "devsecops", "dockerfile", "shift-left"],
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(error, f"Unexpected drop reason: {error}")
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["tool"], "trivy")
+        self.assertEqual(ex["rule_id"], "DS-0002")
+        self.assertEqual(ex["resource"], "ci/images/scan-tools/Dockerfile")
+        self.assertEqual(ex["severity"], "HIGH")
+
+    def test_extract_v2_exception_infers_cloudinit_tool_from_rule_and_unique_id(self):
+        """CS-CLOUDINIT-* rule IDs and cloudinit:-prefixed unique_id_from_tool
+        must resolve to tool=cloudinit."""
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 45,
+            "name": "Accept: Cloud-Init Violation: CS-CLOUDINIT-REMOTE-EXEC",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "razane",
+            "created": rfc3339(now - timedelta(hours=1)),
+            "expiration_date": (now + timedelta(days=2)).strftime("%Y-%m-%d"),
+            "status": "APPROVED",
+            "is_active": True,
+            "accepted_findings": [6685],
+            "accepted_finding_details": [
+                {
+                    "id": 6685,
+                    "title": "Cloud-Init Violation: CS-CLOUDINIT-REMOTE-EXEC",
+                    "severity": "Critical",
+                    "description": (
+                        "CloudSentinel cloud-init finding\n"
+                        "- Rule: CS-CLOUDINIT-REMOTE-EXEC\n"
+                        "- Resource: azurerm_linux_virtual_machine.worker\n"
+                        "- File: infra/azure/envs/dev/worker.tf:14\n"
+                        "- Message: Remote execution pattern detected in cloud-init"
+                    ),
+                    "component_name": "azurerm_linux_virtual_machine.worker",
+                    "vuln_id_from_tool": "CS-CLOUDINIT-REMOTE-EXEC",
+                    "unique_id_from_tool": (
+                        "cloudinit:CS-CLOUDINIT-REMOTE-EXEC"
+                        ":azurerm_linux_virtual_machine.worker"
+                        ":infra/azure/envs/dev/worker.tf:14"
+                    ),
+                    "file_path": None,
+                    "tags": ["devsecops", "shift-left"],
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(error, f"Unexpected drop reason: {error}")
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["tool"], "cloudinit")
+        self.assertEqual(ex["rule_id"], "CS-CLOUDINIT-REMOTE-EXEC")
+        self.assertEqual(ex["resource"], "azurerm_linux_virtual_machine.worker")
+        self.assertEqual(ex["severity"], "CRITICAL")
+
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()
         ra["accepted_findings"] = []

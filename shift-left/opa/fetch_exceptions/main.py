@@ -93,7 +93,7 @@ def build_context(logger: Optional[logging.Logger] = None) -> FetchContext:
         scan_id=_resolve_scan_id(repo_root),
         schema_version="2.0.0",
         severity_enum={"CRITICAL", "HIGH", "MEDIUM", "LOW"},
-        allowed_tools={"checkov", "trivy", "gitleaks"},
+        allowed_tools={"checkov", "trivy", "gitleaks", "cloudinit"},
         allowed_decisions={"accept", "mitigate", "fix", "transfer", "avoid"},
         enforce_approver_allowlist=_parse_bool_env(
             "CLOUDSENTINEL_ENFORCE_APPROVER_ALLOWLIST", "false"

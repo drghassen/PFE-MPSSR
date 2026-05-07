@@ -12,7 +12,10 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, Iterable, List, Optional
 
 
-RULE_ID_PATTERN = re.compile(r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+)\b", re.IGNORECASE)
+RULE_ID_PATTERN = re.compile(
+    r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+|DS-\d{4}|CS-CLOUDINIT-[A-Z][A-Z0-9_-]*)\b",
+    re.IGNORECASE,
+)
 PATH_PATTERN = re.compile(
     r"(?:[A-Za-z]:[\\/]|[./~])?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+"
 )
@@ -171,6 +174,10 @@ def normalize_tool(value: Any) -> str:
         "trivy scan": "trivy",
         "gitleaks": "gitleaks",
         "gitleaks scan": "gitleaks",
+        "cloudinit": "cloudinit",
+        "cloud-init": "cloudinit",
+        "cloudinit scan": "cloudinit",
+        "cloudsentinel cloudinit": "cloudinit",
     }
     return aliases.get(raw, "")
 
@@ -187,6 +194,8 @@ def parse_tool_from_text(*values: Any) -> str:
             return "trivy"
         if "(gitleaks scan)" in lowered or "gitleaks" in lowered:
             return "gitleaks"
+        if "cloudinit" in lowered or "cloud-init" in lowered:
+            return "cloudinit"
     return ""
 
 

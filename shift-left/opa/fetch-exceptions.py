@@ -35,6 +35,7 @@ from fetch_exceptions.fetch_utils import (  # noqa: E402
     to_rfc3339,
 )
 from fetch_exceptions.fetch_validation import (  # noqa: E402
+    is_active_accepted,
     parse_approved_at,
     parse_approved_by,
     parse_decision,
