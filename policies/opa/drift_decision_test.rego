@@ -649,6 +649,8 @@ test_expired_exception_does_not_trigger_deny if {
 		"branches": ["main"],
 	}]}
 	input_doc := {
+		"source": "drift-engine",
+		"scan_type": "shift-right-drift",
 		"environment": "production",
 		"repo": "group/project",
 		"branch": "main",
