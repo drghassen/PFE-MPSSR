@@ -15,23 +15,22 @@ resource "azurerm_storage_account" "this" {
   infrastructure_encryption_enabled = true
   tags                              = var.tags
 
+  blob_properties {
+    versioning_enabled  = true
+    change_feed_enabled = true
+
+    delete_retention_policy {
+      days = 7
+    }
+
+    container_delete_retention_policy {
+      days = 7
+    }
+  }
+
   sas_policy {
     expiration_period = "00.01:00:00"
     expiration_action = "Log"
-  }
-}
-
-resource "azurerm_storage_account_blob_properties" "this" {
-  storage_account_id  = azurerm_storage_account.this.id
-  versioning_enabled  = true
-  change_feed_enabled = true
-
-  delete_retention_policy {
-    days = 7
-  }
-
-  container_delete_retention_policy {
-    days = 7
   }
 }
 
