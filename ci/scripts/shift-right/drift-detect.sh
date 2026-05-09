@@ -48,7 +48,7 @@ sr_require_nonempty_file "$DRIFT_ENGINE_ENTRYPOINT" "drift engine entrypoint"
 
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
-export TF_VAR_location="${TF_VAR_location:-francecentral}"
+export TF_VAR_location="${TF_VAR_location:-norwayeast}"
 export TF_VAR_vm_admin_ssh_public_key="${TF_VAR_vm_admin_ssh_public_key:-${TF_VAR_admin_ssh_public_key:-}}"
 
 # Bridge TFSTATE_* CI convention → TF_BACKEND_* expected by the drift engine's TerraformRunner.
