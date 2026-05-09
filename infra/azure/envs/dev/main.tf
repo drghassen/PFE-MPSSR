@@ -163,6 +163,7 @@ module "recovery" {
   location                 = module.resource_group.location
   resource_group_name      = module.resource_group.name
   vm_ids                   = module.compute.vm_ids
+  vm_count                 = var.vm_count
   enable_backup_protection = var.enable_backup_protection
   tags                     = local.common_tags
 }

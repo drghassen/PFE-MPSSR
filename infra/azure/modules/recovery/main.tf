@@ -28,10 +28,10 @@ resource "azurerm_backup_policy_vm" "daily" {
 }
 
 resource "azurerm_backup_protected_vm" "this" {
-  for_each = var.enable_backup_protection ? toset(var.vm_ids) : toset([])
+  count = var.enable_backup_protection ? var.vm_count : 0
 
   resource_group_name = var.resource_group_name
   recovery_vault_name = azurerm_recovery_services_vault.this.name
-  source_vm_id        = each.key
+  source_vm_id        = var.vm_ids[count.index]
   backup_policy_id    = azurerm_backup_policy_vm.daily.id
 }

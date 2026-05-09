@@ -14,6 +14,11 @@ variable "vm_ids" {
   type = list(string)
 }
 
+variable "vm_count" {
+  type    = number
+  default = 1
+}
+
 variable "enable_backup_protection" {
   type    = bool
   default = true
