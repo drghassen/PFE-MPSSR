@@ -156,27 +156,6 @@ resource "azurerm_role_assignment" "app_principal_key_vault_secrets_user" {
   depends_on           = [time_sleep.after_key_vault]
 }
 
-module "sql" {
-  source = "../../modules/database-sql"
-
-  enabled             = var.enable_sql
-  server_name         = local.sql_server_name
-  database_name       = var.sql_database_name
-  sku_name            = var.sql_sku_name
-  location            = module.resource_group.location
-  resource_group_name = module.resource_group.name
-
-  vnet_id                    = module.network.vnet_id
-  private_endpoint_subnet_id = module.network.private_endpoints_subnet_id
-
-  audit_storage_endpoint  = module.storage.primary_blob_endpoint
-  azuread_admin_login     = data.azurerm_client_config.current.client_id
-  azuread_admin_object_id = data.azurerm_client_config.current.object_id
-
-  tags       = local.common_tags
-  depends_on = [module.network, module.storage]
-}
-
 module "recovery" {
   source = "../../modules/recovery"
 

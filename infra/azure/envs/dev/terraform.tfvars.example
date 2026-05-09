@@ -14,6 +14,3 @@ vm_grant_rg_reader     = false
 enable_backup_protection = true
 enable_cosmosdb        = false
 key_vault_grant_app_secrets_user_role = false
-enable_sql             = true
-sql_database_name      = "cloudsentinel"
-sql_sku_name           = "Free"

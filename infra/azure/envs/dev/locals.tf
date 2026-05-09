@@ -13,8 +13,6 @@ locals {
   aci_name             = substr("aci-${local.normalized_prefix}-${local.normalized_env}", 0, 63)
   identity_name        = substr("uami-${local.normalized_prefix}-${local.normalized_env}", 0, 64)
   cosmos_name          = substr("cosmos-${local.compact_prefix}", 0, 44)
-  sql_server_name      = substr("sql-${local.compact_prefix}", 0, 63)
-
   common_tags = {
     project     = "cloudsentinel"
     environment = local.normalized_env

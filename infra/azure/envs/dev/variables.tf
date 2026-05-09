@@ -145,21 +145,3 @@ variable "app_principal_object_id" {
   type        = string
   default     = null
 }
-
-variable "enable_sql" {
-  description = "Enable Azure SQL Server + Database"
-  type        = bool
-  default     = true
-}
-
-variable "sql_database_name" {
-  description = "Name of the SQL database"
-  type        = string
-  default     = "cloudsentinel"
-}
-
-variable "sql_sku_name" {
-  description = "SQL DB SKU (Free or Basic recommended for Azure Student)"
-  type        = string
-  default     = "Free"
-}
