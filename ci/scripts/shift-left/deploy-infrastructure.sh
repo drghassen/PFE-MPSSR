@@ -123,7 +123,7 @@ tofu -chdir="${TF_ROOT_DIR}" init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
-export TF_VAR_location="${TF_VAR_location:-francecentral}"
+export TF_VAR_location="${TF_VAR_location:-norwayeast}"
 echo "[deploy] TF_VAR_location=${TF_VAR_location}"
 export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 [ -n "${TF_VAR_tenant_id}" ] || { echo "[deploy][ERROR] TF_VAR_tenant_id is empty"; exit 2; }
@@ -165,7 +165,7 @@ import_if_missing() {
   return 1
 }
 
-NAME_PREFIX="${TF_VAR_name_prefix:-csdemo}"
+NAME_PREFIX="${TF_VAR_name_prefix:-cslab}"
 ENVIRONMENT_NAME="${TF_VAR_environment:-dev}"
 RG_NAME="rg-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
 VNET_NAME="vnet-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
@@ -218,6 +218,26 @@ import_if_missing \
 import_if_missing \
   "module.key_vault.azurerm_key_vault.this" \
   "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_public_ip.vm" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/publicIPAddresses/pip-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+
+import_if_missing \
+  "module.identity.azurerm_user_assigned_identity.this" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uami-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_subnet_network_security_group_association.vm" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-vm"
+
+import_if_missing \
+  "module.network.azurerm_subnet_network_security_group_association.aci" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-aci"
+
+import_if_missing \
+  "module.network.azurerm_subnet_network_security_group_association.pe" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-pe"
 
 TF_PARALLELISM="${TF_PARALLELISM:-1}"
 TF_APPLY_ATTEMPTS="${TF_APPLY_ATTEMPTS:-3}"
