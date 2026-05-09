@@ -43,6 +43,7 @@ resource "azurerm_linux_virtual_machine" "vm1" {
   tags                  = merge(var.tags, { "cs:role" = var.vm_role_tag })
 
   disable_password_authentication = true
+  allow_extension_operations      = false
   patch_mode                      = "ImageDefault"
   provision_vm_agent              = true
   encryption_at_host_enabled      = var.encryption_at_host_enabled
@@ -89,6 +90,7 @@ resource "azurerm_linux_virtual_machine" "vm2" {
   tags                  = merge(var.tags, { "cs:role" = var.vm_role_tag })
 
   disable_password_authentication = true
+  allow_extension_operations      = false
   patch_mode                      = "ImageDefault"
   provision_vm_agent              = true
   encryption_at_host_enabled      = var.encryption_at_host_enabled

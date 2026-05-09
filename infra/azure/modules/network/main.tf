@@ -90,6 +90,37 @@ resource "azurerm_network_security_group" "aci" {
   }
 }
 
+resource "azurerm_network_security_group" "pe" {
+  name                = var.pe_nsg_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+
+  security_rule {
+    name                       = "Allow-Inbound-From-VNet"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_ranges    = ["443", "1433"]
+    source_address_prefix      = var.vnet_cidr
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Deny-All-Inbound"
+    priority                   = 4096
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
 resource "azurerm_subnet_network_security_group_association" "vm" {
   subnet_id                 = azurerm_subnet.vm.id
   network_security_group_id = azurerm_network_security_group.vm.id
@@ -98,6 +129,11 @@ resource "azurerm_subnet_network_security_group_association" "vm" {
 resource "azurerm_subnet_network_security_group_association" "aci" {
   subnet_id                 = azurerm_subnet.aci.id
   network_security_group_id = azurerm_network_security_group.aci.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "pe" {
+  subnet_id                 = azurerm_subnet.private_endpoints.id
+  network_security_group_id = azurerm_network_security_group.pe.id
 }
 
 resource "azurerm_public_ip" "vm" {

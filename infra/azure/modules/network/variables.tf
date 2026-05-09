@@ -46,6 +46,10 @@ variable "aci_nsg_name" {
   type = string
 }
 
+variable "pe_nsg_name" {
+  type = string
+}
+
 variable "public_ip_name" {
   type = string
 }

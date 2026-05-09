@@ -5,6 +5,10 @@ resource "azurerm_recovery_services_vault" "this" {
   sku                 = "Standard"
   storage_mode_type   = "LocallyRedundant"
   tags                = var.tags
+
+  identity {
+    type = "SystemAssigned"
+  }
 }
 
 resource "azurerm_backup_policy_vm" "daily" {

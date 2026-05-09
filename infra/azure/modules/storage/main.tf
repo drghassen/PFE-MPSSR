@@ -27,6 +27,21 @@ resource "azurerm_storage_account" "this" {
       days = 7
     }
   }
+
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = 10
+    }
+  }
+
+  sas_policy {
+    expiration_period = "00.01:00:00"
+    expiration_action = "Log"
+  }
 }
 
 resource "azurerm_storage_account_network_rules" "this" {

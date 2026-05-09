@@ -24,6 +24,7 @@ module "network" {
 
   vm_nsg_name  = "nsg-vm-${local.normalized_prefix}-${local.normalized_env}"
   aci_nsg_name = "nsg-aci-${local.normalized_prefix}-${local.normalized_env}"
+  pe_nsg_name  = "nsg-pe-${local.normalized_prefix}-${local.normalized_env}"
 
   public_ip_name = "pip-${local.normalized_prefix}-${local.normalized_env}"
   tags           = local.common_tags
@@ -149,6 +150,7 @@ module "sql" {
   vnet_id                    = module.network.vnet_id
   private_endpoint_subnet_id = module.network.private_endpoints_subnet_id
 
+  audit_storage_endpoint  = module.storage.primary_blob_endpoint
   azuread_admin_login     = data.azurerm_client_config.current.client_id
   azuread_admin_object_id = data.azurerm_client_config.current.object_id
 

@@ -46,6 +46,30 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
   tags                  = var.tags
 }
 
+resource "azurerm_mssql_server_extended_auditing_policy" "this" {
+  count             = var.enabled ? 1 : 0
+  server_id         = azurerm_mssql_server.this[0].id
+  retention_in_days = 90
+}
+
+resource "azurerm_mssql_server_security_alert_policy" "this" {
+  count               = var.enabled ? 1 : 0
+  resource_group_name = var.resource_group_name
+  server_name         = azurerm_mssql_server.this[0].name
+  state               = "Enabled"
+}
+
+resource "azurerm_mssql_server_vulnerability_assessment" "this" {
+  count                           = var.enabled ? 1 : 0
+  server_security_alert_policy_id = azurerm_mssql_server_security_alert_policy.this[0].id
+  storage_container_path          = "${var.audit_storage_endpoint}vulnerability-assessment/"
+
+  recurring_scans {
+    enabled                   = true
+    email_subscription_admins = true
+  }
+}
+
 resource "azurerm_private_endpoint" "sql" {
   count               = var.enabled ? 1 : 0
   name                = "pe-${var.server_name}"

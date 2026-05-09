@@ -34,6 +34,11 @@ variable "private_endpoint_subnet_id" {
   type = string
 }
 
+variable "audit_storage_endpoint" {
+  description = "Primary blob endpoint of the storage account used for SQL auditing and VA"
+  type        = string
+}
+
 variable "azuread_admin_login" {
   description = "Display name of the Entra ID user/group acting as SQL admin"
   type        = string

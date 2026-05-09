@@ -50,5 +50,7 @@ RUN gitleaks version \
 RUN groupadd --gid 65532 nonroot \
  && useradd --uid 65532 --gid 65532 --no-create-home nonroot
 
+USER nonroot
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["/usr/local/bin/trivy", "--version"]
