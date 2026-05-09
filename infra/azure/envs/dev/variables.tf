@@ -11,7 +11,7 @@ variable "tenant_id" {
 variable "location" {
   description = "Azure region"
   type        = string
-  default     = "norwayeast"
+  default     = "francecentral"
 }
 
 variable "name_prefix" {
@@ -149,7 +149,7 @@ variable "app_principal_object_id" {
 variable "enable_sql" {
   description = "Enable Azure SQL Server + Database"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "sql_database_name" {
@@ -159,7 +159,7 @@ variable "sql_database_name" {
 }
 
 variable "sql_sku_name" {
-  description = "SQL DB SKU (Basic ~5$/mo, S0 ~15$/mo)"
+  description = "SQL DB SKU (Free or Basic recommended for Azure Student)"
   type        = string
-  default     = "Basic"
+  default     = "Free"
 }

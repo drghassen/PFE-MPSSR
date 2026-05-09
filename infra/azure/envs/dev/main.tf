@@ -6,6 +6,11 @@ module "resource_group" {
   tags     = local.common_tags
 }
 
+resource "time_sleep" "after_resource_group" {
+  create_duration = "20s"
+  depends_on      = [module.resource_group]
+}
+
 module "network" {
   source = "../../modules/network"
 
@@ -28,6 +33,7 @@ module "network" {
 
   public_ip_name = "pip-${local.normalized_prefix}-${local.normalized_env}"
   tags           = local.common_tags
+  depends_on     = [time_sleep.after_resource_group]
 }
 
 module "identity" {
@@ -37,6 +43,7 @@ module "identity" {
   location            = module.resource_group.location
   resource_group_name = module.resource_group.name
   tags                = local.common_tags
+  depends_on          = [time_sleep.after_resource_group]
 }
 
 module "storage" {
@@ -52,6 +59,7 @@ module "storage" {
   ]
   allowed_ip_rules = var.storage_allowed_ip_rules
   tags             = local.common_tags
+  depends_on       = [module.network]
 }
 
 module "key_vault" {
@@ -63,6 +71,12 @@ module "key_vault" {
   tenant_id           = var.tenant_id
   vnet_id             = module.network.vnet_id
   tags                = local.common_tags
+  depends_on          = [module.network]
+}
+
+resource "time_sleep" "after_key_vault" {
+  create_duration = "30s"
+  depends_on      = [module.key_vault]
 }
 
 module "compute" {
@@ -83,6 +97,7 @@ module "compute" {
   encryption_at_host_enabled   = var.vm_encryption_at_host_enabled
   enable_trusted_launch        = var.vm_enable_trusted_launch
   tags                         = local.common_tags
+  depends_on                   = [module.network, module.identity, module.storage]
 }
 
 module "container_instance" {
@@ -97,6 +112,7 @@ module "container_instance" {
   cpu                       = var.aci_cpu
   memory                    = var.aci_memory
   tags                      = local.common_tags
+  depends_on                = [module.network, module.identity]
 }
 
 module "database" {
@@ -109,6 +125,7 @@ module "database" {
   resource_group_name = module.resource_group.name
   allowed_subnet_ids  = [module.network.vm_subnet_id, module.network.aci_subnet_id]
   tags                = local.common_tags
+  depends_on          = [module.network]
 }
 
 module "rbac" {
@@ -120,12 +137,14 @@ module "rbac" {
   key_vault_id        = module.key_vault.id
   cosmosdb_account_id = module.database.account_id
   grant_rg_reader     = var.vm_grant_rg_reader
+  depends_on          = [time_sleep.after_key_vault]
 }
 
 resource "azurerm_role_assignment" "current_principal_key_vault_admin" {
   scope                = module.key_vault.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
+  depends_on           = [time_sleep.after_key_vault]
 }
 
 resource "azurerm_role_assignment" "app_principal_key_vault_secrets_user" {
@@ -134,6 +153,7 @@ resource "azurerm_role_assignment" "app_principal_key_vault_secrets_user" {
   scope                = module.key_vault.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.app_principal_object_id
+  depends_on           = [time_sleep.after_key_vault]
 }
 
 module "sql" {
@@ -153,7 +173,8 @@ module "sql" {
   azuread_admin_login     = data.azurerm_client_config.current.client_id
   azuread_admin_object_id = data.azurerm_client_config.current.object_id
 
-  tags = local.common_tags
+  tags       = local.common_tags
+  depends_on = [module.network, module.storage]
 }
 
 module "recovery" {
@@ -166,4 +187,5 @@ module "recovery" {
   vm_count                 = var.vm_count
   enable_backup_protection = var.enable_backup_protection
   tags                     = local.common_tags
+  depends_on               = [module.compute]
 }

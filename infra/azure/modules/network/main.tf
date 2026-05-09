@@ -6,12 +6,18 @@ resource "azurerm_virtual_network" "this" {
   tags                = var.tags
 }
 
+resource "time_sleep" "after_vnet" {
+  create_duration = "20s"
+  depends_on      = [azurerm_virtual_network.this]
+}
+
 resource "azurerm_subnet" "vm" {
   name                 = var.vm_subnet_name
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.vm_subnet_cidr]
   service_endpoints    = ["Microsoft.Storage"]
+  depends_on           = [time_sleep.after_vnet]
 }
 
 resource "azurerm_subnet" "aci" {
@@ -20,6 +26,7 @@ resource "azurerm_subnet" "aci" {
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.aci_subnet_cidr]
   service_endpoints    = ["Microsoft.Storage"]
+  depends_on           = [azurerm_subnet.vm]
 
   delegation {
     name = "aci-delegation"
@@ -38,6 +45,7 @@ resource "azurerm_subnet" "private_endpoints" {
   address_prefixes     = [var.private_endpoints_subnet_cidr]
 
   private_endpoint_network_policies = "Disabled"
+  depends_on                        = [azurerm_subnet.aci]
 }
 
 resource "azurerm_network_security_group" "vm" {

@@ -123,7 +123,7 @@ tofu -chdir="${TF_ROOT_DIR}" init -input=false \
 export TF_VAR_subscription_id="${TF_VAR_subscription_id:-${ARM_SUBSCRIPTION_ID}}"
 [ -n "${TF_VAR_subscription_id}" ] || { echo "[deploy][ERROR] TF_VAR_subscription_id is empty"; exit 2; }
 echo "[deploy] TF_VAR_subscription_id is set"
-export TF_VAR_location="${TF_VAR_location:-norwayeast}"
+export TF_VAR_location="${TF_VAR_location:-francecentral}"
 echo "[deploy] TF_VAR_location=${TF_VAR_location}"
 export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 [ -n "${TF_VAR_tenant_id}" ] || { echo "[deploy][ERROR] TF_VAR_tenant_id is empty"; exit 2; }
@@ -169,6 +169,27 @@ NAME_PREFIX="${TF_VAR_name_prefix:-csdemo}"
 ENVIRONMENT_NAME="${TF_VAR_environment:-dev}"
 RG_NAME="rg-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
 VNET_NAME="vnet-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+STORAGE_NAME="${TF_VAR_storage_account_name:-st${NAME_PREFIX}${ENVIRONMENT_NAME}}"
+KV_NAME="${TF_VAR_key_vault_name:-kv-${NAME_PREFIX}-${ENVIRONMENT_NAME}}"
+NSG_VM_NAME="nsg-vm-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+NSG_ACI_NAME="nsg-aci-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+NSG_PE_NAME="nsg-pe-${NAME_PREFIX}-${ENVIRONMENT_NAME}"
+
+import_if_missing \
+  "module.resource_group.azurerm_resource_group.this" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_virtual_network.this" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_subnet.vm" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-vm"
+
+import_if_missing \
+  "module.network.azurerm_subnet.aci" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-aci"
 
 import_if_missing \
   "module.key_vault.azurerm_private_dns_zone.vault" \
@@ -178,8 +199,28 @@ import_if_missing \
   "module.network.azurerm_subnet.private_endpoints" \
   "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/virtualNetworks/${VNET_NAME}/subnets/snet-pe"
 
-TF_PARALLELISM="${TF_PARALLELISM:-2}"
-TF_APPLY_ATTEMPTS="${TF_APPLY_ATTEMPTS:-2}"
+import_if_missing \
+  "module.network.azurerm_network_security_group.vm" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/${NSG_VM_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_network_security_group.aci" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/${NSG_ACI_NAME}"
+
+import_if_missing \
+  "module.network.azurerm_network_security_group.pe" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Network/networkSecurityGroups/${NSG_PE_NAME}"
+
+import_if_missing \
+  "module.storage.azurerm_storage_account.this" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.Storage/storageAccounts/${STORAGE_NAME}"
+
+import_if_missing \
+  "module.key_vault.azurerm_key_vault.this" \
+  "/subscriptions/${TF_VAR_subscription_id}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+
+TF_PARALLELISM="${TF_PARALLELISM:-1}"
+TF_APPLY_ATTEMPTS="${TF_APPLY_ATTEMPTS:-3}"
 PLAN_FILE="tfplan"
 
 for attempt in $(seq 1 "${TF_APPLY_ATTEMPTS}"); do
@@ -195,8 +236,8 @@ for attempt in $(seq 1 "${TF_APPLY_ATTEMPTS}"); do
     exit 1
   fi
 
-  echo "[deploy][WARN] apply failed (transient Azure error suspected). Retrying in 30 seconds..." >&2
-  sleep 30
+  echo "[deploy][WARN] apply failed (transient Azure error suspected). Retrying in 60 seconds..." >&2
+  sleep 60
 done
 
 tofu -chdir="${TF_ROOT_DIR}" output -json \
