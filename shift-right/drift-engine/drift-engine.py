@@ -205,6 +205,18 @@ class DriftEngine:
         )
         write_json(self._out_path, render_report(self._template_path, context))
 
+    @staticmethod
+    def _final_exit_code(*, detected: bool, has_errors: bool) -> int:
+        """
+        Canonical CloudSentinel exit code mapping.
+        - 1: execution error (fail-closed)
+        - 2: drift detected
+        - 0: clean
+        """
+        if has_errors:
+            return 1
+        return 2 if detected else 0
+
     def _fail(self, exit_code: int, detected: bool) -> int:
         self._emit_report(finished_at=_utc_now(), exit_code=exit_code, detected=detected)
         logger.error("run_failed", run_id=self._run_id, output_path=str(self._out_path))
@@ -514,6 +526,10 @@ class DriftEngine:
         if exit_code_override is not None:
             exit_code, detected = exit_code_override, False
 
+        # Keep report and process semantics aligned to avoid CI contract mismatch:
+        # report.drift.exit_code must reflect the post-normalization detection state.
+        exit_code = self._final_exit_code(detected=detected, has_errors=bool(self._errors))
+
         finished_at = _utc_now()
         self._emit_report(finished_at=finished_at, exit_code=exit_code, detected=detected)
         logger.info(
@@ -526,10 +542,9 @@ class DriftEngine:
 
         self._push_defectdojo(exit_code, detected)
 
-        if self._errors:
-            return 1
-        # Exit codes: 0=clean, 2=drift, 1=error (best practice for schedulers/CI).
-        return 2 if detected else 0
+        # Re-evaluate after optional DefectDojo push because it can append errors.
+        # This keeps process exit code fail-closed and consistent with engine policy.
+        return self._final_exit_code(detected=detected, has_errors=bool(self._errors))
 
 
 # ---------------------------------------------------------------------------
