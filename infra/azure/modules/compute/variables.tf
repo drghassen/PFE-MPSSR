@@ -51,11 +51,6 @@ variable "user_assigned_identity_id" {
   type = string
 }
 
-variable "vm_role_tag" {
-  type    = string
-  default = "web-server"
-}
-
 variable "encryption_at_host_enabled" {
   type    = bool
   default = true

@@ -79,12 +79,6 @@ variable "vm_admin_ssh_public_key" {
   sensitive   = true
 }
 
-variable "vm_role_tag" {
-  description = "Value of cs:role tag used by governance controls"
-  type        = string
-  default     = "web-server"
-}
-
 variable "vm_encryption_at_host_enabled" {
   description = "Enable encryption at host for VMs"
   type        = bool

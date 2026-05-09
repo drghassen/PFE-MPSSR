@@ -80,7 +80,6 @@ module "compute" {
   admin_ssh_public_key         = var.vm_admin_ssh_public_key
   user_assigned_identity_id    = module.identity.id
   boot_diagnostics_storage_uri = module.storage.primary_blob_endpoint
-  vm_role_tag                  = var.vm_role_tag
   encryption_at_host_enabled   = var.vm_encryption_at_host_enabled
   enable_trusted_launch        = var.vm_enable_trusted_launch
   tags                         = local.common_tags

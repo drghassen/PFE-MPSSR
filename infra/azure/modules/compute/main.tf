@@ -1,6 +1,9 @@
 locals {
-  cloud_init = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
-    vm_role = var.vm_role_tag
+  cloud_init_vm1 = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
+    vm_role = "web-server"
+  }))
+  cloud_init_vm2 = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
+    vm_role = "app-server"
   }))
 }
 
@@ -39,8 +42,8 @@ resource "azurerm_linux_virtual_machine" "vm1" {
   network_interface_ids = [azurerm_network_interface.vm1.id]
   size                  = var.vm_size
   admin_username        = var.admin_username
-  custom_data           = local.cloud_init
-  tags                  = merge(var.tags, { "cs:role" = var.vm_role_tag })
+  custom_data           = local.cloud_init_vm1
+  tags                  = merge(var.tags, { "cs:role" = "web-server" })
 
   disable_password_authentication = true
   allow_extension_operations      = false
@@ -86,8 +89,8 @@ resource "azurerm_linux_virtual_machine" "vm2" {
   network_interface_ids = [azurerm_network_interface.vm2[0].id]
   size                  = var.vm_size
   admin_username        = var.admin_username
-  custom_data           = local.cloud_init
-  tags                  = merge(var.tags, { "cs:role" = var.vm_role_tag })
+  custom_data           = local.cloud_init_vm2
+  tags                  = merge(var.tags, { "cs:role" = "app-server" })
 
   disable_password_authentication = true
   allow_extension_operations      = false
