@@ -2,11 +2,12 @@
 # CloudSentinel - Drift Engine (Shift-Right) - Scheduled pipeline
 # ============================================================================
 # Architecture:
-# detect -> decide -> route/remediate -> verify -> escalate
+# detect -> decide -> route/remediate -> verify
 # Shift-Right runs against already-deployed Azure resources. Pipeline red/green
 # alone does not change cloud state, so findings are routed to actions instead
-# of immediate blanket blocking. Escalation is reserved for unresolved critical
-# risk after remediation verification.
+# of immediate blanket blocking. Escalation is handled operationally through:
+# - alert-critical (notification / incident channel)
+# - reconciliation-ticket (automatic IaC reconciliation issue)
 #
 # Phase 2 roadmap:
 # - Implement real Cloud Custodian execution in `custodian-autofix`.
@@ -26,7 +27,7 @@ stages:
   - decide
   - remediate
   - verify
-  - escalate
+  # - escalate  # Disabled: scheduled pipeline has no deployment lever to block.
 
 drift-detect:
   stage: drift
@@ -324,35 +325,38 @@ reconciliation-ticket:
     reports:
       dotenv: .cloudsentinel/reconciliation_ticket.env
 
-enforce-shift-right:
-  stage: escalate
-  image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
-  before_script: []
-  needs:
-    - job: opa-drift-decision
-      artifacts: true
-    - job: opa-prowler-decision
-      artifacts: true
-    - job: custodian-autofix
-      artifacts: true
-    - job: upload-drift-to-defectdojo
-      artifacts: true
-    - job: upload-prowler-to-defectdojo
-      artifacts: true
-    - job: verify-remediation
-      artifacts: true
-    - job: reconciliation-ticket
-      artifacts: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
-    - when: never
-  script:
-    - set -euo pipefail
-    - bash ci/scripts/shift-right/enforce-gates.sh
-  artifacts:
-    when: always
-    expire_in: 30 days
-    paths:
-      - .cloudsentinel/shift_right_enforcement_audit.jsonl
-      - .cloudsentinel/gate.env
+# ----------------------------------------------------------------------------
+# Disabled escalation gate (kept as commented reference for architecture trace)
+# ----------------------------------------------------------------------------
+# enforce-shift-right:
+#   stage: escalate
+#   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:60e7d40113a4f5c118473ce15a36ef7728dcc69bb73fc0d558935270bd508e2b"
+#   before_script: []
+#   needs:
+#     - job: opa-drift-decision
+#       artifacts: true
+#     - job: opa-prowler-decision
+#       artifacts: true
+#     - job: custodian-autofix
+#       artifacts: true
+#     - job: upload-drift-to-defectdojo
+#       artifacts: true
+#     - job: upload-prowler-to-defectdojo
+#       artifacts: true
+#     - job: verify-remediation
+#       artifacts: true
+#     - job: reconciliation-ticket
+#       artifacts: true
+#   rules:
+#     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+#       when: always
+#     - when: never
+#   script:
+#     - set -euo pipefail
+#     - bash ci/scripts/shift-right/enforce-gates.sh
+#   artifacts:
+#     when: always
+#     expire_in: 30 days
+#     paths:
+#       - .cloudsentinel/shift_right_enforcement_audit.jsonl
+#       - .cloudsentinel/gate.env
