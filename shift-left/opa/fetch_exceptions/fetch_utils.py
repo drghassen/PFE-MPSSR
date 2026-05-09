@@ -9,8 +9,19 @@ import os
 import re
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+
+# Format: cloudinit:{rule}:{resource}:{file_path}:{line}
+# Greedy match on file_path to tolerate any path separators.
+_CLOUDINIT_UID_RE = re.compile(
+    r"^cloudinit:[^:]+:[^:]+:(.+):(\d+)$",
+    re.IGNORECASE,
+)
+# CloudSentinel cloud-init description marker: "- File: {path}:{line}"
+# Non-anchored + non-greedy so the pattern works on both the raw multiline
+# description and its sanitized (newline-collapsed) counterpart.
+_CLOUDINIT_DESC_FILE_RE = re.compile(r"-\s*File:\s*(.+?):(\d+)")
 
 RULE_ID_PATTERN = re.compile(
     r"\b(CKV[0-9A-Z_]+|CVE-\d{4}-\d+|DS-\d{4}|CS-CLOUDINIT-[A-Z][A-Z0-9_-]*)\b",
@@ -300,6 +311,36 @@ def similarity(left: Any, right: Any) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio()
+
+
+def parse_cloudinit_occurrence(unique_id: Any) -> Tuple[str, int]:
+    """Extract (file_path, line) from a cloudinit unique_id_from_tool string.
+
+    Expected format: cloudinit:{rule}:{resource}:{file_path}:{line}
+    Example: cloudinit:CS-CLOUDINIT-REMOTE-EXEC:azurerm_linux_virtual_machine.worker:infra/azure/envs/dev/worker.tf:14
+    Returns ("", 0) when the input does not match the expected format.
+    """
+    m = _CLOUDINIT_UID_RE.match(sanitize_text(unique_id))
+    if m:
+        return normalize_path(m.group(1)), int(m.group(2))
+    return "", 0
+
+
+def parse_occurrence_from_cloudinit_description(description: Any) -> Tuple[str, int]:
+    """Extract (file_path, line) from a CloudSentinel cloud-init finding description.
+
+    Looks for the structured '- File: {path}:{line}' marker emitted by the scanner.
+    Used as a secondary fallback when unique_id_from_tool is not available.
+    The raw string is used intentionally — sanitize_text() collapses newlines,
+    which would break line-anchored patterns.
+    Returns ("", 0) when the marker is not found.
+    """
+    if description is None:
+        return "", 0
+    m = _CLOUDINIT_DESC_FILE_RE.search(str(description))
+    if m:
+        return normalize_path(m.group(1).strip()), int(m.group(2))
+    return "", 0
 
 
 def find_best_fuzzy_match(

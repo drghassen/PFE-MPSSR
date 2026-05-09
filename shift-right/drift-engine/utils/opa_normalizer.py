@@ -36,14 +36,22 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
         Format OPA : {"findings": [...]}
     """
 
+    environment = os.getenv("CI_ENVIRONMENT") or os.getenv("ENVIRONMENT") or ""
+    if not environment:
+        logger.warning(
+            "opa_input_environment_unknown",
+            hint="Set CI_ENVIRONMENT or ENVIRONMENT — OPA policies that branch on environment will receive 'unknown'",
+        )
+        environment = "unknown"
+
     normalized = {
         "source": "drift-engine",
         "scan_type": "shift-right-drift",
         "correlation_id": os.getenv("CLOUDSENTINEL_CORRELATION_ID", "unknown"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "environment": os.getenv("CI_ENVIRONMENT", os.getenv("ENVIRONMENT", "unknown")),
-        "repo": os.getenv("CI_PROJECT_PATH", os.getenv("GIT_REPO_NAME", "unknown")),
-        "branch": os.getenv("CI_COMMIT_REF_NAME", os.getenv("GIT_BRANCH", "unknown")),
+        "environment": environment,
+        "repo": os.getenv("CI_PROJECT_PATH") or os.getenv("GIT_REPO_NAME") or "unknown",
+        "branch": os.getenv("CI_COMMIT_REF_NAME") or os.getenv("GIT_BRANCH") or "unknown",
         "findings": [],
     }
 
@@ -57,14 +65,14 @@ def normalize_drift_for_opa(drift_items: list[dict[str, Any]]) -> dict[str, Any]
             "name": item.get("name"),
             "provider_name": item.get("provider_name"),
             "actions": item.get("actions", []),
-            # B8: Use "address" (Terraform resource address, always present and stable)
-            # as the OPA resource_id. The raw "resource_id" field from json_normalizer
-            # holds the Azure ARM resource ID (e.g. /subscriptions/.../resourceGroups/...)
-            # which may be None for resources not yet deployed or for output blocks.
-            # cloudsentinel.shiftright.drift uses resource_id for exception matching — using the
-            # stable Terraform address avoids ambiguity with ARM IDs.
+            # Stable Terraform address used as OPA resource_id for exception matching.
+            # ARM resource IDs may be None for undeployed resources or output blocks.
             "resource_id": item.get("address"),
             "changed_paths": item.get("changed_paths", []),
+            # Security dimensions produced by the normalizer — pure observation.
+            # OPA uses these to apply targeted policies without re-parsing paths.
+            "security_dimensions": item.get("security_dimensions", []),
+            "is_security_relevant": item.get("is_security_relevant", False),
             "correlation_id": os.getenv("CLOUDSENTINEL_CORRELATION_ID", "unknown"),
         }
 

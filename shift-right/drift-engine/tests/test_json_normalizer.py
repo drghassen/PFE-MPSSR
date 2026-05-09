@@ -11,6 +11,7 @@ from utils.json_normalizer import (
     DriftSummary,
     _diff_paths,
     classify_drift_severity,
+    classify_security_dimensions,
     drift_items_to_defectdojo_generic_findings,
     normalize_terraform_plan,
 )
@@ -251,6 +252,51 @@ class TestNormalizeTerraformPlan(unittest.TestCase):
         _, items = normalize_terraform_plan(plan)
         self.assertEqual(items[0]["resource_id"], "/sub/rg/kv")
 
+    def test_security_dimensions_populated_on_items(self):
+        plan = _make_plan(
+            resource_drift=[
+                {
+                    "address": "azurerm_network_security_group.web",
+                    "mode": "managed",
+                    "type": "azurerm_network_security_group",
+                    "name": "web",
+                    "provider_name": "registry.terraform.io/hashicorp/azurerm",
+                    "change": {
+                        "actions": ["update"],
+                        "before": {"security_rule": []},
+                        "after": {"security_rule": [{"access": "Allow"}]},
+                    },
+                }
+            ]
+        )
+        _, items = normalize_terraform_plan(plan)
+        self.assertEqual(len(items), 1)
+        self.assertIn("security_dimensions", items[0])
+        self.assertIn("is_security_relevant", items[0])
+        self.assertIn("network_exposure", items[0]["security_dimensions"])
+        self.assertTrue(items[0]["is_security_relevant"])
+
+    def test_no_severity_on_normalized_items(self):
+        # Severity is OPA's job — normalizer must not assign it
+        plan = _make_plan(
+            resource_drift=[
+                {
+                    "address": "azurerm_storage_account.sa",
+                    "mode": "managed",
+                    "type": "azurerm_storage_account",
+                    "name": "sa",
+                    "provider_name": "registry.terraform.io/hashicorp/azurerm",
+                    "change": {
+                        "actions": ["update"],
+                        "before": {"min_tls_version": "TLS1_0"},
+                        "after": {"min_tls_version": "TLS1_2"},
+                    },
+                }
+            ]
+        )
+        _, items = normalize_terraform_plan(plan)
+        self.assertNotIn("severity", items[0])
+
     def test_resource_id_falls_back_to_before(self):
         plan = _make_plan(
             resource_drift=[
@@ -296,7 +342,8 @@ class TestNormalizeTerraformPlanOutputs(unittest.TestCase):
             }
         )
         summary, items = normalize_terraform_plan(plan)
-        self.assertEqual(summary.resources_changed, 4)
+        self.assertEqual(summary.resources_changed, 0)
+        self.assertEqual(summary.outputs_changed, 4)
         addresses = {i["address"] for i in items}
         self.assertEqual(
             addresses,
@@ -316,7 +363,8 @@ class TestNormalizeTerraformPlanOutputs(unittest.TestCase):
             }
         )
         summary, items = normalize_terraform_plan(plan)
-        self.assertEqual(summary.resources_changed, 1)
+        self.assertEqual(summary.resources_changed, 0)
+        self.assertEqual(summary.outputs_changed, 1)
         self.assertEqual(items[0]["address"], "output.db_name")
 
     def test_output_actions_default_to_update(self):
@@ -391,14 +439,15 @@ class TestNormalizeTerraformPlanOutputs(unittest.TestCase):
         addresses = {i["address"] for i in items}
         self.assertIn("output.vm_name", addresses)
         self.assertIn("azurerm_linux_virtual_machine.vm", addresses)
-        self.assertEqual(summary.resources_changed, 2)
+        self.assertEqual(summary.resources_changed, 1)
+        self.assertEqual(summary.outputs_changed, 1)
 
-        inferred = next(i for i in items if i["address"] == "azurerm_linux_virtual_machine.vm")
-        self.assertEqual(inferred["mode"], "managed")
-        self.assertEqual(inferred["type"], "azurerm_linux_virtual_machine")
-        self.assertEqual(inferred["changed_paths"], ["change"])
-        self.assertEqual(inferred["provenance"], "inferred_from_output")
-        self.assertEqual(inferred["inferred_from_output"], "vm_name")
+        vm_item = next(i for i in items if i["address"] == "azurerm_linux_virtual_machine.vm")
+        self.assertEqual(vm_item["mode"], "managed")
+        self.assertEqual(vm_item["type"], "azurerm_linux_virtual_machine")
+        # The resource appears in resource_changes with actions=["update"] and before==after,
+        # so the main loop catches it with the sensitive/unknown fallback path.
+        self.assertEqual(vm_item["changed_paths"], ["(sensitive or unknown)"])
 
     def test_output_change_infers_child_module_resource_from_configuration_reference(self):
         plan = _make_plan(
@@ -460,6 +509,11 @@ class TestNormalizeTerraformPlanOutputs(unittest.TestCase):
 
 
 class TestClassifyDriftSeverity(unittest.TestCase):
+    """
+    classify_drift_severity is a FALLBACK — called only when OPA is disabled/unavailable.
+    It returns the MAX severity across all matching paths, floored by the resource-type default.
+    """
+
     def test_critical_nsg_security_rule(self):
         sev = classify_drift_severity("azurerm_network_security_group", ["security_rule"])
         self.assertEqual(sev, "Critical")
@@ -472,30 +526,108 @@ class TestClassifyDriftSeverity(unittest.TestCase):
         sev = classify_drift_severity("azurerm_storage_account", ["min_tls_version"])
         self.assertEqual(sev, "High")
 
-    def test_medium_default_for_unknown_type(self):
-        sev = classify_drift_severity("azurerm_resource_group", ["tags"])
-        self.assertEqual(sev, "Medium")
-
-    def test_medium_default_for_unknown_path(self):
+    def test_resource_type_floor_applied_for_unknown_path(self):
+        # azurerm_storage_account floor is High — even unknown path returns High
         sev = classify_drift_severity("azurerm_storage_account", ["location"])
-        self.assertEqual(sev, "Medium")
+        self.assertEqual(sev, "High")
 
-    def test_output_type_returns_medium(self):
-        # Output-type drift has no entry in _SEVERITY_MAP → Medium
+    def test_resource_type_floor_applied_for_key_vault_empty_paths(self):
+        # azurerm_key_vault floor is High — empty paths still returns High
+        sev = classify_drift_severity("azurerm_key_vault", [])
+        self.assertEqual(sev, "High")
+
+    def test_low_severity_for_resource_group_unknown_path(self):
+        # azurerm_resource_group floor is Low — tag drift is Low
+        sev = classify_drift_severity("azurerm_resource_group", ["tags"])
+        self.assertEqual(sev, "Low")
+
+    def test_output_type_returns_medium_default(self):
+        # output type not in map → _default → Medium
         sev = classify_drift_severity("output", ["$"])
         self.assertEqual(sev, "Medium")
 
-    def test_first_matching_path_wins(self):
-        # First path is a critical hit
+    def test_max_severity_returned_across_paths(self):
+        # Both paths match — Critical from security_rule must win over any lower match
         sev = classify_drift_severity(
             "azurerm_network_security_group",
             ["security_rule", "tags"],
         )
         self.assertEqual(sev, "Critical")
 
-    def test_empty_changed_paths_returns_medium(self):
-        sev = classify_drift_severity("azurerm_key_vault", [])
-        self.assertEqual(sev, "Medium")
+    def test_max_severity_wins_when_mixed(self):
+        # retention_in_days (Low) + min_tls_version (High) → High wins, floor High
+        sev = classify_drift_severity(
+            "azurerm_storage_account",
+            ["retention_in_days", "min_tls_version"],
+        )
+        self.assertEqual(sev, "High")
+
+    def test_role_assignment_critical_on_unknown_path(self):
+        # role_assignment floor is Critical regardless of path
+        sev = classify_drift_severity("azurerm_role_assignment", ["scope"])
+        self.assertEqual(sev, "Critical")
+
+    def test_inferred_from_output_uses_type_floor(self):
+        sev = classify_drift_severity(
+            "azurerm_linux_virtual_machine", ["change"],
+            resource_id=None, provenance="inferred_from_output",
+        )
+        self.assertEqual(sev, "High")
+
+
+# ---------------------------------------------------------------------------
+# classify_security_dimensions
+# ---------------------------------------------------------------------------
+
+
+class TestClassifySecurityDimensions(unittest.TestCase):
+    def test_nsg_security_rule_is_network_exposure(self):
+        dims = classify_security_dimensions("azurerm_network_security_group", ["security_rule"])
+        self.assertIn("network_exposure", dims)
+
+    def test_admin_password_is_credential(self):
+        dims = classify_security_dimensions("azurerm_linux_virtual_machine", ["admin_password"])
+        self.assertIn("credential", dims)
+
+    def test_role_assignment_is_access_control(self):
+        dims = classify_security_dimensions("azurerm_role_assignment", ["role_definition_id", "principal_id"])
+        self.assertIn("access_control", dims)
+
+    def test_storage_tls_is_data_protection(self):
+        dims = classify_security_dimensions("azurerm_storage_account", ["min_tls_version"])
+        self.assertIn("data_protection", dims)
+
+    def test_diagnostic_setting_is_audit_logging(self):
+        dims = classify_security_dimensions("azurerm_monitor_diagnostic_setting", ["enabled_log"])
+        self.assertIn("audit_logging", dims)
+
+    def test_multiple_dimensions_returned(self):
+        # VM with both admin_password (credential) and network_interface_ids (network_exposure)
+        dims = classify_security_dimensions(
+            "azurerm_linux_virtual_machine",
+            ["admin_password", "network_interface_ids"],
+        )
+        self.assertIn("credential", dims)
+        self.assertIn("network_exposure", dims)
+
+    def test_unknown_path_returns_empty(self):
+        dims = classify_security_dimensions("azurerm_resource_group", ["tags", "location"])
+        self.assertEqual(dims, [])
+
+    def test_unknown_resource_type_returns_empty(self):
+        dims = classify_security_dimensions("azurerm_unknown_resource", ["security_rule"])
+        self.assertEqual(dims, [])
+
+    def test_output_type_returns_empty(self):
+        dims = classify_security_dimensions("output", ["$"])
+        self.assertEqual(dims, [])
+
+    def test_result_is_sorted(self):
+        dims = classify_security_dimensions(
+            "azurerm_linux_virtual_machine",
+            ["admin_password", "network_interface_ids"],
+        )
+        self.assertEqual(dims, sorted(dims))
 
 
 # ---------------------------------------------------------------------------

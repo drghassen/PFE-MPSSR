@@ -53,6 +53,18 @@ test_nsg_security_rule_drift_is_critical if {
 	result.severity == "CRITICAL"
 }
 
+# NSG nested security_rule path (list/object) → CRITICAL
+test_nsg_nested_security_rule_drift_is_critical if {
+	result := evaluate_drift({
+		"address": "azurerm_network_security_group.test_nsg",
+		"type": "azurerm_network_security_group",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["security_rule[0].access"],
+		"actions": ["update"],
+	})
+	result.severity == "CRITICAL"
+}
+
 # NSG rule access → CRITICAL
 test_nsg_rule_access_drift_is_critical if {
 	result := evaluate_drift({
@@ -108,6 +120,18 @@ test_storage_container_public_access_drift_is_critical if {
 		"type": "azurerm_storage_container",
 		"provider_name": "registry.terraform.io/hashicorp/azurerm",
 		"changed_paths": ["container_access_type"],
+		"actions": ["update"],
+	})
+	result.severity == "CRITICAL"
+}
+
+# Storage container nested access path → CRITICAL
+test_storage_container_nested_public_access_drift_is_critical if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_container.public",
+		"type": "azurerm_storage_container",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["container_access_type.current"],
 		"actions": ["update"],
 	})
 	result.severity == "CRITICAL"
@@ -339,6 +363,25 @@ test_nsg_has_custodian_policy if {
 		"type": "azurerm_network_security_group",
 		"provider_name": "registry.terraform.io/hashicorp/azurerm",
 		"changed_paths": ["security_rule"],
+		"actions": ["update"],
+	}) with input as {
+		"capabilities": {
+			"enforce-nsg-no-open-inbound": {
+				"remediation_supported": true,
+				"verification_script": "verify_nsg_no_open_inbound.sh",
+			}
+		}
+	}
+	result.custodian_policy == "enforce-nsg-no-open-inbound"
+}
+
+# NSG nested security_rule path → enforce-nsg-no-open-inbound
+test_nsg_nested_security_rule_has_custodian_policy if {
+	result := evaluate_drift({
+		"address": "azurerm_network_security_group.nsg",
+		"type": "azurerm_network_security_group",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["security_rule[1].source_port_range"],
 		"actions": ["update"],
 	}) with input as {
 		"capabilities": {

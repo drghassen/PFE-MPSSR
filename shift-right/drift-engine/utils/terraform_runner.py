@@ -208,6 +208,7 @@ class TerraformRunner:
                 duration_ms=0,
             )
 
+        last_result: TerraformCommandResult | None = None
         for attempt in range(3):
             select = self._run(["workspace", "select", "-no-color", workspace])
             if select.return_code == 0:
@@ -215,9 +216,11 @@ class TerraformRunner:
             create = self._run(["workspace", "new", "-no-color", workspace])
             if create.return_code == 0:
                 return create
+            last_result = create
             if attempt < 2:
                 time.sleep(2 ** attempt)
-        return select
+        # Return the last CREATE result — its stderr is more diagnostic than SELECT's.
+        return last_result  # type: ignore[return-value]
 
     def plan_refresh_only(
         self,
@@ -241,10 +244,26 @@ class TerraformRunner:
     def show_plan_json(self, plan_path: Path) -> dict[str, Any] | None:
         result = self._run(["show", "-json", str(plan_path)])
         if result.return_code != 0:
+            import logging
+            logging.getLogger(__name__).error(
+                "terraform_show_json_command_failed",
+                extra={
+                    "return_code": result.return_code,
+                    "stderr": result.stderr[-2000:] if result.stderr else "",
+                },
+            )
             return None
         try:
             return json.loads(result.stdout)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                "terraform_show_json_parse_error",
+                extra={
+                    "error": str(exc),
+                    "stdout_preview": result.stdout[:300] if result.stdout else "",
+                },
+            )
             return None
 
     @staticmethod

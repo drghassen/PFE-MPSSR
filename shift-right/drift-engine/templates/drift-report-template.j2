@@ -38,6 +38,8 @@
     "exit_code": {{ drift.exit_code }},
     "summary": {
       "resources_changed": {{ drift.summary.resources_changed }},
+      "outputs_changed": {{ drift.summary.get("outputs_changed", 0) }},
+      "filtered_count": {{ drift.summary.get("filtered_count", 0) }},
       "resources_by_action": {{ drift.summary.resources_by_action | tojson }},
       "provider_names": {{ drift.summary.provider_names | tojson }}
     },

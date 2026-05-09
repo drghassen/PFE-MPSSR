@@ -68,9 +68,8 @@ exception_scope_matches_repo(ex) if {
 exception_scope_matches_repo(ex) if {
 	repos := object.get(object.get(ex, "scope", {}), "repos", [])
 	count(repos) > 0
-	current_repo := lower(trim_space(object.get(git_meta, "repo", "")))
 	some r in repos
-	lower(trim_space(r)) == current_repo
+	lower(trim_space(r)) == current_git_repo
 }
 
 exception_scope_matches_env(ex) if {

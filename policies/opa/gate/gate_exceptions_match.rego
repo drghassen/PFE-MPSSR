@@ -71,7 +71,7 @@ partial_mismatch_reasons(ex, f) := array.concat(
 			[m | _resource_mismatch(ex, f); m := sprintf("Resource path mismatch: exception='%s' finding='%s'", [exception_resource(ex), lower(trim_space(finding_resource_id(f)))])],
 			[m | _occurrence_mismatch(ex, f); m := sprintf("Occurrence mismatch: exception='%s:%v' finding='%s:%v'", [exception_occurrence_file(ex), exception_occurrence_line(ex), lower(trim_space(finding_occurrence_file(f))), finding_occurrence_line(f)])],
 		),
-		[m | _repo_mismatch(ex); m := sprintf("Scope repo mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "repos", []), lower(trim_space(object.get(git_meta, "repo", "")))])],
+		[m | _repo_mismatch(ex); m := sprintf("Scope repo mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "repos", []), current_git_repo])],
 	),
 	array.concat(
 		[m | _env_mismatch(ex); m := sprintf("Scope environment mismatch: expected one of %v, got '%s'", [object.get(object.get(ex, "scope", {}), "environments", []), environment])],

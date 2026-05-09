@@ -19,6 +19,12 @@ db_ports := {3306, 5432, 27017, 1433, 6379, 5984, 9042, 2181}
 metadata := object.get(input, "metadata", {})
 git_meta := object.get(metadata, "git", {})
 environment := lower(object.get(metadata, "environment", "dev"))
+
+# Accept both "repository" (current normalizer schema) and "repo" (legacy) so
+# that older golden_report artifacts do not silently break scope matching.
+current_git_repo := lower(trim_space(
+    object.get(git_meta, "repository", object.get(git_meta, "repo", ""))
+))
 execution_mode := lower(object.get(object.get(metadata, "execution", {}), "mode", "ci"))
 
 critical_max_raw := object.get(thresholds, "critical_max", 0)

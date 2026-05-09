@@ -36,39 +36,39 @@ determine_severity(finding) := "INFO" if {
 
 is_critical_drift(finding) if {
 	finding.type == "azurerm_network_security_group"
-	"security_rule" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "security_rule")
 }
 
 is_critical_drift(finding) if {
 	finding.type == "azurerm_network_security_rule"
-	"access" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "access")
 }
 
 is_critical_drift(finding) if {
 	finding.type == "azurerm_linux_virtual_machine"
-	"admin_password" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "admin_password")
 }
 
 is_critical_drift(finding) if {
 	finding.type == "azurerm_sql_server"
-	"administrator_login_password" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "administrator_login_password")
 }
 
 # SQL logical server opened to public network is immediately exploitable.
 is_critical_drift(finding) if {
 	finding.type in {"azurerm_sql_server", "azurerm_mssql_server"}
-	"public_network_access_enabled" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "public_network_access_enabled")
 }
 
 is_critical_drift(finding) if {
 	finding.type in {"azurerm_sql_server", "azurerm_mssql_server"}
-	"public_network_access" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "public_network_access")
 }
 
 # Any drift making blob container access public is immediately exploitable.
 is_critical_drift(finding) if {
 	finding.type == "azurerm_storage_container"
-	"container_access_type" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "container_access_type")
 }
 
 # Any drift on a standalone key vault access policy resource = CRITICAL.
@@ -80,22 +80,22 @@ is_critical_drift(finding) if {
 
 is_high_drift(finding) if {
 	finding.type == "azurerm_key_vault"
-	"access_policy" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "access_policy")
 }
 
 is_high_drift(finding) if {
 	finding.type == "azurerm_key_vault"
-	"network_acls" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "network_acls")
 }
 
 is_high_drift(finding) if {
 	finding.type == "azurerm_storage_account"
-	"min_tls_version" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "min_tls_version")
 }
 
 is_high_drift(finding) if {
 	finding.type == "azurerm_storage_account"
-	"allow_blob_public_access" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "allow_blob_public_access")
 }
 
 # IAM: privilege escalation via role assignment changes.
@@ -118,7 +118,7 @@ is_high_drift(finding) if {
 
 is_medium_drift(finding) if {
 	finding.type == "azurerm_monitor_diagnostic_setting"
-	"enabled_log" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "enabled_log")
 }
 
 # Relational database servers hold sensitive data; any configuration drift is MEDIUM.
@@ -145,7 +145,7 @@ is_medium_drift(finding) if {
 
 is_low_drift(finding) if {
 	finding.type == "azurerm_log_analytics_workspace"
-	"retention_in_days" in object.get(finding, "changed_paths", [])
+	changed_paths_has_key(finding, "retention_in_days")
 }
 
 # FIX: P0.3 — Fallback LOW pour tout drift non classifié (élimine FAIL-OPEN via INFO).

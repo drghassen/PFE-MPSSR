@@ -260,7 +260,8 @@ class FetchExceptionsMappingTests(unittest.TestCase):
 
     def test_extract_v2_exception_infers_cloudinit_tool_from_rule_and_unique_id(self):
         """CS-CLOUDINIT-* rule IDs and cloudinit:-prefixed unique_id_from_tool
-        must resolve to tool=cloudinit."""
+        must resolve to tool=cloudinit, with occurrence.file_path and line
+        extracted from unique_id_from_tool rather than falling back to resource."""
         now = datetime.now(timezone.utc)
         ra = {
             "id": 45,
@@ -306,6 +307,53 @@ class FetchExceptionsMappingTests(unittest.TestCase):
         self.assertEqual(ex["rule_id"], "CS-CLOUDINIT-REMOTE-EXEC")
         self.assertEqual(ex["resource"], "azurerm_linux_virtual_machine.worker")
         self.assertEqual(ex["severity"], "CRITICAL")
+        # Occurrence must point to the real terraform file, not the resource name.
+        self.assertEqual(ex["occurrence"]["file_path"], "infra/azure/envs/dev/worker.tf")
+        self.assertEqual(ex["occurrence"]["line"], 14)
+
+    def test_extract_v2_exception_cloudinit_occurrence_fallback_to_description(self):
+        """When unique_id_from_tool is absent, occurrence coordinates must be
+        extracted from the '- File: {path}:{line}' marker in the description."""
+        now = datetime.now(timezone.utc)
+        ra = {
+            "id": 50,
+            "name": "Accept: Cloud-Init Violation: CS-CLOUDINIT-REMOTE-EXEC",
+            "decision": "A",
+            "owner": "admin",
+            "accepted_by": "razane",
+            "created": rfc3339(now - timedelta(hours=1)),
+            "expiration_date": (now + timedelta(days=2)).strftime("%Y-%m-%d"),
+            "status": "APPROVED",
+            "is_active": True,
+            "accepted_findings": [6690],
+            "accepted_finding_details": [
+                {
+                    "id": 6690,
+                    "title": "Cloud-Init Violation: CS-CLOUDINIT-REMOTE-EXEC",
+                    "severity": "Critical",
+                    "description": (
+                        "CloudSentinel cloud-init finding\n"
+                        "- Rule: CS-CLOUDINIT-REMOTE-EXEC\n"
+                        "- Resource: azurerm_linux_virtual_machine.worker\n"
+                        "- File: infra/azure/envs/dev/worker.tf:14\n"
+                        "- Message: Remote execution pattern detected in cloud-init"
+                    ),
+                    "component_name": "azurerm_linux_virtual_machine.worker",
+                    "vuln_id_from_tool": "CS-CLOUDINIT-REMOTE-EXEC",
+                    "unique_id_from_tool": None,
+                    "file_path": None,
+                    "tags": ["devsecops", "shift-left"],
+                }
+            ],
+        }
+
+        ex, error = fetch_exceptions.extract_v2_exception(ra)
+
+        self.assertIsNone(error, f"Unexpected drop reason: {error}")
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["tool"], "cloudinit")
+        self.assertEqual(ex["occurrence"]["file_path"], "infra/azure/envs/dev/worker.tf")
+        self.assertEqual(ex["occurrence"]["line"], 14)
 
     def test_map_risk_acceptances_drops_when_no_valid_findings(self):
         ra = self.base_ra()

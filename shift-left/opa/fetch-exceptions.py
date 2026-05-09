@@ -31,6 +31,8 @@ from fetch_exceptions.fetch_normalization import (
 from fetch_exceptions.fetch_utils import (  # noqa: E402
     normalize_path,
     normalize_severity as _normalize_severity,
+    parse_cloudinit_occurrence,
+    parse_occurrence_from_cloudinit_description,
     sanitize_text,
     to_rfc3339,
 )
@@ -99,15 +101,33 @@ def _draft_exception(
     tool = sanitize_text(finding_candidate.get("tool")).lower()
     rule_id = sanitize_text(finding_candidate.get("rule_id"))
     resource = normalize_path(finding_candidate.get("resource"))
+
+    # Tools that store occurrence coordinates in structured fields other than
+    # file_path (e.g. cloudinit dynamic findings where DefectDojo has file_path=null)
+    # must be resolved before the generic resource-name fallback is applied.
+    # Priority: unique_id_from_tool → description marker → generic fallback.
+    _tool_file, _tool_line = "", 0
+    if tool == "cloudinit":
+        _tool_file, _tool_line = parse_cloudinit_occurrence(
+            finding_raw.get("unique_id_from_tool")
+        )
+        if not _tool_file:
+            _tool_file, _tool_line = parse_occurrence_from_cloudinit_description(
+                finding_raw.get("description")
+            )
+
     occurrence_file_path = normalize_path(
         finding_raw.get("file_path")
         or finding_raw.get("path")
+        or _tool_file
         or finding_candidate.get("resource")
     )
 
     raw_line = finding_raw.get("line")
-    if raw_line is None or sanitize_text(raw_line) == "":
+    if raw_line is None or sanitize_text(str(raw_line)) == "":
         raw_line = finding_raw.get("start_line")
+    if (raw_line is None or sanitize_text(str(raw_line)) == "") and _tool_line:
+        raw_line = _tool_line
     try:
         occurrence_line = int(raw_line)
     except (TypeError, ValueError):

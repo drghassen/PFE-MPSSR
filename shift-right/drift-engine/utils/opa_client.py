@@ -44,7 +44,13 @@ class OPAClient:
         # Inject Bearer token into all requests via session headers
         if self.config.auth_token:
             self.session.headers["Authorization"] = f"Bearer {self.config.auth_token}"
-        self._health_check()
+        self._opa_healthy = self._health_check()
+        if not self._opa_healthy:
+            logger.warning(
+                "opa_server_unhealthy_at_init",
+                server=self.config.server_url,
+                fallback_on_error=self.config.fallback_on_error,
+            )
 
     def _health_check(self) -> bool:
         """Vérifie que OPA Server répond"""

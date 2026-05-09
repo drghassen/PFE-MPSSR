@@ -69,6 +69,7 @@ def enrich_drift_items_with_opa(
     enriched_items: list[dict[str, Any]] = []
 
     for item in drift_items:
+        item = item.copy()
         address = item.get("address")
 
         if address in effective_violations_by_address:
