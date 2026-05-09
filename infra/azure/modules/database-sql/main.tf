@@ -49,14 +49,16 @@ resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
 resource "azurerm_mssql_server_extended_auditing_policy" "this" {
   count             = var.enabled ? 1 : 0
   server_id         = azurerm_mssql_server.this[0].id
+  enabled           = true
   retention_in_days = 90
 }
 
 resource "azurerm_mssql_server_security_alert_policy" "this" {
-  count               = var.enabled ? 1 : 0
-  resource_group_name = var.resource_group_name
-  server_name         = azurerm_mssql_server.this[0].name
-  state               = "Enabled"
+  count                = var.enabled ? 1 : 0
+  resource_group_name  = var.resource_group_name
+  server_name          = azurerm_mssql_server.this[0].name
+  state                = "Enabled"
+  email_account_admins = true
 }
 
 resource "azurerm_mssql_server_vulnerability_assessment" "this" {

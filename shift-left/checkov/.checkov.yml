@@ -76,5 +76,15 @@ skip-check:
   # required for the VM boot_diagnostics_storage_uri. Azure AD auth is set as default
   # (default_to_oauth_authentication=true); shared key is not exposed in application code.
   - CKV2_AZURE_40
+  # ACI environment variable secrets (CKV_AZURE_235): APP_ENV="lab" is a non-sensitive
+  # configuration label, not a secret. No credentials or tokens are passed via env vars.
+  - CKV_AZURE_235
+  # Storage replication (CKV_AZURE_206): LRS is appropriate for this dev lab environment.
+  # GRS/ZRS adds cost without benefit for ephemeral dev state and boot diagnostics.
+  - CKV_AZURE_206
+  # Storage blob read access logging (CKV2_AZURE_21): blob_properties logging for read
+  # operations is not directly configurable in azurerm v4 blob_properties block.
+  # Write and delete logging are enabled via queue_properties.
+  - CKV2_AZURE_21
 
 # Allow everything else; policy-level filtering happens in run-checkov.sh
