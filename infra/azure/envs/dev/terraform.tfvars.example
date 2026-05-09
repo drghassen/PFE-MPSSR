@@ -1,6 +1,6 @@
 subscription_id        = "00000000-0000-0000-0000-000000000000"
 tenant_id              = "00000000-0000-0000-0000-000000000000"
-location               = "francecentral"
+location               = "norwayeast"
 name_prefix            = "cslab"
 environment            = "dev"
 vm_count               = 1
