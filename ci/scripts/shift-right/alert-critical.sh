@@ -101,14 +101,41 @@ resolve_channel() {
   esac
 }
 
+normalize_channel() {
+  local raw="${1:-auto}"
+  # Trim leading/trailing spaces then lowercase for deterministic matching.
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  raw="${raw,,}"
+
+  case "$raw" in
+    ""|auto|default)
+      printf 'auto'
+      return 0
+      ;;
+    teams|msteams|ms-teams)
+      printf 'teams'
+      return 0
+      ;;
+    gitlab|issue|issues)
+      printf 'gitlab'
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 retry_request() {
   local attempt=1
   local rc=1
   while [[ "$attempt" -le "$ALERT_MAX_RETRIES" ]]; do
     if "$@"; then
       return 0
+    else
+      rc=$?
     fi
-    rc=$?
     sr_audit "WARN" "alert_retry" "alert delivery attempt failed" "$(sr_build_details \
       --argjson attempt "$attempt" \
       --argjson max_retries "$ALERT_MAX_RETRIES" \
@@ -120,10 +147,21 @@ retry_request() {
   return "$rc"
 }
 
+RAW_ALERT_CHANNEL="$ALERT_CHANNEL"
+if ! ALERT_CHANNEL="$(normalize_channel "$ALERT_CHANNEL")"; then
+  sr_audit "WARN" "alert_channel_invalid" "invalid ALERT_CHANNEL value; falling back to auto" "$(sr_build_details \
+    --arg alert_channel_raw "$RAW_ALERT_CHANNEL" \
+    '{alert_channel_raw:$alert_channel_raw, fallback:"auto"}')"
+  ALERT_CHANNEL="auto"
+fi
+
 CHANNEL="$(resolve_channel "$ALERT_CHANNEL" || true)"
 if [[ -z "$CHANNEL" ]]; then
   sr_fail "unable to resolve alert channel (set ALERT_CHANNEL=teams|gitlab or required env vars)" 1 \
-    "$(sr_build_details --arg alert_channel "$ALERT_CHANNEL" '{alert_channel:$alert_channel}')"
+    "$(sr_build_details \
+      --arg alert_channel "$ALERT_CHANNEL" \
+      --arg alert_channel_raw "$RAW_ALERT_CHANNEL" \
+      '{alert_channel:$alert_channel, alert_channel_raw:$alert_channel_raw}')"
 fi
 
 PIPELINE_URL="${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID}"
@@ -145,14 +183,67 @@ sr_audit "WARN" "alert_triggered" "L2/L3 findings detected; sending alert" "$(sr
 if [[ "$CHANNEL" == "teams" ]]; then
   sr_require_env TEAMS_WEBHOOK_URL
   PAYLOAD="$(jq -cn \
-    --arg text "${ALERT_SUBJECT} [priority=${ALERT_PRIORITY}, l3=${TOTAL_L3}, l2=${TOTAL_L2}, corr=${CORRELATION_ID}] ${PIPELINE_URL}" \
+    --arg subject "$ALERT_SUBJECT" \
     --arg priority "$ALERT_PRIORITY" \
     --argjson l3_count "$TOTAL_L3" \
     --argjson l2_count "$TOTAL_L2" \
+    --argjson l1_count "$TOTAL_L1" \
+    --argjson l0_count "$TOTAL_L0" \
     --arg pipeline_correlation_id "$CORRELATION_ID" \
     --arg pipeline_url "$PIPELINE_URL" \
+    --arg branch "$CI_COMMIT_REF_NAME" \
     --arg block_reason "$BLOCK_REASON" \
-    '{text:$text, priority:$priority, l3_count:$l3_count, l2_count:$l2_count, pipeline_correlation_id:$pipeline_correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason}')"
+    '{
+      type:"message",
+      summary:$subject,
+      attachments:[
+        {
+          contentType:"application/vnd.microsoft.card.adaptive",
+          contentUrl:null,
+          content:{
+            "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
+            type:"AdaptiveCard",
+            version:"1.4",
+            msteams:{width:"Full"},
+            body:[
+              {
+                type:"TextBlock",
+                size:"Large",
+                weight:"Bolder",
+                text:$subject,
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:("Priority: " + $priority),
+                wrap:true
+              },
+              {
+                type:"FactSet",
+                facts:[
+                  {title:"Pipeline Correlation ID", value:$pipeline_correlation_id},
+                  {title:"Branch", value:$branch},
+                  {title:"L3 (auto-remediation)", value:($l3_count|tostring)},
+                  {title:"L2 (ticket+notify)", value:($l2_count|tostring)},
+                  {title:"L1 (audit warn)", value:($l1_count|tostring)},
+                  {title:"L0 (audit only)", value:($l0_count|tostring)},
+                  {title:"Block reason", value:$block_reason}
+                ]
+              }
+            ],
+            actions:[
+              {type:"Action.OpenUrl", title:"Open Pipeline", url:$pipeline_url}
+            ]
+          }
+        }
+      ],
+      priority:$priority,
+      l3_count:$l3_count,
+      l2_count:$l2_count,
+      pipeline_correlation_id:$pipeline_correlation_id,
+      pipeline_url:$pipeline_url,
+      block_reason:$block_reason
+    }')"
 
   if ! retry_request timeout "$ALERT_TIMEOUT_SECONDS" curl -sS -f -X POST "$TEAMS_WEBHOOK_URL" \
       -H "Content-Type: application/json" --data-binary "$PAYLOAD" -o /dev/null; then
