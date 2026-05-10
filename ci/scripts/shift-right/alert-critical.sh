@@ -23,17 +23,23 @@ OPA_PROWLER_BLOCK_REASON="${OPA_PROWLER_BLOCK_REASON:-none}"
 OPA_CORRELATION_ID="${OPA_CORRELATION_ID:-}"
 OPA_PROWLER_CORRELATION_ID="${OPA_PROWLER_CORRELATION_ID:-}"
 CI_PROJECT_URL="${CI_PROJECT_URL:-unknown}"
+CI_PROJECT_PATH="${CI_PROJECT_PATH:-unknown}"
 CI_PIPELINE_ID="${CI_PIPELINE_ID:-unknown}"
+CI_PIPELINE_SOURCE="${CI_PIPELINE_SOURCE:-unknown}"
 CI_COMMIT_REF_NAME="${CI_COMMIT_REF_NAME:-unknown}"
+CI_COMMIT_SHA="${CI_COMMIT_SHA:-unknown}"
 ALERT_CHANNEL="${ALERT_CHANNEL:-auto}"
 ALERT_MAX_RETRIES="${ALERT_MAX_RETRIES:-3}"
 ALERT_TIMEOUT_SECONDS="${ALERT_TIMEOUT_SECONDS:-15}"
+ALERT_RUNBOOK_URL="${ALERT_RUNBOOK_URL:-}"
 
 TOTAL_L3=$((OPA_DRIFT_L3_COUNT + OPA_PROWLER_L3_COUNT))
 TOTAL_L2=$((OPA_DRIFT_L2_COUNT + OPA_PROWLER_L2_COUNT))
 TOTAL_L1=$((OPA_DRIFT_L1_COUNT + OPA_PROWLER_L1_COUNT))
 TOTAL_L0=$((OPA_DRIFT_L0_COUNT + OPA_PROWLER_L0_COUNT))
 TOTAL_ACTIONABLE=$((TOTAL_L3 + TOTAL_L2))
+DRIFT_ACTIONABLE=$((OPA_DRIFT_L3_COUNT + OPA_DRIFT_L2_COUNT))
+PROWLER_ACTIONABLE=$((OPA_PROWLER_L3_COUNT + OPA_PROWLER_L2_COUNT))
 
 CORRELATION_ID="${OPA_PIPELINE_CORRELATION_ID:-}"
 if [[ -z "$CORRELATION_ID" || "$CORRELATION_ID" == "unknown" ]]; then
@@ -44,6 +50,13 @@ if [[ -z "$CORRELATION_ID" || "$CORRELATION_ID" == "unknown" ]]; then
 fi
 if [[ -z "$CORRELATION_ID" ]]; then
   CORRELATION_ID="unknown"
+fi
+
+GENERATED_AT_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+if [[ "$CI_COMMIT_SHA" == "unknown" || ${#CI_COMMIT_SHA} -lt 8 ]]; then
+  COMMIT_SHORT_SHA="$CI_COMMIT_SHA"
+else
+  COMMIT_SHORT_SHA="${CI_COMMIT_SHA:0:8}"
 fi
 
 if [[ "$TOTAL_L3" -gt 0 ]]; then
@@ -70,6 +83,20 @@ else
       --argjson prowler_l1 "$OPA_PROWLER_L1_COUNT" \
       '{drift_l0:$drift_l0, drift_l1:$drift_l1, prowler_l0:$prowler_l0, prowler_l1:$prowler_l1, action:"audit_only"}')"
   exit 0
+fi
+
+if [[ "$TOTAL_L3" -gt 0 ]]; then
+  DECISION_SUMMARY="L3 findings detected: auto-remediation + reconciliation ticket required."
+  ACTION_REQUIRED="1) Validate Custodian execution in job custodian-autofix.\n2) Confirm reconciliation ticket ownership and ETA.\n3) Run post-remediation verification and commit IaC fix."
+  PRIORITY_COLOR="Attention"
+elif [[ "$TOTAL_L2" -gt 0 ]]; then
+  DECISION_SUMMARY="L2 actionable findings detected: reconciliation ticket and incident notification required."
+  ACTION_REQUIRED="1) Create/assign reconciliation ticket.\n2) Prioritize IaC fix based on impacted controls.\n3) Verify closure on next scheduled runtime scan."
+  PRIORITY_COLOR="Warning"
+else
+  DECISION_SUMMARY="No actionable findings."
+  ACTION_REQUIRED="No immediate action."
+  PRIORITY_COLOR="Good"
 fi
 
 resolve_channel() {
@@ -185,14 +212,35 @@ if [[ "$CHANNEL" == "teams" ]]; then
   PAYLOAD="$(jq -cn \
     --arg subject "$ALERT_SUBJECT" \
     --arg priority "$ALERT_PRIORITY" \
+    --arg priority_color "$PRIORITY_COLOR" \
+    --arg decision_summary "$DECISION_SUMMARY" \
+    --arg action_required "$ACTION_REQUIRED" \
     --argjson l3_count "$TOTAL_L3" \
     --argjson l2_count "$TOTAL_L2" \
     --argjson l1_count "$TOTAL_L1" \
     --argjson l0_count "$TOTAL_L0" \
+    --argjson drift_l3_count "$OPA_DRIFT_L3_COUNT" \
+    --argjson drift_l2_count "$OPA_DRIFT_L2_COUNT" \
+    --argjson drift_l1_count "$OPA_DRIFT_L1_COUNT" \
+    --argjson drift_l0_count "$OPA_DRIFT_L0_COUNT" \
+    --argjson drift_actionable "$DRIFT_ACTIONABLE" \
+    --argjson prowler_l3_count "$OPA_PROWLER_L3_COUNT" \
+    --argjson prowler_l2_count "$OPA_PROWLER_L2_COUNT" \
+    --argjson prowler_l1_count "$OPA_PROWLER_L1_COUNT" \
+    --argjson prowler_l0_count "$OPA_PROWLER_L0_COUNT" \
+    --argjson prowler_actionable "$PROWLER_ACTIONABLE" \
     --arg pipeline_correlation_id "$CORRELATION_ID" \
     --arg pipeline_url "$PIPELINE_URL" \
+    --arg project_path "$CI_PROJECT_PATH" \
+    --arg pipeline_id "$CI_PIPELINE_ID" \
+    --arg pipeline_source "$CI_PIPELINE_SOURCE" \
     --arg branch "$CI_COMMIT_REF_NAME" \
+    --arg commit_short_sha "$COMMIT_SHORT_SHA" \
+    --arg generated_at_utc "$GENERATED_AT_UTC" \
+    --arg drift_block_reason "$OPA_DRIFT_BLOCK_REASON" \
+    --arg prowler_block_reason "$OPA_PROWLER_BLOCK_REASON" \
     --arg block_reason "$BLOCK_REASON" \
+    --arg runbook_url "$ALERT_RUNBOOK_URL" \
     '{
       type:"message",
       summary:$subject,
@@ -216,24 +264,117 @@ if [[ "$CHANNEL" == "teams" ]]; then
               {
                 type:"TextBlock",
                 text:("Priority: " + $priority),
+                color: $priority_color,
+                weight:"Bolder",
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:("Generated (UTC): " + $generated_at_utc),
+                isSubtle:true,
+                spacing:"None",
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:$decision_summary,
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:"Pipeline Context",
+                weight:"Bolder",
+                spacing:"Medium",
                 wrap:true
               },
               {
                 type:"FactSet",
                 facts:[
+                  {title:"Project", value:$project_path},
+                  {title:"Pipeline ID", value:$pipeline_id},
+                  {title:"Pipeline source", value:$pipeline_source},
                   {title:"Pipeline Correlation ID", value:$pipeline_correlation_id},
                   {title:"Branch", value:$branch},
+                  {title:"Commit", value:$commit_short_sha},
+                  {title:"Actionable total (L2+L3)", value:(($l2_count + $l3_count)|tostring)}
+                ]
+              },
+              {
+                type:"TextBlock",
+                text:"Severity Totals",
+                weight:"Bolder",
+                spacing:"Medium",
+                wrap:true
+              },
+              {
+                type:"FactSet",
+                facts:[
                   {title:"L3 (auto-remediation)", value:($l3_count|tostring)},
                   {title:"L2 (ticket+notify)", value:($l2_count|tostring)},
                   {title:"L1 (audit warn)", value:($l1_count|tostring)},
-                  {title:"L0 (audit only)", value:($l0_count|tostring)},
-                  {title:"Block reason", value:$block_reason}
+                  {title:"L0 (audit only)", value:($l0_count|tostring)}
                 ]
+              },
+              {
+                type:"TextBlock",
+                text:"Breakdown by Sensor",
+                weight:"Bolder",
+                spacing:"Medium",
+                wrap:true
+              },
+              {
+                type:"FactSet",
+                facts:[
+                  {title:"Drift L3/L2/L1/L0", value:(($drift_l3_count|tostring) + "/" + ($drift_l2_count|tostring) + "/" + ($drift_l1_count|tostring) + "/" + ($drift_l0_count|tostring))},
+                  {title:"Prowler L3/L2/L1/L0", value:(($prowler_l3_count|tostring) + "/" + ($prowler_l2_count|tostring) + "/" + ($prowler_l1_count|tostring) + "/" + ($prowler_l0_count|tostring))},
+                  {title:"Drift actionable", value:($drift_actionable|tostring)},
+                  {title:"Prowler actionable", value:($prowler_actionable|tostring)}
+                ]
+              },
+              {
+                type:"TextBlock",
+                text:"OPA Decision Reasons",
+                weight:"Bolder",
+                spacing:"Medium",
+                wrap:true
+              },
+              {
+                type:"FactSet",
+                facts:[
+                  {title:"Drift reason", value:$drift_block_reason},
+                  {title:"Prowler reason", value:$prowler_block_reason},
+                  {title:"Combined reason", value:$block_reason}
+                ]
+              },
+              {
+                type:"TextBlock",
+                text:"Required Actions",
+                weight:"Bolder",
+                spacing:"Medium",
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:$action_required,
+                wrap:true
+              },
+              {
+                type:"TextBlock",
+                text:"Traceability: Use pipeline_correlation_id across Drift, OPA, Custodian and DefectDojo artifacts.",
+                isSubtle:true,
+                wrap:true
               }
             ],
-            actions:[
-              {type:"Action.OpenUrl", title:"Open Pipeline", url:$pipeline_url}
-            ]
+            actions: (
+              [
+                {type:"Action.OpenUrl", title:"Open Pipeline", url:$pipeline_url}
+              ]
+              + (if $runbook_url != "" then
+                  [{type:"Action.OpenUrl", title:"Open Runbook", url:$runbook_url}]
+                 else
+                  []
+                 end)
+            )
           }
         }
       ],
@@ -242,7 +383,10 @@ if [[ "$CHANNEL" == "teams" ]]; then
       l2_count:$l2_count,
       pipeline_correlation_id:$pipeline_correlation_id,
       pipeline_url:$pipeline_url,
-      block_reason:$block_reason
+      drift_block_reason:$drift_block_reason,
+      prowler_block_reason:$prowler_block_reason,
+      block_reason:$block_reason,
+      generated_at_utc:$generated_at_utc
     }')"
 
   if ! retry_request timeout "$ALERT_TIMEOUT_SECONDS" curl -sS -f -X POST "$TEAMS_WEBHOOK_URL" \
@@ -259,14 +403,23 @@ else
   BODY="## ${ALERT_SUBJECT}
 
 - Priority: ${ALERT_PRIORITY}
+- Decision summary: ${DECISION_SUMMARY}
 - Pipeline Correlation ID: \`${CORRELATION_ID}\`
+- Project: \`${CI_PROJECT_PATH}\`
 - Pipeline: ${PIPELINE_URL}
+- Pipeline source: \`${CI_PIPELINE_SOURCE}\`
 - Branch: \`${CI_COMMIT_REF_NAME}\`
+- Commit: \`${COMMIT_SHORT_SHA}\`
 - L3 findings (auto-remediation): ${TOTAL_L3}
 - L2 findings (ticket+notify): ${TOTAL_L2}
 - L1 findings (audit warn): ${TOTAL_L1}
 - L0 findings (audit only): ${TOTAL_L0}
-- Block reason: ${BLOCK_REASON}
+- Drift L3/L2/L1/L0: ${OPA_DRIFT_L3_COUNT}/${OPA_DRIFT_L2_COUNT}/${OPA_DRIFT_L1_COUNT}/${OPA_DRIFT_L0_COUNT}
+- Prowler L3/L2/L1/L0: ${OPA_PROWLER_L3_COUNT}/${OPA_PROWLER_L2_COUNT}/${OPA_PROWLER_L1_COUNT}/${OPA_PROWLER_L0_COUNT}
+- Drift reason: ${OPA_DRIFT_BLOCK_REASON}
+- Prowler reason: ${OPA_PROWLER_BLOCK_REASON}
+- Combined block reason: ${BLOCK_REASON}
+- Generated (UTC): ${GENERATED_AT_UTC}
 "
   PAYLOAD="$(jq -cn \
     --arg title "$ALERT_SUBJECT (${CORRELATION_ID})" \
@@ -298,8 +451,9 @@ sr_audit "INFO" "alert_sent" "runtime alert delivered" "$(sr_build_details \
   --arg channel "$CHANNEL" \
   --arg priority "$ALERT_PRIORITY" \
   --arg correlation_id "$CORRELATION_ID" \
+  --arg generated_at_utc "$GENERATED_AT_UTC" \
   --argjson l3_count "$TOTAL_L3" \
   --argjson l2_count "$TOTAL_L2" \
-  '{channel:$channel, priority:$priority, pipeline_correlation_id:$correlation_id, l3_count:$l3_count, l2_count:$l2_count}')"
+  '{channel:$channel, priority:$priority, pipeline_correlation_id:$correlation_id, generated_at_utc:$generated_at_utc, l3_count:$l3_count, l2_count:$l2_count}')"
 
 exit 0
