@@ -30,12 +30,16 @@ _SECURITY_DIMENSIONS: dict[tuple[str, str], str] = {
     # data_protection
     ("azurerm_storage_account", "min_tls_version"): "data_protection",
     ("azurerm_storage_account", "allow_blob_public_access"): "data_protection",
+    ("azurerm_storage_account", "allow_nested_items_to_be_public"): "data_protection",
     ("azurerm_storage_account", "public_network_access_enabled"): "data_protection",
     ("azurerm_storage_account", "network_rules"): "data_protection",
+    ("azurerm_storage_account_network_rules", "default_action"): "network_exposure",
     ("azurerm_key_vault", "network_acls"): "data_protection",
     ("azurerm_sql_server", "public_network_access_enabled"): "data_protection",
     ("azurerm_postgresql_flexible_server", "public_network_access_enabled"): "data_protection",
     ("azurerm_mysql_flexible_server", "public_network_access_enabled"): "data_protection",
+    # backup_resilience
+    ("azurerm_backup_protected_vm", "protection_state"): "backup_resilience",
     # audit_logging
     ("azurerm_monitor_diagnostic_setting", "enabled_log"): "audit_logging",
     ("azurerm_log_analytics_workspace", "retention_in_days"): "audit_logging",
@@ -100,8 +104,12 @@ _PATH_SEVERITY_MAP: dict[tuple[str, str], str] = {
     # High — storage data protection
     ("azurerm_storage_account", "min_tls_version"): "High",
     ("azurerm_storage_account", "allow_blob_public_access"): "High",
+    ("azurerm_storage_account", "allow_nested_items_to_be_public"): "High",
     ("azurerm_storage_account", "public_network_access_enabled"): "High",
     ("azurerm_storage_account", "network_rules"): "High",
+    ("azurerm_storage_account_network_rules", "default_action"): "High",
+    # High — backup/recovery posture
+    ("azurerm_backup_protected_vm", "protection_state"): "High",
     # High — database exposure
     ("azurerm_sql_server", "public_network_access_enabled"): "High",
     ("azurerm_postgresql_flexible_server", "public_network_access_enabled"): "High",
@@ -123,6 +131,9 @@ _RESOURCE_TYPE_FALLBACK_SEVERITY: dict[str, str] = {
     "azurerm_linux_virtual_machine": "High",
     "azurerm_windows_virtual_machine": "High",
     "azurerm_storage_account": "High",
+    "azurerm_storage_account_network_rules": "High",
+    "azurerm_backup_protected_vm": "High",
+    "azurerm_recovery_services_vault": "High",
     "azurerm_sql_server": "High",
     "azurerm_postgresql_flexible_server": "High",
     "azurerm_mysql_flexible_server": "High",

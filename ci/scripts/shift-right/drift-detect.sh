@@ -225,6 +225,15 @@ _status="$([ "$REPORT_DETECTED" == "true" ] && echo "DRIFTED" || echo "CLEAN")"
   printf '│ %-78s │\n' \
     "Total drifted: ${DRIFT_ITEM_COUNT}   |   Errors: ${REPORT_ERROR_COUNT}   |   Exceptions available: ${DRIFT_EXCEPTION_COUNT}"
   printf '└────────────────────────────────────────────────────────────────────────────────┘\n'
+  if [[ "$DRIFT_ITEM_COUNT" -gt 0 ]]; then
+    printf '\nFull drift details:\n'
+    jq -r '.drift.items[] |
+      "  - address: \(.address)\n" +
+      "    type: \(.type // "?")\n" +
+      "    actions: \((.actions // []) | join(","))\n" +
+      "    changed_paths: \((.changed_paths // []) | join(", "))"' \
+      "$DRIFT_REPORT_PATH"
+  fi
 } >&2
 
 {

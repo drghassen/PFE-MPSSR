@@ -161,6 +161,54 @@ test_storage_tls_drift_is_high if {
 	result.severity == "HIGH"
 }
 
+test_storage_nested_public_access_drift_is_high if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_account.sa",
+		"type": "azurerm_storage_account",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["allow_nested_items_to_be_public"],
+		"actions": ["update"],
+	})
+	result.severity == "HIGH"
+	result.action_required == "ticket_and_notify"
+}
+
+test_storage_account_network_rules_default_action_drift_is_high if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_account_network_rules.this",
+		"type": "azurerm_storage_account_network_rules",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["default_action"],
+		"actions": ["update"],
+	})
+	result.severity == "HIGH"
+	result.action_required == "ticket_and_notify"
+}
+
+test_storage_account_nested_network_rules_default_action_drift_is_high if {
+	result := evaluate_drift({
+		"address": "azurerm_storage_account.sa",
+		"type": "azurerm_storage_account",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["network_rules[0].default_action"],
+		"actions": ["update"],
+	})
+	result.severity == "HIGH"
+	result.action_required == "ticket_and_notify"
+}
+
+test_backup_protection_state_drift_is_high if {
+	result := evaluate_drift({
+		"address": "azurerm_backup_protected_vm.vm",
+		"type": "azurerm_backup_protected_vm",
+		"provider_name": "registry.terraform.io/hashicorp/azurerm",
+		"changed_paths": ["protection_state"],
+		"actions": ["update"],
+	})
+	result.severity == "HIGH"
+	result.action_required == "ticket_and_notify"
+}
+
 # Diagnostic setting enabled_log → MEDIUM
 test_diagnostic_setting_drift_is_medium if {
 	result := evaluate_drift({

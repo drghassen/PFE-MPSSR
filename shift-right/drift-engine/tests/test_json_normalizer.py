@@ -526,6 +526,24 @@ class TestClassifyDriftSeverity(unittest.TestCase):
         sev = classify_drift_severity("azurerm_storage_account", ["min_tls_version"])
         self.assertEqual(sev, "High")
 
+    def test_high_storage_nested_public_access(self):
+        sev = classify_drift_severity(
+            "azurerm_storage_account", ["allow_nested_items_to_be_public"]
+        )
+        self.assertEqual(sev, "High")
+
+    def test_high_storage_network_rules_default_action(self):
+        sev = classify_drift_severity(
+            "azurerm_storage_account_network_rules", ["default_action"]
+        )
+        self.assertEqual(sev, "High")
+
+    def test_high_backup_protection_state(self):
+        sev = classify_drift_severity(
+            "azurerm_backup_protected_vm", ["protection_state"]
+        )
+        self.assertEqual(sev, "High")
+
     def test_resource_type_floor_applied_for_unknown_path(self):
         # azurerm_storage_account floor is High — even unknown path returns High
         sev = classify_drift_severity("azurerm_storage_account", ["location"])
@@ -596,6 +614,24 @@ class TestClassifySecurityDimensions(unittest.TestCase):
     def test_storage_tls_is_data_protection(self):
         dims = classify_security_dimensions("azurerm_storage_account", ["min_tls_version"])
         self.assertIn("data_protection", dims)
+
+    def test_storage_nested_public_access_is_data_protection(self):
+        dims = classify_security_dimensions(
+            "azurerm_storage_account", ["allow_nested_items_to_be_public"]
+        )
+        self.assertIn("data_protection", dims)
+
+    def test_storage_network_rules_default_action_is_network_exposure(self):
+        dims = classify_security_dimensions(
+            "azurerm_storage_account_network_rules", ["default_action"]
+        )
+        self.assertIn("network_exposure", dims)
+
+    def test_backup_protection_state_is_backup_resilience(self):
+        dims = classify_security_dimensions(
+            "azurerm_backup_protected_vm", ["protection_state"]
+        )
+        self.assertIn("backup_resilience", dims)
 
     def test_diagnostic_setting_is_audit_logging(self):
         dims = classify_security_dimensions("azurerm_monitor_diagnostic_setting", ["enabled_log"])

@@ -98,6 +98,31 @@ is_high_drift(finding) if {
 	changed_paths_has_key(finding, "allow_blob_public_access")
 }
 
+is_high_drift(finding) if {
+	finding.type == "azurerm_storage_account"
+	changed_paths_has_key(finding, "allow_nested_items_to_be_public")
+}
+
+is_high_drift(finding) if {
+	finding.type == "azurerm_storage_account"
+	changed_paths_has_key(finding, "public_network_access_enabled")
+}
+
+is_high_drift(finding) if {
+	finding.type == "azurerm_storage_account"
+	changed_paths_has_key(finding, "network_rules")
+}
+
+is_high_drift(finding) if {
+	finding.type == "azurerm_storage_account_network_rules"
+	changed_paths_has_key(finding, "default_action")
+}
+
+is_high_drift(finding) if {
+	finding.type == "azurerm_backup_protected_vm"
+	changed_paths_has_key(finding, "protection_state")
+}
+
 # IAM: privilege escalation via role assignment changes.
 is_high_drift(finding) if {
 	finding.type == "azurerm_role_assignment"
