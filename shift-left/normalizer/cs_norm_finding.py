@@ -229,13 +229,13 @@ class NormalizerFindingMixin:
                 s["EXEMPTED"] += 1
                 continue
             st = str(f.get("status", "FAILED")).upper()
+            s["TOTAL"] += 1
             if st == "PASSED":
                 s["PASSED"] += 1
                 continue
             if st != "FAILED":
                 continue
             s["FAILED"] += 1
-            s["TOTAL"] += 1
             sev = str(f.get("severity", {}).get("level", "MEDIUM")).upper()
             s[
                 sev

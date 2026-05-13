@@ -169,7 +169,7 @@ class CloudSentinelNormalizer(
             src = src_map[nm]
             if str(src.get("status", "OK")).upper() == "NOT_RUN":
                 sc["status"] = "NOT_RUN"
-            elif sc["stats"]["TOTAL"] > 0:
+            elif sc["stats"]["FAILED"] > 0:
                 sc["status"] = "FAILED"
             else:
                 sc["status"] = "PASSED"
