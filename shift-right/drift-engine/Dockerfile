@@ -42,7 +42,7 @@ RUN useradd -m -u 10001 appuser \
   && chown -R appuser:appuser /work \
   && chown -R appuser:appuser /app
 
-USER root
+USER appuser
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
   CMD python -c "import sys; sys.exit(0)"
