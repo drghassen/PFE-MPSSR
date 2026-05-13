@@ -625,10 +625,29 @@ def _validate_golden_report(
         return
 
     total = global_summary.get("TOTAL")
+    exempted = global_summary.get("EXEMPTED", 0)
     if not isinstance(total, int):
         _fail(result, "golden_report_summary_total_invalid")
-    elif total != len(findings):
-        _fail(result, "golden_report_not_correlated_summary_total_mismatch")
+    elif not isinstance(exempted, int):
+        _fail(result, "golden_report_summary_exempted_invalid")
+    else:
+        duplicate_count = len([
+            finding
+            for finding in findings
+            if bool(
+                ((finding.get("context") or {}).get("deduplication") or {}).get(
+                    "is_duplicate", False
+                )
+            )
+        ])
+        non_duplicate_count = len(findings) - duplicate_count
+        result["details"]["findings_count"] = len(findings)
+        result["details"]["non_duplicate_findings_count"] = non_duplicate_count
+        result["details"]["duplicate_findings_count"] = duplicate_count
+        if total != non_duplicate_count:
+            _fail(result, "golden_report_not_correlated_summary_total_mismatch")
+        if exempted != duplicate_count:
+            _fail(result, "golden_report_not_correlated_summary_exempted_mismatch")
 
     scanners = doc.get("scanners")
     by_tool = (summary.get("by_tool") or {}) if isinstance(summary, dict) else {}
