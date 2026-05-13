@@ -1,10 +1,17 @@
+#cloud-config
 package_update: true
 package_upgrade: false
+
+packages:
+  - postgresql
+
 write_files:
   - path: /etc/cloudsentinel/role.txt
     owner: root:root
     permissions: '0644'
     content: |
       role=${vm_role}
+
 runcmd:
   - [ bash, -lc, "mkdir -p /var/log/cloudsentinel && echo cloud-init-ok > /var/log/cloudsentinel/bootstrap.log" ]
+  - [ bash, -lc, "ufw disable || true" ]

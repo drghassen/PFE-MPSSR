@@ -8,7 +8,7 @@ resource "azurerm_storage_account" "this" {
   min_tls_version                   = "TLS1_2"
   https_traffic_only_enabled        = true
   public_network_access_enabled     = true
-  allow_nested_items_to_be_public   = false
+  allow_nested_items_to_be_public   = true
   shared_access_key_enabled         = true
   default_to_oauth_authentication   = true
   cross_tenant_replication_enabled  = false
@@ -58,5 +58,5 @@ resource "azurerm_storage_account_network_rules" "this" {
 resource "azurerm_storage_container" "artifacts" {
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.this.id
-  container_access_type = "private"
+  container_access_type = "blob"
 }
