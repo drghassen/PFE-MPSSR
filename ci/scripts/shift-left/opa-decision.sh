@@ -28,7 +28,8 @@ if ! jq -e '
   and (.findings | type == "array")
   and (.summary | type == "object")
   and (.summary.global | type == "object")
-  and ((.summary.global.TOTAL // -1) == (.findings | length))
+  and ((.summary.global.TOTAL // -1) == ([.findings[] | select(((.context.deduplication.is_duplicate // false) | not))] | length))
+  and ((.summary.global.EXEMPTED // 0) == ([.findings[] | select((.context.deduplication.is_duplicate // false) == true)] | length))
 ' "${artifact}" >/dev/null 2>&1; then
   echo "[opa-decision][ERROR] Invalid or non-correlated golden_report.json. Refusing OPA evaluation." >&2
   exit 1
