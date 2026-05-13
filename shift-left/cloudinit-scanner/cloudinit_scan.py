@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import json
 import os
@@ -170,6 +171,18 @@ def _extract_resources(
                     yield _strip_hcl_quotes(resource_type), _strip_hcl_quotes(resource_name), resource_body
 
 
+def _extract_locals(doc: Dict[str, Any]) -> Dict[str, Any]:
+    values: Dict[str, Any] = {}
+    for block in doc.get("locals", []):
+        if not isinstance(block, dict):
+            continue
+        for key, value in block.items():
+            if str(key).startswith("__"):
+                continue
+            values[str(key)] = _unwrap_hcl_value(value)
+    return values
+
+
 def _as_lower_str(value: Any) -> str:
     return str(value).strip().lower()
 
@@ -252,13 +265,129 @@ def _decode_if_base64(field_name: str, raw: str) -> str:
     return raw
 
 
-def _extract_cloud_init(resource_body: Dict[str, Any]) -> Tuple[str, str, bool]:
+def _strip_interpolation(value: str) -> str:
+    value = value.strip()
+    if value.startswith("${") and value.endswith("}"):
+        return value[2:-1].strip()
+    return value
+
+
+def _parse_template_vars(raw: str) -> Dict[str, str]:
+    raw = raw.strip()
+    if not raw:
+        return {}
+    try:
+        parsed = ast.literal_eval(raw)
+    except (SyntaxError, ValueError):
+        parsed = None
+    if isinstance(parsed, dict):
+        return {str(key): str(value) for key, value in parsed.items()}
+
+    values: Dict[str, str] = {}
+    for key, value in re.findall(r"[\"']([^\"']+)[\"']\s*:\s*[\"']([^\"']*)[\"']", raw):
+        values[key] = value
+    return values
+
+
+def _render_template_text(template_text: str, variables: Dict[str, str]) -> Tuple[str, bool]:
+    unresolved = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal unresolved
+        name = match.group(1)
+        if name in variables:
+            return variables[name]
+        unresolved = True
+        return match.group(0)
+
+    rendered = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", replace, template_text)
+    return rendered, unresolved
+
+
+def _resolve_path_module(path_expr: str, module_dir: Path) -> Path:
+    path_text = path_expr.replace("${path.module}", str(module_dir))
+    candidate = Path(path_text)
+    if not candidate.is_absolute():
+        candidate = module_dir / candidate
+    return candidate.resolve()
+
+
+def _resolve_templatefile_expression(
+    expression: str, module_dir: Path, repo_root: Path
+) -> Tuple[str, bool]:
+    match = re.search(
+        r"templatefile\(\s*\"([^\"]+)\"\s*,\s*(\{.*\})\s*\)",
+        expression,
+        re.DOTALL,
+    )
+    if not match:
+        return expression, True
+
+    template_path = _resolve_path_module(match.group(1), module_dir)
+    try:
+        template_path.relative_to(repo_root.resolve())
+    except ValueError:
+        return expression, True
+
+    if not template_path.is_file():
+        return expression, True
+
+    variables = _parse_template_vars(match.group(2))
+    try:
+        template_text = template_path.read_text(encoding="utf-8")
+    except OSError:
+        return expression, True
+
+    return _render_template_text(template_text, variables)
+
+
+def _resolve_cloud_init_expression(
+    value: str,
+    local_values: Dict[str, Any],
+    module_dir: Path,
+    repo_root: Path,
+) -> Tuple[str, bool]:
+    expression = _strip_interpolation(value)
+
+    local_match = re.fullmatch(r"local\.([A-Za-z_][A-Za-z0-9_]*)", expression)
+    if local_match:
+        local_value = _unwrap_hcl_value(local_values.get(local_match.group(1)))
+        if isinstance(local_value, str) and local_value.strip():
+            return _resolve_cloud_init_expression(
+                local_value, local_values, module_dir, repo_root
+            )
+        return value, True
+
+    base64_match = re.fullmatch(r"base64encode\((.*)\)", expression, re.DOTALL)
+    if base64_match:
+        inner = base64_match.group(1).strip()
+        resolved, unresolved = _resolve_cloud_init_expression(
+            inner, local_values, module_dir, repo_root
+        )
+        return resolved, unresolved
+
+    if expression.startswith("templatefile("):
+        return _resolve_templatefile_expression(expression, module_dir, repo_root)
+
+    return value, "${" in value
+
+
+def _extract_cloud_init(
+    resource_body: Dict[str, Any],
+    local_values: Dict[str, Any],
+    module_dir: Path,
+    repo_root: Path,
+) -> Tuple[str, str, bool]:
     for field in CLOUD_INIT_FIELDS:
         raw_value = _unwrap_hcl_value(resource_body.get(field))
         if isinstance(raw_value, str) and raw_value.strip():
-            cleaned = _strip_hcl_heredoc(raw_value)
-            unresolvable = "${" in cleaned.strip()
-            return field, _decode_if_base64(field, cleaned), unresolvable
+            resolved, expression_unresolvable = _resolve_cloud_init_expression(
+                raw_value, local_values, module_dir, repo_root
+            )
+            cleaned = _strip_hcl_heredoc(resolved)
+            decoded = _decode_if_base64(field, cleaned)
+            unresolvable = expression_unresolvable or "${" in decoded.strip()
+            return field, decoded, unresolvable
     return "", "", False
 
 
@@ -338,12 +467,18 @@ def _analyze_resource(
     tf_file: Path,
     repo_root: Path,
     default_env: str,
+    local_values: Dict[str, Any],
 ) -> Dict[str, Any]:
     tags = _extract_tags(resource_body)
     role_tag = _extract_role_tag(tags)
     env = _extract_environment(tags, default_env)
 
-    cloud_init_field, cloud_init_text, cloud_init_unresolvable = _extract_cloud_init(resource_body)
+    cloud_init_field, cloud_init_text, cloud_init_unresolvable = _extract_cloud_init(
+        resource_body=resource_body,
+        local_values=local_values,
+        module_dir=tf_file.parent,
+        repo_root=repo_root,
+    )
     db_packages = _detect_db_packages(cloud_init_text)
     remote_exec_patterns = _detect_remote_exec_patterns(cloud_init_text)
     security_bypass_patterns = _detect_security_bypass_patterns(cloud_init_text)
@@ -444,6 +579,7 @@ def analyze_terraform(
             parse_errors.append(f"{tf_file}: {exc}")
             continue
 
+        local_values = _extract_locals(doc)
         for resource_type, resource_name, body in _extract_resources(doc):
             resources.append(
                 _analyze_resource(
@@ -453,6 +589,7 @@ def analyze_terraform(
                     tf_file=tf_file,
                     repo_root=repo_root,
                     default_env=default_env,
+                    local_values=local_values,
                 )
             )
 
