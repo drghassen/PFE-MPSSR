@@ -107,8 +107,8 @@ checkov-scan:
 trivy-scan:
   <<: *default_tools
   stage: scan
-  # Single Trivy job — filesystem CVE/misconfig + container image scanning
-  # DB is pre-warmed by trivy-db-warm (guard stage).
+  # Single Trivy job — filesystem CVE-only + container image scanning (if TRIVY_IMAGE_TARGETS set)
+  # DB is pre-warmed by trivy-db-warm (guard stage). IaC misconfigs → Checkov.
   needs:
     - job: trivy-db-warm
   cache:
@@ -126,6 +126,7 @@ trivy-scan:
       - shift-left/trivy/reports/raw/trivy-fs-raw.json.hmac
       - shift-left/trivy/reports/raw/image/
       - shift-left/trivy/reports/sbom/trivy-fs.cdx.json
+      # trivy-image.cdx.json exists only when TRIVY_IMAGE_TARGETS is set — GitLab skips silently if absent
       - shift-left/trivy/reports/sbom/trivy-image.cdx.json
 
 cloudinit-scan:
@@ -220,17 +221,9 @@ upload-to-defectdojo:
   allow_failure: true
   variables:
     GIT_STRATEGY: fetch
-  # Distributed artifact integrity model:
-  # this consumer verifies HMAC sidecars for each artifact before upload.
+  # normalize-reports publishes .cloudsentinel/ (all raw files + HMAC sidecars + golden report)
+  # and shift-left/trivy/reports/raw/ — everything needed for HMAC verification and upload.
   needs:
-    - job: gitleaks-scan
-      artifacts: true
-    - job: checkov-scan
-      artifacts: true
-    - job: trivy-scan
-      artifacts: true
-    - job: cloudinit-scan
-      artifacts: true
     - job: normalize-reports
       artifacts: true
   script:
