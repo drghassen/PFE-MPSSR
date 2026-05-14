@@ -30,11 +30,11 @@ Le script `run-gitleaks.sh` encapsule l'outil pour :
 ### CI — Scan principal (signal OPA / gate pipeline)
 
 ```bash
-gitleaks detect --no-git --source <repo> --redact ...
+gitleaks detect --source <repo> --redact ...
 ```
 
 - **Output** : `.cloudsentinel/gitleaks_raw.json`
-- Scanne le snapshot complet du repository (fichiers présents dans le workspace CI).
+- Scanne l'historique Git complet du repository CI. `--no-git` est volontairement absent pour ne pas perdre les secrets supprimés d'anciens commits.
 - C'est le **seul signal OPA**. Ce fichier est la source de vérité pour la décision pipeline.
 
 ### CI — Scan range secondaire (enrichissement metadata, best-effort)

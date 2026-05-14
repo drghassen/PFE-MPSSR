@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,7 +23,7 @@ class TestCloudInitScanner(unittest.TestCase):
         cls.repo_root = Path(__file__).resolve().parents[3]
         cls.scanner = _load_scanner_module(cls.repo_root)
 
-    def _scan(self, tf_body: str, default_env: str = "prod"):
+    def _scan(self, tf_body: str, default_env: str = "prod", pattern_db_path=None):
         with tempfile.TemporaryDirectory(prefix="cloudinit-scan-test-") as tmpdir:
             tf_dir = Path(tmpdir) / "terraform"
             tf_dir.mkdir(parents=True, exist_ok=True)
@@ -31,6 +32,7 @@ class TestCloudInitScanner(unittest.TestCase):
                 terraform_dir=tf_dir,
                 repo_root=tf_dir,
                 default_env=default_env,
+                pattern_db_path=pattern_db_path,
             )
         self.assertEqual(len(report["resources_analyzed"]), 1)
         return report, report["resources_analyzed"][0]
@@ -428,6 +430,63 @@ EOT
         self.assertEqual(len(resource["violations"]), 0)
         self.assertEqual(resource["signals"]["security_bypass_detected"], False)
         self.assertEqual(resource["signals"]["remote_exec_detected"], False)
+
+    def test_external_pattern_database_rule_is_loaded(self):
+        """A new malicious bootstrap pattern can be added via JSON without code changes."""
+        with tempfile.TemporaryDirectory(prefix="cloudinit-pattern-db-") as tmpdir:
+            pattern_db_path = Path(tmpdir) / "patterns.json"
+            pattern_db_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "test-1.0.0",
+                        "workload_keywords": {"database": []},
+                        "remote_exec_patterns": [],
+                        "security_bypass_patterns": [
+                            {
+                                "id": "disable_auditd",
+                                "rule_id": "CS-CLOUDINIT-SECURITY-BYPASS",
+                                "severity": "CRITICAL",
+                                "message": "Audit daemon disabled via cloud-init",
+                                "regex": "systemctl\\s+disable\\s+auditd",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report, resource = self._scan(
+                """
+resource "azurerm_linux_virtual_machine" "app" {
+  name                = "vm-app"
+  resource_group_name = "rg"
+  location            = "westeurope"
+  size                = "Standard_B1s"
+  network_interface_ids = []
+  admin_username      = "cloudadmin"
+
+  tags = {
+    "cs:role"    = "app-server"
+    "Environment" = "prod"
+  }
+
+  custom_data = <<-EOT
+#cloud-config
+runcmd:
+  - systemctl disable auditd
+EOT
+}
+                """,
+                pattern_db_path=pattern_db_path,
+            )
+
+        self.assertEqual(
+            report["summary"]["pattern_db"]["schema_version"],
+            "test-1.0.0",
+        )
+        self.assertIn("disable_auditd", resource["signals"]["security_bypass_patterns"])
+        rules = {v["rule"] for v in resource["violations"]}
+        self.assertIn("CS-CLOUDINIT-SECURITY-BYPASS", rules)
 
 
 if __name__ == "__main__":

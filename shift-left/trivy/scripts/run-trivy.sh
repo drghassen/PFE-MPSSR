@@ -9,7 +9,6 @@ BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SCAN_IMAGE="$SCRIPT_DIR/scan-image.sh"
 SCAN_FS="$SCRIPT_DIR/scan-fs.sh"
-SCAN_CONFIG="$SCRIPT_DIR/scan-config.sh"
 
 REPORTS_RAW_DIR="$BASE_DIR/reports/raw"
 mkdir -p "$REPORTS_RAW_DIR"
@@ -25,7 +24,7 @@ SCAN_TYPE="${2:-}"
 
 if [[ -z "$TARGET" || -z "$SCAN_TYPE" ]]; then
   err "Usage: $0 <target> <scan_type>"
-  err "  scan_type: image | fs | config"
+  err "  scan_type: image | fs"
   exit 2
 fi
 
@@ -39,12 +38,8 @@ case "$SCAN_TYPE" in
     bash "$SCAN_FS" "$TARGET"
     RAW_RESULTS="$REPORTS_RAW_DIR/trivy-fs-raw.json"
     ;;
-  config)
-    bash "$SCAN_CONFIG" "$TARGET"
-    RAW_RESULTS="$REPORTS_RAW_DIR/trivy-config-raw.json"
-    ;;
   *)
-    err "Unknown scan type: '$SCAN_TYPE'. Valid types: image | fs | config"
+    err "Unknown scan type: '$SCAN_TYPE'. Valid types: image | fs"
     exit 2
     ;;
 esac

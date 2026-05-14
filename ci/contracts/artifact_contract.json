@@ -38,17 +38,6 @@
           "signed_artifact": "shift-left/trivy/reports/raw/trivy-fs-raw.json"
         },
         {
-          "id": "trivy_config_raw",
-          "path": "shift-left/trivy/reports/raw/trivy-config-raw.json",
-          "kind": "json"
-        },
-        {
-          "id": "trivy_config_raw_hmac",
-          "path": "shift-left/trivy/reports/raw/trivy-config-raw.json.hmac",
-          "kind": "hmac",
-          "signed_artifact": "shift-left/trivy/reports/raw/trivy-config-raw.json"
-        },
-        {
           "id": "cloudinit_analysis",
           "path": ".cloudsentinel/cloudinit_analysis.json",
           "kind": "json"

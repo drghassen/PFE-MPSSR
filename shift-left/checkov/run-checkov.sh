@@ -14,6 +14,8 @@ mkdir -p "$OUT_DIR"
 POLICIES_DIR="${SCRIPT_DIR}/policies"
 CUSTOM_CHECKS_DIR="${POLICIES_DIR}/azure"
 CONFIG_FILE="${SCRIPT_DIR}/.checkov.yml"
+SUPPRESSIONS_FILE="${SCRIPT_DIR}/config/checkov-suppressions.yml"
+EFFECTIVE_CONFIG_FILE="$OUT_DIR/checkov.effective.yml"
 
 REPORT_RAW="$OUT_DIR/checkov_raw.json"
 REPORT_LOG="$OUT_DIR/checkov_scan.log"
@@ -21,20 +23,23 @@ REPORT_LOG="$OUT_DIR/checkov_scan.log"
 command -v checkov >/dev/null 2>&1 || { log_err "checkov binary missing"; exit 2; }
 command -v jq >/dev/null 2>&1 || { log_err "jq binary missing"; exit 2; }
 [[ -f "$CONFIG_FILE" ]] || { log_err "config file missing: $CONFIG_FILE"; exit 2; }
+[[ -f "$SUPPRESSIONS_FILE" ]] || { log_err "suppressions file missing: $SUPPRESSIONS_FILE"; exit 2; }
 [[ -d "$POLICIES_DIR" ]] || { log_err "policies dir missing: $POLICIES_DIR"; exit 2; }
 [[ -d "$CUSTOM_CHECKS_DIR" ]] || { log_err "custom checks dir missing: $CUSTOM_CHECKS_DIR"; exit 2; }
 
 SCAN_TARGET="${1:-$REPO_ROOT}"
 log_info "Starting raw scan on: $SCAN_TARGET"
 
-checkov_cmd=(checkov --directory "$SCAN_TARGET")
-checkov_cmd+=("--config-file" "$CONFIG_FILE")
-checkov_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
-# NOTE: All skip-check entries are in .checkov.yml.
-# Do NOT add --skip-check here — CLI --skip-check replaces the config-file list
-# instead of merging with it, silently ignoring all entries in .checkov.yml.
+{
+  cat "$CONFIG_FILE"
+  printf '\n'
+  cat "$SUPPRESSIONS_FILE"
+} > "$EFFECTIVE_CONFIG_FILE"
 
-# Optional skip paths (comma-separated). Empty by default for full-repo scans.
+checkov_cmd=(checkov --directory "$SCAN_TARGET")
+checkov_cmd+=("--config-file" "$EFFECTIVE_CONFIG_FILE")
+checkov_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
+
 SKIP_PATHS_CSV="${CHECKOV_SKIP_PATHS:-}"
 if [[ -n "$SKIP_PATHS_CSV" ]]; then
   IFS=',' read -r -a skip_paths <<< "$SKIP_PATHS_CSV"

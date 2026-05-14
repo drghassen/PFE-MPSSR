@@ -17,12 +17,15 @@ La philosophie de CloudSentinel interdit aux scanners de configurer des "soft-fa
 
 ---
 
-## 🛠️ Configuration (`.checkov.yml`)
+## 🛠️ Configuration
 
-Checkov dispose de beaucoup d'options globales, forcées via notre `.checkov.yml` :
-*   `skip-check` : Les règles ignorées de base par l'entreprise (non gérées via OPA car non pertinentes au contexte).
-*   `framework` : Restreint à Terraform et Kubernetes.
-*   `output` : JSON strict + Compact output pour les logs CI.
+La configuration est volontairement séparée :
+
+*   `.checkov.yml` : paramètres d'exécution uniquement (`framework`, `output`, `quiet`, `compact`, `soft-fail`).
+*   `config/checkov-suppressions.yml` : suppressions scanner organisées par catégorie de gouvernance.
+*   `.cloudsentinel/checkov.effective.yml` : fichier généré par le wrapper avant exécution de Checkov.
+
+Les suppressions Checkov doivent rester limitées aux frontières de scope scanner, faux positifs et contraintes lab documentées. Les exceptions de risque métier passent par DefectDojo/OPA.
 
 ---
 

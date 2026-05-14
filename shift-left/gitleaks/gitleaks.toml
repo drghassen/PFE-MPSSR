@@ -138,6 +138,32 @@ regex = '''(?i)\b(?:ARM_CLIENT_SECRET|AZURE_CLIENT_SECRET|(?:azure|aad|entra|mic
 severity = "CRITICAL"
 tags = ["cloud", "azure", "aad", "credential"]
 
+# Targets explicit password assignments in IaC/env/config files.
+# Contextual key names keep this stricter than broad entropy-only detection.
+# Example catch: admin_password = "********************************".
+[[rules]]
+id = "generic-password-assignment"
+description = "Explicit Password Assignment"
+regex = '''(?i)\b(?:password|passwd|pwd|admin[_-]?password|administrator[_-]?password|db[_-]?password|database[_-]?password|sql[_-]?password|mysql[_-]?password|postgres(?:ql)?[_-]?password|redis[_-]?password|vm[_-]?admin[_-]?password|TF_VAR_[A-Z0-9_]*PASSWORD)\b\s*[:=]\s*["']?([A-Za-z0-9][^"'\s#${}]{9,127})["']?'''
+secretGroup = 1
+severity = "CRITICAL"
+tags = ["password", "credential", "iac", "env"]
+
+# Targets Terraform variables whose name indicates password intent and whose
+# default embeds a concrete secret. This catches multiline variable blocks where
+# the key and default assignment are not on the same line.
+# Example catch:
+#   variable "admin_password" {
+#     default = "********************************"
+#   }
+[[rules]]
+id = "terraform-password-variable-default"
+description = "Terraform Password Variable Default"
+regex = '''(?is)\bvariable\s+"[^"]*(?:password|passwd|pwd)[^"]*"\s*\{.{0,400}?\bdefault\s*=\s*"([A-Za-z0-9][^"$\{\}\s]{7,127})"'''
+secretGroup = 1
+severity = "CRITICAL"
+tags = ["terraform", "password", "credential", "iac"]
+
 # Targets Azure Storage connection strings carrying AccountKey material.
 # Requires storage connection-string keys and base64 AccountKey value to reduce generic hits.
 # Example catch: DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...==;EndpointSuffix=core.windows.net.

@@ -138,5 +138,16 @@ if [[ "$TRIVY_RC" -gt 1 ]]; then
   exit 1
 fi
 
+if jq -e 'type == "object" and ((has("Results") | not) or (.Results == null))' "$OUTPUT_FILE" >/dev/null 2>&1; then
+  tmp_output="$(mktemp)"
+  jq '.Results = []' "$OUTPUT_FILE" > "$tmp_output"
+  mv "$tmp_output" "$OUTPUT_FILE"
+fi
+
+if ! jq -e 'type == "object" and (.Results | type == "array")' "$OUTPUT_FILE" >/dev/null 2>&1; then
+  err "Trivy filesystem scan produced an invalid raw report: $OUTPUT_FILE"
+  exit 1
+fi
+
 FINDING_COUNT=$(jq '[.Results[]? | (.Vulnerabilities // []) | length] | add // 0' "$OUTPUT_FILE" 2>/dev/null || echo "?")
 log "Scan complete. Findings: $FINDING_COUNT → $OUTPUT_FILE"

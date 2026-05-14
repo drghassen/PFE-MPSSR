@@ -432,7 +432,7 @@
         "status": {
           "type": "string",
           "enum": ["PASSED", "FAILED"],
-          "description": "Immutable detection status set by the normalizer. PASSED = scanner explicit pass (e.g. Trivy misconfig). FAILED = active finding requiring evaluation. Duplicate tracking is via context.deduplication.is_duplicate — NOT via status. EXEMPTED is deprecated as of v1.2.1 and no longer produced by the normalizer."
+          "description": "Immutable detection status set by the normalizer. PASSED = scanner explicit pass. FAILED = active finding requiring evaluation. Duplicate tracking is via context.deduplication.is_duplicate — NOT via status. EXEMPTED is deprecated as of v1.2.1 and no longer produced by the normalizer."
         },
         "remediation": {
           "type": "object",

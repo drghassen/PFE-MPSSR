@@ -91,7 +91,7 @@ class NormalizerFindingMixin:
         )
         sev = self.sev_lut.get(str(raw_sev).upper(), "MEDIUM")
         # Status normalization: set once at normalization, immutable downstream.
-        # DevSecOps rule: only PASSED (scanner explicit pass, e.g. Trivy misconfig)
+        # DevSecOps rule: only PASSED (scanner explicit pass) or FAILED.
         # or FAILED (all detections). EXEMPTED is NOT a valid raw-input status —
         # duplicate tracking lives exclusively in context.deduplication metadata.
         raw_st = str(f.get("status", "FAILED")).upper()

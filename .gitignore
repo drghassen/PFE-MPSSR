@@ -70,6 +70,7 @@ CLAUDE.md
 # EXCEPT mandatory documentation (Architecture standard)
 !README.md
 !*/README.md
+!docs/SHIFT_LEFT_SCANNERS_DEEP_ANALYSIS.md
 
 # Ignore Windows NTFS Alternate Data Streams (Downloads)
 *.Zone.Identifier
@@ -87,4 +88,6 @@ reports/
 
 # Local test & verification artifacts (not in CI pipeline)
 tests/
+!shift-left/checkov/tests/
+!shift-left/checkov/tests/validate-policy-catalog.py
 integration-tests/

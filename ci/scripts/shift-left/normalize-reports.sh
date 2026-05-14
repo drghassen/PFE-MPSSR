@@ -15,7 +15,6 @@ list_input_artifacts() {
     ".cloudsentinel/gitleaks_raw.json"
     ".cloudsentinel/checkov_raw.json"
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
-    "shift-left/trivy/reports/raw/trivy-config-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
   )
   echo "[normalize-reports][debug] Input artifacts inventory:"
@@ -32,7 +31,6 @@ list_input_artifacts() {
 debug_trivy_results_shape() {
   local trivy_files=(
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
-    "shift-left/trivy/reports/raw/trivy-config-raw.json"
   )
   for file in "${trivy_files[@]}"; do
     [[ -f "$file" ]] || continue
@@ -57,7 +55,6 @@ log_scan_id_propagation() {
     ".cloudsentinel/gitleaks_raw.json"
     ".cloudsentinel/checkov_raw.json"
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
-    "shift-left/trivy/reports/raw/trivy-config-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
   )
   if [[ "$include_golden" == "true" ]]; then

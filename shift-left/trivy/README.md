@@ -1,41 +1,46 @@
-# 🐳 Trivy — Sécurité Conteneurs et Dépendances
+# Trivy - Vulnerability/SCA Scanner
 
-> **Vulnerability Scanner** : Identifie les failles de sécurité (CVEs) dans les images Docker, les dépendances OS, et les fichiers d'orchestration avant leur déploiement.
+Trivy est limite volontairement aux vulnerabilites/SCA CloudSentinel: packages OS et bibliotheques applicatives.
 
-Trivy est le scanner de Tier-3 du pipeline Shift-Left CloudSentinel. Il couvre le spectre non géré par Gitleaks et Checkov, principalement orienté sur la matrice logicielle.
-
----
-
-## 📐 Architecture du Wrapper (V5.0)
-
-Comme tous les analyseurs CloudSentinel, Trivy est isolé derrière un script (`run-trivy.sh`) garantissant un output JSON robuste et interopérable avec le **Normalizer**.
-
-1.  **Ciblage Dynamique** : Supporte différents types de scan via ses paramètres CLI (`config`, `image`, `fs`, `repository`).
-2.  **Output Strict** : Exporte les rapports bruts vers `reports/raw/` et construit un résumé abstrait (`trivy_opa.json`) certifiant son exécution.
-3.  **Advisory Focus** : Trivy n'interrompt **jamais** la CI (Exit 0 systématique). Toute la gouvernance sur l'acceptation d'une image avec des failles (ex: `CRITICAL` patchables vs non-patchables) est relayée à la Policy Decision OPA locale.
-4.  **Format Unifié** : Le Normalizer convertit automatiquement les niveaux "HIGH" trivy vers l'échelle globale OPA (1-5).
+Ownership non negociable:
+- Secrets: Gitleaks.
+- IaC/config: Checkov.
+- Vulnerabilites packages/images: Trivy.
 
 ---
 
-## 🛠️ Configuration Principale
+## Architecture
 
-Trivy s'appuie sur la base de données AquaSecurity.
-Les options de la ligne de commande (Timeout, Ignore-Unfixed, Format) sont imposées dans l'orchestrateur `.gitlab-ci.yml` :
-*   `--no-progress` pour éviter de polluer les logs GitLab.
-*   `--timeout 5m` pour sécuriser les resources.
-*   `--severity HIGH,CRITICAL` (Optionnel) pour soulager la base DefectDojo.
+Comme les autres analyseurs CloudSentinel, Trivy est isole derriere `run-trivy.sh`. Le scanner produit des rapports JSON bruts; le normalizer construit le `golden_report.json`; OPA reste le seul point de decision ALLOW/DENY.
+
+Modes supportes:
+- `fs`: scan SCA/vulnerabilites du repository.
+- `image`: scan vulnerabilites d'image conteneur.
+
+Le mode `config` est desactive par design. Il ne doit pas etre utilise pour scanner Dockerfile/IaC, car ce scope appartient a Checkov.
+
+## Configuration Effective
+
+- `shift-left/trivy/configs/trivy.yaml`: local/advisory.
+- `shift-left/trivy/configs/trivy-ci.yaml`: CI.
+- Les deux configs declarent `scan.scanners: [vuln]`.
+- Les wrappers imposent aussi `--scanners vuln`.
+- `.trivy-cache` est partage avec le job `trivy-db-warm`.
+- `TRIVY_DB_REPOSITORIES` permet le fallback DB (`ghcr.io`, puis mirror GCR par defaut).
+- `exit-code: 0` garde Trivy advisory; seuls les problemes techniques `rc > 1` stoppent le job de detection.
 
 ---
 
-## 🚀 Utilisation
+## Utilisation
 
-**En Mode CI / Local Pipeline :**
 ```bash
-# Scan complet du repository (root) en mode config
-bash shift-left/trivy/scripts/run-trivy.sh "." "config"
+# Repository SCA/vulnerabilites uniquement
+bash shift-left/trivy/scripts/run-trivy.sh "." "fs"
+
+# Image conteneur, vulnerabilites uniquement
+bash shift-left/trivy/scripts/run-trivy.sh "alpine:3.18" "image"
 ```
 
-## 🧩 OPA Integration
-Actuellement, les CVEs critiques remontées par Trivy dans le `golden_report.json` subissent le même "Quality Gate" via `pipeline_decision.rego` :
-- Un finding Trivy `CRITICAL` ajoute un +1 au compteur `effective_critical`.
-- Peut faire l'objet d'exceptions OPA structurées (`exceptions.json`) via l'ID de la CVE.
+## OPA Integration
+
+Les CVE remontees par Trivy sont normalisees dans `golden_report.json` avec `finding_type=vulnerability`. Trivy ne bloque pas directement le pipeline; OPA applique les seuils, exceptions et decisions d'enforcement.

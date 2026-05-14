@@ -400,71 +400,11 @@ class NormalizerRawParsersMixin:
                         },
                     }
                 )
-            for s in r.get("Secrets", []) if isinstance(r.get("Secrets"), list) else []:
-                if not isinstance(s, dict):
-                    continue
-                st = self._to_int(s.get("StartLine"), 0)
-                en = self._to_int(s.get("EndLine"), st)
-                material = self._first(s.get("Match"), s.get("Code"), "") or ""
-                out.append(
-                    {
-                        "id": self._first(s.get("RuleID"), "TRIVY_SECRET_UNKNOWN"),
-                        "description": self._first(s.get("Title"), "Secret detected"),
-                        "severity": self._first(s.get("Severity"), "HIGH"),
-                        "status": "FAILED",
-                        "finding_type": "secret",
-                        "resource": {"name": tgt, "path": tgt, "type": "asset"},
-                        "start_line": st,
-                        "end_line": en,
-                        "references": [],
-                        "metadata": {
-                            "scan_type": scan_type,
-                            "secret_hash": self._sha256(material) if material else "",
-                        },
-                    }
-                )
-            for m in (
-                r.get("Misconfigurations", [])
-                if isinstance(r.get("Misconfigurations"), list)
-                else []
-            ):
-                if not isinstance(m, dict):
-                    continue
-                st = (
-                    "PASSED" if str(m.get("Status", "")).upper() == "PASS" else "FAILED"
-                )
-                out.append(
-                    {
-                        "id": self._first(m.get("ID"), "TRIVY_MISCONFIG_UNKNOWN"),
-                        "description": self._first(
-                            m.get("Title"), m.get("Message"), "No description"
-                        ),
-                        "severity": self._first(m.get("Severity"), "MEDIUM"),
-                        "status": st,
-                        "finding_type": "misconfig",
-                        "resource": {
-                            "name": tgt,
-                            "path": self._first(
-                                (m.get("CauseMetadata") or {}).get("Resource"),
-                                tgt,
-                                "unknown",
-                            ),
-                            "type": "configuration",
-                        },
-                        "references": [
-                            str(x)
-                            for x in (m.get("References") or [])
-                            if isinstance(x, str)
-                        ],
-                        "metadata": {"scan_type": scan_type},
-                    }
-                )
         return out
 
     def _parse_trivy(self, skip=False):
         paths = {
             "fs": self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json",
-            "config": self.root / "shift-left/trivy/reports/raw/trivy-config-raw.json",
         }
         tr_path = str(self.root / "shift-left/trivy/reports/raw")
         if skip:

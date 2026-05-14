@@ -15,11 +15,10 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `build-prowler-tools-image.sh` | build/push prowler-tools image | `/kaniko/executor` | n/a |
 | `gitleaks-scan.sh` | run gitleaks wrapper and emit summary | gitleaks, jq, `shift-left/gitleaks/run-gitleaks.sh` | n/a |
 | `checkov-scan.sh` | run checkov wrapper and emit summary | checkov, jq, `shift-left/checkov/run-checkov.sh` | n/a |
-| `trivy-fs-scan.sh` | run trivy fs wrapper and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
-| `trivy-config-scan.sh` | run trivy config wrapper and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
-| `trivy-image-scan.sh` | run trivy image wrapper and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
+| `trivy-fs-scan.sh` | run Trivy SCA/vulnerability-only scan and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
+| `trivy-config-scan.sh` | deprecated guard; exits because IaC/config scanning is owned by Checkov | bash | n/a |
 | `trivy-db-warm.sh` | warm Trivy vulnerability DB cache with timeout + repository fallback | trivy | n/a |
-| `normalize-reports.sh` | merge trivy sub-reports, run normalizer, fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | `cloudsentinel_contracts.py merge-trivy` |
+| `normalize-reports.sh` | run normalizer and fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | n/a |
 | `contract-test.sh` | enforce detection+normalization artifact contract | python3, bash | `cloudsentinel_contracts.py validate-artifact-contract` |
 | `verify-hmac.sh` | reusable HMAC-SHA256 verifier for consumer jobs | bash, python3 | n/a |
 | `setup-custom-ca.sh` | bootstrap custom CA trust bundle for non-root CI containers | bash, python3 | n/a |

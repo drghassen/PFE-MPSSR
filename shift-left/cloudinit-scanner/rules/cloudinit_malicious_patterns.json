@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0.0",
+  "description": "CloudSentinel local pattern database for malicious or high-risk cloud-init bootstrap behavior.",
+  "workload_keywords": {
+    "database": [
+      "postgresql",
+      "postgres",
+      "mysql",
+      "mariadb",
+      "mongodb",
+      "mongod",
+      "redis",
+      "redis-server",
+      "couchdb",
+      "elasticsearch"
+    ]
+  },
+  "remote_exec_patterns": [
+    {
+      "id": "curl_pipe_shell",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "curl\\s+[^\\n|;]+\\|\\s*(?:sudo\\s+)?(?:bash|sh)\\b"
+    },
+    {
+      "id": "wget_pipe_shell",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "wget\\s+[^\\n|;]+\\|\\s*(?:bash|sh)\\b"
+    },
+    {
+      "id": "subshell_curl_shell",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "(?:bash|sh)\\s+-c\\s+[\\\"']?\\$\\(\\s*curl"
+    },
+    {
+      "id": "eval_remote_exec",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "\\beval\\s+[\\\"']?\\$\\("
+    },
+    {
+      "id": "process_substitution_remote",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "(?:bash|sh)\\s+<\\s*\\(\\s*(?:curl|wget)"
+    },
+    {
+      "id": "curl_download_exec",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "curl\\s+[^\\n]+\\s+-o\\s+[^\\n]+&&\\s*(?:bash|sh|chmod)"
+    },
+    {
+      "id": "wget_unverified_binary",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "wget\\s+(?:--no-check-certificate|--no-verify)\\s+[^\\n]+"
+    },
+    {
+      "id": "python_remote_exec",
+      "rule_id": "CS-CLOUDINIT-REMOTE-EXEC",
+      "severity": "CRITICAL",
+      "message": "Remote execution pattern detected in cloud-init",
+      "regex": "python[23]?\\s+-c\\s+[\\\"'].*(?:urllib|requests|http).*exec"
+    }
+  ],
+  "security_bypass_patterns": [
+    {
+      "id": "ssh_key_injection",
+      "rule_id": "CS-CLOUDINIT-SSH-KEY-INJECTION",
+      "severity": "CRITICAL",
+      "message": "SSH authorized_keys injection detected in cloud-init",
+      "regex": "(?:echo\\s+[\\\"']?ssh-(?:rsa|ed25519|ecdsa)[^\\n]+>>\\s*[^\\n]*authorized_keys|ssh_authorized_keys\\s*:)"
+    },
+    {
+      "id": "firewall_disable",
+      "rule_id": "CS-CLOUDINIT-FIREWALL-DISABLE",
+      "severity": "CRITICAL",
+      "message": "Firewall or host security daemon disabled via cloud-init",
+      "regex": "\\b(?:ufw\\s+disable|iptables\\s+-F|systemctl\\s+(?:stop|disable)\\s+(?:firewalld|ufw|iptables)|setenforce\\s+0)\\b"
+    },
+    {
+      "id": "chmod_critical_path",
+      "rule_id": "CS-CLOUDINIT-SECURITY-BYPASS",
+      "severity": "CRITICAL",
+      "message": "Overly permissive chmod on critical system path via cloud-init",
+      "regex": "chmod\\s+(?:777|a\\+[rwx]+)\\s+(?:/etc|/usr|/bin|/sbin|/lib|/root)"
+    },
+    {
+      "id": "hardcoded_credentials",
+      "rule_id": "CS-CLOUDINIT-HARDCODED-CREDENTIALS",
+      "severity": "CRITICAL",
+      "message": "Hardcoded credentials detected in cloud-init",
+      "regex": "(?:password|passwd|secret|token|api_key)\\s*=\\s*(?:[\\\"'][^\\\"']{6,}[\\\"']|[^\\s\\\"']{6,})"
+    },
+    {
+      "id": "crontab_injection",
+      "rule_id": "CS-CLOUDINIT-SECURITY-BYPASS",
+      "severity": "CRITICAL",
+      "message": "Cron persistence injection detected in cloud-init",
+      "regex": "(?:crontab\\s+-[lu]|echo\\s+[\\\"'][^\\\"']*\\*[^\\\"']*[\\\"']\\s*>+\\s*/etc/cron)"
+    }
+  ]
+}

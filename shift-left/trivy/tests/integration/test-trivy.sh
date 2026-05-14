@@ -2,16 +2,14 @@
 set -euo pipefail
 
 ###############################################################################
-# CloudSentinel - Trivy Integration Tests v4.0
-# - Positive FS + config tests
-# - Negative config test (clean Dockerfile)
-# - OPA report contract checks
-# - Optional image test (network-dependent)
+# CloudSentinel - Trivy Integration Tests v5.0
+# - FS/SCA vuln-only scan
+# - Optional image vuln-only scan (network-dependent)
+# - Raw report contract checks
 ###############################################################################
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 TRIVY_RUNNER="$REPO_ROOT/shift-left/trivy/scripts/run-trivy.sh"
-FIXTURES_DIR="$REPO_ROOT/shift-left/trivy/tests/fixtures"
 RAW_REPORT_DIR="$REPO_ROOT/shift-left/trivy/reports/raw"
 IMAGE_TEST_ENABLED="${TRIVY_ENABLE_IMAGE_TEST:-false}"
 
@@ -52,34 +50,24 @@ assert_keys() {
   done
 }
 
-log "Test 1: FS scan on vulnerable fixture"
-bash "$TRIVY_RUNNER" "$FIXTURES_DIR/fs" fs
+log "Test 1: FS/SCA vuln-only scan on repository"
+bash "$TRIVY_RUNNER" "$REPO_ROOT" fs
 FS_REPORT="$RAW_REPORT_DIR/trivy-fs-raw.json"
 assert_keys "FS report contract" "$FS_REPORT"
 assert_eq "FS Results type" "$(jq -r '.Results | type' "$FS_REPORT")" "array"
-
-log "Test 2: Config scan on Dockerfile.critical"
-bash "$TRIVY_RUNNER" "$FIXTURES_DIR/images/Dockerfile.critical" config
-CFG_REPORT="$RAW_REPORT_DIR/trivy-config-raw.json"
-assert_keys "Config report contract" "$CFG_REPORT"
-assert_eq "Config Results type" "$(jq -r '.Results | type' "$CFG_REPORT")" "array"
-
-log "Test 3: Config scan on Dockerfile.clean (negative test)"
-bash "$TRIVY_RUNNER" "$FIXTURES_DIR/images/Dockerfile.clean" config
-assert_eq "Clean Dockerfile results array type" "$(jq -r '.Results | type' "$CFG_REPORT")" "array"
-
-log "Test 4: Raw image report contract"
-bash "$TRIVY_RUNNER" "alpine:3.18" image
-IMG_REPORT="$RAW_REPORT_DIR/trivy-image-raw.json"
-assert_keys "Image raw schema" "$IMG_REPORT"
-assert_eq "Image Results type" "$(jq -r '.Results | type' "$IMG_REPORT")" "array"
+assert_eq "FS secret findings disabled" "$(jq '[.Results[]? | (.Secrets // []) | length] | add // 0' "$FS_REPORT")" "0"
+assert_eq "FS misconfig findings disabled" "$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$FS_REPORT")" "0"
 
 if [[ "$IMAGE_TEST_ENABLED" == "true" ]]; then
-  log "Test 5: Image scan (optional)"
+  log "Test 2: Image vuln-only scan (optional)"
   bash "$TRIVY_RUNNER" "alpine:3.18" image
+  IMG_REPORT="$RAW_REPORT_DIR/trivy-image-raw.json"
+  assert_keys "Image raw schema" "$IMG_REPORT"
   assert_eq "Image Results type (optional)" "$(jq -r '.Results | type' "$IMG_REPORT")" "array"
+  assert_eq "Image secret findings disabled" "$(jq '[.Results[]? | (.Secrets // []) | length] | add // 0' "$IMG_REPORT")" "0"
+  assert_eq "Image misconfig findings disabled" "$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$IMG_REPORT")" "0"
 else
-  log "Test 5: Image scan skipped (set TRIVY_ENABLE_IMAGE_TEST=true to enable)"
+  log "Test 2: Image scan skipped (set TRIVY_ENABLE_IMAGE_TEST=true to enable)"
 fi
 
 echo ""

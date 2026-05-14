@@ -21,3 +21,16 @@ external-checks-dir:
 1. Create a YAML policy in the appropriate sub-directory.
 2. Define a unique ID following `CKV2_CS_AZ_###`.
 3. Validate severity/category in `mapping.json`.
+
+## Governance checks
+
+Run the catalog guard after adding or changing policies:
+
+```bash
+python3 shift-left/checkov/tests/validate-policy-catalog.py
+```
+
+The guard verifies unique policy IDs, complete `mapping.json` coverage, absence
+of orphan mappings, Python syntax, and rejects weak YAML `operator: exists`
+checks. Use Python policies when a control must validate non-empty values,
+nested blocks, or multiple accepted secure states.

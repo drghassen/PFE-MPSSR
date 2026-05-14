@@ -169,11 +169,30 @@ def _count_trivy_findings(doc: Dict[str, Any]) -> int:
     for item in results:
         if not isinstance(item, dict):
             continue
-        for key in ("Vulnerabilities", "Misconfigurations", "Secrets"):
-            values = item.get(key)
-            if isinstance(values, list):
-                total += len(values)
+        values = item.get("Vulnerabilities")
+        if isinstance(values, list):
+            total += len(values)
     return total
+
+
+def _trivy_scope_violations(doc: Dict[str, Any]) -> List[str]:
+    """Return non-vulnerability result keys that violate CloudSentinel ownership.
+
+    Trivy is scoped to SCA/vulnerability detection. Secrets are owned by
+    Gitleaks; IaC/config misconfigurations are owned by Checkov.
+    """
+    violations: List[str] = []
+    results = doc.get("Results")
+    if not isinstance(results, list):
+        return violations
+    for idx, item in enumerate(results):
+        if not isinstance(item, dict):
+            continue
+        for key in ("Secrets", "Misconfigurations"):
+            values = item.get(key)
+            if isinstance(values, list) and values:
+                violations.append(f"result[{idx}].{key}")
+    return violations
 
 
 def stamp_artifact_metadata(
@@ -296,18 +315,16 @@ def _load_trivy_report(path: Path) -> Dict[str, Any]:
 
 def merge_trivy_reports(
     fs_path: Path,
-    config_path: Path,
     out_path: Path,
-    image_path: Optional[Path] = None,  # optional: image scan removed from pipeline
+    image_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     loaded: Dict[str, Any] = {
         "fs": _load_trivy_report(fs_path),
-        "config": _load_trivy_report(config_path),
     }
     if image_path is not None:
         loaded["image"] = _load_trivy_report(image_path)
 
-    required_scans = {k: v for k, v in loaded.items() if k in ("fs", "config")}
+    required_scans = {k: v for k, v in loaded.items() if k == "fs"}
     any_not_run = any(
         str(r.get("status", "")).upper() == "NOT_RUN" for r in required_scans.values()
     )
@@ -514,7 +531,7 @@ def _validate_detection_artifact(
         result["details"]["findings_count"] = failed_count
         return
 
-    if artifact_id in {"trivy_fs_raw", "trivy_config_raw"}:
+    if artifact_id == "trivy_fs_raw":
         if not isinstance(doc, dict):
             _fail(result, "trivy_raw_must_be_object")
             return
@@ -529,6 +546,10 @@ def _validate_detection_artifact(
             _fail(result, "trivy_results_must_be_array")
             return
         _validate_scan_context_fields(result, doc)
+        scope_violations = _trivy_scope_violations(doc)
+        if scope_violations:
+            _fail(result, "trivy_scope_violation_non_vulnerability_results")
+            result["details"]["scope_violations"] = scope_violations
 
         nested_findings = _count_trivy_findings(doc)
         if doc.get("findings_count") != nested_findings:
@@ -891,7 +912,6 @@ def _validate_artifact(
         "gitleaks_raw",
         "checkov_raw",
         "trivy_fs_raw",
-        "trivy_config_raw",
         "cloudinit_analysis",
     }:
         _validate_detection_artifact(result, payload)
@@ -1019,17 +1039,11 @@ def _parse_merge_args(sub: argparse.ArgumentParser) -> None:
         "--fs", required=True, type=Path, help="Path to trivy fs OPA wrapper report"
     )
     sub.add_argument(
-        "--config",
-        required=True,
-        type=Path,
-        help="Path to trivy config OPA wrapper report",
-    )
-    sub.add_argument(
         "--image",
         required=False,
         default=None,
         type=Path,
-        help="Path to trivy image OPA wrapper report (optional: image scan removed from pipeline)",
+        help="Path to trivy image OPA wrapper report",
     )
     sub.add_argument(
         "--output", required=True, type=Path, help="Merged trivy OPA output path"
@@ -1121,7 +1135,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     merge_cmd = sub.add_parser(
-        "merge-trivy", help="Merge trivy fs/config/image OPA wrapper reports"
+        "merge-trivy", help="Merge trivy fs/image OPA wrapper reports"
     )
     _parse_merge_args(merge_cmd)
 
@@ -1157,7 +1171,7 @@ def main() -> int:
 
     if args.command == "merge-trivy":
         merged = merge_trivy_reports(
-            args.fs, args.config, args.output, image_path=args.image
+            args.fs, args.output, image_path=args.image
         )
         status = merged.get("status", "unknown")
         total = int((merged.get("stats", {}) or {}).get("TOTAL", 0) or 0)

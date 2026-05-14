@@ -1,14 +1,13 @@
 ################################################################################
 # CloudSentinel — Trivy Configuration (CI / Enforcement Mode)
-# Scope: Container vuln (OS+lib) | Dockerfile misconfig | Secrets in image layers
+# Scope: vulnerability/SCA only (OS packages + language libraries)
+# IaC/config is owned by Checkov. Secret detection is owned by Gitleaks.
 # NOTE: exit-code: 0 — OPA Quality Gate handles ALLOW/DENY decision
 ################################################################################
 
 scan:
   scanners:
     - vuln
-    - misconfig
-    - secret
   # Exclude intentional bad-fixture Dockerfiles (Dockerfile.critical, Dockerfile.high)
   # that are test inputs for the Trivy scanner itself — they must not count toward OPA thresholds.
   skip-dirs:
@@ -38,15 +37,6 @@ pkg:
   types:
     - os
     - library
-
-# Misconfig scope — Dockerfile only
-misconfiguration:
-  scanners:
-    - dockerfile
-
-# Secret configuration
-secret:
-  config: ""
 
 # OPA is the enforcement layer — Trivy always exits 0
 exit-code: 0

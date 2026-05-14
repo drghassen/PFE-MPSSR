@@ -10,9 +10,8 @@ PASS if: resource name == "require_secure_transport" AND value == "ON"
 FAIL if: name is "require_secure_transport" AND value != "ON"
 PASS (vacuously) if: resource is a different configuration parameter
 
-Note: this check is per-configuration-resource, not per-server.
-The pipeline will flag if require_secure_transport is explicitly set to OFF.
-If the resource is missing entirely, CKV2_CS_AZ_033 covers the server level.
+Note: this check is per-configuration-resource. Terraform must explicitly manage
+the require_secure_transport setting for the check to evaluate it.
 """
 
 from checkov.common.models.enums import CheckCategories, CheckResult

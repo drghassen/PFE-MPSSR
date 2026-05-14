@@ -34,6 +34,13 @@
   "CKV2_CS_AZ_035": { "category": "IDENTITY",   "severity": "HIGH" },
   "CKV2_CS_AZ_036": { "category": "DATABASE",   "severity": "HIGH" },
   "CKV2_CS_AZ_037": { "category": "DATABASE",   "severity": "HIGH" },
+  "CKV2_CS_AZ_038": { "category": "DATABASE",   "severity": "HIGH" },
+  "CKV2_CS_AZ_039": { "category": "DATABASE",   "severity": "HIGH" },
+  "CKV2_CS_AZ_040": { "category": "COMPUTE",    "severity": "HIGH" },
+  "CKV2_CS_AZ_041": { "category": "IDENTITY",   "severity": "HIGH" },
+  "CKV2_CS_AZ_042": { "category": "SECURITY",   "severity": "MEDIUM" },
+  "CKV2_CS_AZ_043": { "category": "STORAGE",    "severity": "HIGH" },
+  "CKV2_CS_AZ_044": { "category": "SECURITY",   "severity": "MEDIUM" },
 
   "CKV_AZURE_1":  { "category": "DATABASE",   "severity": "HIGH" },
   "CKV_AZURE_2":  { "category": "LOGGING",    "severity": "MEDIUM" },

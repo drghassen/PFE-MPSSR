@@ -224,5 +224,4 @@ fi
 upload_scan ".cloudsentinel/gitleaks_raw.json"                                       "Gitleaks Scan" "Gitleaks"
 upload_scan ".cloudsentinel/checkov_raw.json"                                        "Checkov Scan"  "Checkov"
 upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json"                        "Trivy Scan"    "Trivy (FS/SCA)"
-upload_scan "shift-left/trivy/reports/raw/trivy-config-raw.json"                    "Trivy Scan"    "Trivy (Config)"
 upload_cloudinit_generic_findings

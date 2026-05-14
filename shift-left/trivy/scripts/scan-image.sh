@@ -3,11 +3,10 @@ set -euo pipefail
 
 ################################################################################
 # CloudSentinel — Trivy Image Scanner
-# Scope  : Container image vulnerability scanning (OS pkgs + library pkgs)
-#          + Secrets embedded in image layers
+# Scope  : Container image vulnerability scanning only (OS pkgs + library pkgs)
 # Output : reports/raw/trivy-image-raw.json
-# Note   : Dockerfile config scanning → scan-config.sh
-#          Source-level secrets        → Gitleaks
+# Note   : IaC/config scanning → Checkov
+#          Secret scanning     → Gitleaks
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,6 +16,8 @@ REPORT_DIR="$BASE_DIR/reports/raw"
 SBOM_DIR="$BASE_DIR/reports/sbom"
 SCAN_MODE="${SCAN_MODE:-local}"
 [[ -n "${CI:-}" ]] && SCAN_MODE="ci"
+TRIVY_CACHE_DIR_EFF="${TRIVY_CACHE_DIR:-.trivy-cache}"
+TRIVY_DB_REPOSITORIES_EFF="${TRIVY_DB_REPOSITORIES:-ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2}"
 
 IGNORE_FILE="$BASE_DIR/.trivyignore"
 IGNORE_ARGS=()
@@ -44,15 +45,26 @@ CONFIG_FILE="$CONFIG_DIR/trivy.yaml"
 # ── Setup ────────────────────────────────────────────────────────────────────
 mkdir -p "$REPORT_DIR"
 mkdir -p "$SBOM_DIR"
+mkdir -p "$TRIVY_CACHE_DIR_EFF"
 OUTPUT_FILE="${TRIVY_IMAGE_OUTPUT_PATH:-$REPORT_DIR/trivy-image-raw.json}"
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 SBOM_FILE="$SBOM_DIR/trivy-image.cdx.json"
+
+DB_REPO_ARGS=()
+IFS=',' read -r -a _raw_db_repos <<< "$TRIVY_DB_REPOSITORIES_EFF"
+for _repo in "${_raw_db_repos[@]}"; do
+  _repo="$(echo "$_repo" | xargs)"
+  [[ -z "$_repo" ]] && continue
+  DB_REPO_ARGS+=(--db-repository "$_repo")
+done
 
 log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
 log "Output    : $OUTPUT_FILE"
 log "SBOM      : $SBOM_FILE"
+log "Cache dir : $TRIVY_CACHE_DIR_EFF"
+log "DB repos  : $TRIVY_DB_REPOSITORIES_EFF"
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── SBOM Generation ──────────────────────────────────────────────────────────
@@ -64,12 +76,15 @@ fi
 log "Generating SBOM (CycloneDX)..."
 trivy image \
   "${AUTH_ARGS[@]}" \
+  --config "$CONFIG_FILE" \
+  --cache-dir "$TRIVY_CACHE_DIR_EFF" \
+  "${DB_REPO_ARGS[@]}" \
   --format cyclonedx \
   --output "$SBOM_FILE" \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
-# --scanners: vuln covers OS+lib, secret covers embedded secrets
+# --scanners: vuln only. Secrets are owned by Gitleaks; IaC/config is owned by Checkov.
 # RC handling:
 #   0/1 -> scan executed (findings may exist)
 #   >1  -> technical failure
@@ -82,12 +97,29 @@ set +e
 trivy image \
   "${AUTH_ARGS[@]}" \
   --config "$CONFIG_FILE" \
+  --cache-dir "$TRIVY_CACHE_DIR_EFF" \
+  "${DB_REPO_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
-  --scanners vuln,secret \
+  --scanners vuln \
   --format json \
   --output "$OUTPUT_FILE" \
   "$TARGET"
 TRIVY_RC=$?
+
+if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]]; then
+  warn "Trivy DB update failed in CI; retrying image scan with cached DB (--skip-db-update)."
+  trivy image \
+    "${AUTH_ARGS[@]}" \
+    --config "$CONFIG_FILE" \
+    --cache-dir "$TRIVY_CACHE_DIR_EFF" \
+    --skip-db-update \
+    "${IGNORE_ARGS[@]}" \
+    --scanners vuln \
+    --format json \
+    --output "$OUTPUT_FILE" \
+    "$TARGET"
+  TRIVY_RC=$?
+fi
 set -e
 
 if [[ "$TRIVY_RC" -gt 1 ]]; then
@@ -95,5 +127,16 @@ if [[ "$TRIVY_RC" -gt 1 ]]; then
   exit 1
 fi
 
-FINDING_COUNT=$(jq '[.Results[]? | (.Vulnerabilities // []) + (.Secrets // []) | length] | add // 0' "$OUTPUT_FILE" 2>/dev/null || echo "?")
+if jq -e 'type == "object" and ((has("Results") | not) or (.Results == null))' "$OUTPUT_FILE" >/dev/null 2>&1; then
+  tmp_output="$(mktemp)"
+  jq '.Results = []' "$OUTPUT_FILE" > "$tmp_output"
+  mv "$tmp_output" "$OUTPUT_FILE"
+fi
+
+if ! jq -e 'type == "object" and (.Results | type == "array")' "$OUTPUT_FILE" >/dev/null 2>&1; then
+  err "Trivy image scan produced an invalid raw report: $OUTPUT_FILE"
+  exit 1
+fi
+
+FINDING_COUNT=$(jq '[.Results[]? | (.Vulnerabilities // []) | length] | add // 0' "$OUTPUT_FILE" 2>/dev/null || echo "?")
 log "Scan complete. Findings: $FINDING_COUNT → $OUTPUT_FILE"

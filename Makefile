@@ -79,7 +79,6 @@ scan: ## Exécuter tous les scanners (Gitleaks, Checkov, Trivy)
 	@SCAN_MODE=local SCAN_TARGET=repo bash shift-left/gitleaks/run-gitleaks.sh
 	@bash shift-left/checkov/run-checkov.sh .
 	@bash shift-left/trivy/scripts/run-trivy.sh . fs
-	@bash shift-left/trivy/scripts/run-trivy.sh . config
 
 scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 	@echo "$(GREEN)🔐 Scan des secrets...$(RESET)"
@@ -123,7 +122,7 @@ scan-vulns: ## Scanner uniquement les vulnérabilités (Trivy)
 	@echo "$(GREEN)🐛 Scan vulnérabilités...$(RESET)"
 	@bash shift-left/trivy/scripts/run-trivy.sh . fs
 
-trivy-test: ## Tests d'intégration Trivy (FS + config + contrat OPA)
+trivy-test: ## Tests d'intégration Trivy (SCA/vuln only + contrat OPA)
 	@echo "$(GREEN)🧪 Tests Trivy...$(RESET)"
 	@bash shift-left/trivy/tests/integration/test-trivy.sh
 
