@@ -169,17 +169,20 @@ def _count_trivy_findings(doc: Dict[str, Any]) -> int:
     for item in results:
         if not isinstance(item, dict):
             continue
-        values = item.get("Vulnerabilities")
-        if isinstance(values, list):
-            total += len(values)
+        for key in ("Vulnerabilities", "Misconfigurations"):
+            values = item.get(key)
+            if isinstance(values, list):
+                total += len(values)
     return total
 
 
 def _trivy_scope_violations(doc: Dict[str, Any]) -> List[str]:
-    """Return non-vulnerability result keys that violate CloudSentinel ownership.
+    """Return result keys that violate CloudSentinel scanner ownership.
 
-    Trivy is scoped to SCA/vulnerability detection. Secrets are owned by
-    Gitleaks; IaC/config misconfigurations are owned by Checkov.
+    Trivy scope: vuln (SCA) + misconfig (Dockerfile / container image).
+    Secrets remain exclusively owned by Gitleaks — flagged as violation.
+    Terraform/K8s IaC misconfigurations remain owned by Checkov, but
+    Dockerfile/container misconfigs are produced by Trivy intentionally.
     """
     violations: List[str] = []
     results = doc.get("Results")
@@ -188,7 +191,8 @@ def _trivy_scope_violations(doc: Dict[str, Any]) -> List[str]:
     for idx, item in enumerate(results):
         if not isinstance(item, dict):
             continue
-        for key in ("Secrets", "Misconfigurations"):
+        # Only Secrets are a scope violation — Misconfigurations are now in scope.
+        for key in ("Secrets",):
             values = item.get(key)
             if isinstance(values, list) and values:
                 violations.append(f"result[{idx}].{key}")
