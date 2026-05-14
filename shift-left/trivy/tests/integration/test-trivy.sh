@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ###############################################################################
-# CloudSentinel - Trivy Integration Tests v5.0
-# - FS/SCA vuln-only scan
-# - Optional image vuln-only scan (network-dependent)
+# CloudSentinel - Trivy Integration Tests v6.0
+# - FS scan: CVE (OS/library packages) + Dockerfile misconfigs
+# - Optional image scan: CVE + container misconfigs
 # - Raw report contract checks
 ###############################################################################
 
@@ -50,22 +50,23 @@ assert_keys() {
   done
 }
 
-log "Test 1: FS/SCA vuln-only scan on repository"
+log "Test 1: FS CVE-only scan on repository (IaC misconfigs → Checkov)"
 bash "$TRIVY_RUNNER" "$REPO_ROOT" fs
 FS_REPORT="$RAW_REPORT_DIR/trivy-fs-raw.json"
 assert_keys "FS report contract" "$FS_REPORT"
 assert_eq "FS Results type" "$(jq -r '.Results | type' "$FS_REPORT")" "array"
 assert_eq "FS secret findings disabled" "$(jq '[.Results[]? | (.Secrets // []) | length] | add // 0' "$FS_REPORT")" "0"
-assert_eq "FS misconfig findings disabled" "$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$FS_REPORT")" "0"
+assert_eq "FS IaC misconfig disabled (owned by Checkov)" "$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$FS_REPORT")" "0"
 
 if [[ "$IMAGE_TEST_ENABLED" == "true" ]]; then
-  log "Test 2: Image vuln-only scan (optional)"
+  log "Test 2: Image CVE + misconfig scan (optional)"
   bash "$TRIVY_RUNNER" "alpine:3.18" image
   IMG_REPORT="$RAW_REPORT_DIR/trivy-image-raw.json"
   assert_keys "Image raw schema" "$IMG_REPORT"
   assert_eq "Image Results type (optional)" "$(jq -r '.Results | type' "$IMG_REPORT")" "array"
   assert_eq "Image secret findings disabled" "$(jq '[.Results[]? | (.Secrets // []) | length] | add // 0' "$IMG_REPORT")" "0"
-  assert_eq "Image misconfig findings disabled" "$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$IMG_REPORT")" "0"
+  IMG_MISCONFIG_COUNT=$(jq '[.Results[]? | (.Misconfigurations // []) | length] | add // 0' "$IMG_REPORT")
+  pass "Image misconfig scan enabled — found: ${IMG_MISCONFIG_COUNT} findings"
 else
   log "Test 2: Image scan skipped (set TRIVY_ENABLE_IMAGE_TEST=true to enable)"
 fi

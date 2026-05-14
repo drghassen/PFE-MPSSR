@@ -7,10 +7,8 @@
 
 scan:
   scanners:
-    - vuln      # CVE in OS packages + language libraries
-    - misconfig # Dockerfile / container image misconfigurations
-  # Exclude intentional bad-fixture Dockerfiles (Dockerfile.critical, Dockerfile.high)
-  # that are test inputs for the Trivy scanner itself — they must not count toward OPA thresholds.
+    - vuln  # CVE in OS packages + language libraries only
+  # IaC misconfigs → Checkov | Container misconfigs → trivy image scan
   skip-dirs:
     - shift-left/trivy/tests
 

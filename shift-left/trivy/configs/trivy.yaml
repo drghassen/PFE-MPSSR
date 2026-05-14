@@ -1,16 +1,13 @@
 ################################################################################
 # CloudSentinel — Trivy Configuration (Local / Advisory Mode)
-# Scope: vulnerability/SCA only (OS packages + language libraries)
-# NOTE: IaC/config → Checkov | Secrets → Gitleaks
+# Scope: CVE only (OS packages + language libraries)
+# IaC/config → Checkov | Secrets → Gitleaks | Container misconfigs → image scan
 # Enforcement: OPA Quality Gate — Trivy never blocks (exit-code: 0)
 ################################################################################
 
 scan:
   scanners:
-    - vuln       # OS packages + language libraries only
-    - misconfig  # Dockerfile / container image misconfigurations
-  # Exclude intentional Trivy test fixtures in local/advisory mode as well,
-  # to keep findings aligned with production artifacts.
+    - vuln  # CVE in OS packages + language libraries only
   skip-dirs:
     - shift-left/trivy/tests
 

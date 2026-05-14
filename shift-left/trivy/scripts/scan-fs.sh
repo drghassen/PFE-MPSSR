@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ################################################################################
-# CloudSentinel — Trivy Filesystem / SCA + Dockerfile Misconfig Scanner
-# Scope  : CVE vulnerabilities (OS pkgs + language libs) + Dockerfile misconfigs
+# CloudSentinel — Trivy Filesystem / SCA Scanner
+# Scope  : CVE vulnerabilities in OS packages + language libraries
 # Output : reports/raw/trivy-fs-raw.json
-# Note   : Secret scanning → Gitleaks | Terraform/K8s IaC → Checkov
-#          Trivy FS covers: vuln (packages) + misconfig (Dockerfiles)
+# Note   : IaC misconfigs → Checkov | Secrets → Gitleaks
+#          Container/image misconfigs → trivy image scan (TRIVY_IMAGE_TARGETS)
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,7 +100,8 @@ if ! trivy fs \
 fi
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
-# --scanners: vuln only (secrets are scanned by Gitleaks only)
+# --scanners vuln: CVE in OS packages + language libraries
+# IaC misconfigs → Checkov | Container misconfigs → image scan
 # RC handling:
 #   0/1 -> scan executed (findings may exist)
 #   >1  -> technical failure
@@ -111,7 +112,7 @@ trivy fs \
   "${DB_REPO_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
   "${SKIP_ARGS[@]}" \
-  --scanners vuln,misconfig \
+  --scanners vuln \
   --format json \
   --output "$OUTPUT_FILE" \
   "$TARGET"
@@ -125,7 +126,7 @@ if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]]; then
     --skip-db-update \
     "${IGNORE_ARGS[@]}" \
     "${SKIP_ARGS[@]}" \
-    --scanners vuln,misconfig \
+    --scanners vuln \
     --format json \
     --output "$OUTPUT_FILE" \
     "$TARGET"

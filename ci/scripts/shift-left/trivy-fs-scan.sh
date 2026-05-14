@@ -5,7 +5,7 @@ set -euo pipefail
 # trivy-fs-scan.sh
 # =========================
 # Single trivy-scan job in the scan stage:
-#   1. Filesystem scan  → CVE (OS/library pkgs) + Dockerfile misconfigs
+#   1. Filesystem scan  → CVE only (OS/library pkgs) — IaC misconfigs owned by Checkov
 #   2. Image scan loop  → CVE + container misconfigs for each TRIVY_IMAGE_TARGETS entry
 # DB warm-up is handled by the separate trivy-db-warm job (guard stage).
 

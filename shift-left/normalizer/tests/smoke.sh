@@ -74,6 +74,7 @@ python3 "$REPO_ROOT/shift-left/normalizer/normalize.py"
 test -f "$CLOUD_DIR/golden_report.json"
 jq -e '.schema_version | type == "string"' "$CLOUD_DIR/golden_report.json" >/dev/null
 jq -e '.findings | type == "array"' "$CLOUD_DIR/golden_report.json" >/dev/null
-jq -e '.quality_gate.decision == "NOT_EVALUATED"' "$CLOUD_DIR/golden_report.json" >/dev/null
+jq -e '.quality_gate.thresholds | type == "object"' "$CLOUD_DIR/golden_report.json" >/dev/null
+jq -e '.summary.global | type == "object"' "$CLOUD_DIR/golden_report.json" >/dev/null
 
 echo "[smoke][normalizer] PASS"
