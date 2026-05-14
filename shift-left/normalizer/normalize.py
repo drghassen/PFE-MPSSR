@@ -176,6 +176,8 @@ class CloudSentinelNormalizer(
 
         by_cat = {"SECRETS": 0, "INFRASTRUCTURE_AS_CODE": 0, "VULNERABILITIES": 0}
         for f in findings:
+            if f.get("context", {}).get("deduplication", {}).get("is_duplicate", False):
+                continue
             if str(f.get("status", "FAILED")).upper() == "FAILED":
                 c = str(f.get("category", "VULNERABILITIES"))
                 if c in by_cat:
