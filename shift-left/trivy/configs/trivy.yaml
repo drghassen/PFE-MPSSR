@@ -8,6 +8,7 @@
 scan:
   scanners:
     - vuln       # OS packages + language libraries only
+    - misconfig  # Dockerfile / container image misconfigurations
   # Exclude intentional Trivy test fixtures in local/advisory mode as well,
   # to keep findings aligned with production artifacts.
   skip-dirs:

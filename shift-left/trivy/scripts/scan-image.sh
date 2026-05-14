@@ -3,10 +3,10 @@ set -euo pipefail
 
 ################################################################################
 # CloudSentinel — Trivy Image Scanner
-# Scope  : Container image vulnerability scanning only (OS pkgs + library pkgs)
-# Output : reports/raw/trivy-image-raw.json
-# Note   : IaC/config scanning → Checkov
-#          Secret scanning     → Gitleaks
+# Scope  : Container image CVE vulnerabilities + image misconfigurations
+# Output : reports/raw/image/trivy-image-{sanitized-name}-raw.json
+# Note   : Terraform/K8s IaC → Checkov | Secret scanning → Gitleaks
+#          Trivy IMAGE covers: vuln (OS/library pkgs) + misconfig (container config)
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -84,7 +84,10 @@ trivy image \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
-# --scanners: vuln only. Secrets are owned by Gitleaks; IaC/config is owned by Checkov.
+# --scanners vuln,misconfig:
+#   vuln     → CVE in OS packages and language libraries
+#   misconfig → container image misconfigurations (USER, HEALTHCHECK, exposed ports, etc.)
+# Secrets → Gitleaks | Terraform/K8s IaC → Checkov
 # RC handling:
 #   0/1 -> scan executed (findings may exist)
 #   >1  -> technical failure
@@ -100,7 +103,7 @@ trivy image \
   --cache-dir "$TRIVY_CACHE_DIR_EFF" \
   "${DB_REPO_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
-  --scanners vuln \
+  --scanners vuln,misconfig \
   --format json \
   --output "$OUTPUT_FILE" \
   "$TARGET"
@@ -114,7 +117,7 @@ if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]]; then
     --cache-dir "$TRIVY_CACHE_DIR_EFF" \
     --skip-db-update \
     "${IGNORE_ARGS[@]}" \
-    --scanners vuln \
+    --scanners vuln,misconfig \
     --format json \
     --output "$OUTPUT_FILE" \
     "$TARGET"

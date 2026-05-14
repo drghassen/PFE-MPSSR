@@ -360,6 +360,9 @@ class NormalizerRawParsersMixin:
             if not isinstance(r, dict):
                 continue
             tgt = self._first(r.get("Target"), "unknown") or "unknown"
+            result_type = str(r.get("Type", "")).lower()
+
+            # ── CVE vulnerabilities ──────────────────────────────────────────
             for v in (
                 r.get("Vulnerabilities", [])
                 if isinstance(r.get("Vulnerabilities"), list)
@@ -397,6 +400,59 @@ class NormalizerRawParsersMixin:
                             ),
                             "fixed_version": self._first(v.get("FixedVersion"), ""),
                             "cvss": self._cvss(v.get("CVSS")),
+                        },
+                    }
+                )
+
+            # ── Dockerfile / container image misconfigurations ───────────────
+            # Status "PASS" is skipped — only FAILURE and EXCEPTION are findings.
+            for m in (
+                r.get("Misconfigurations", [])
+                if isinstance(r.get("Misconfigurations"), list)
+                else []
+            ):
+                if not isinstance(m, dict):
+                    continue
+                m_status = str(m.get("Status", "")).upper()
+                if m_status not in {"FAILURE", "FAIL", "EXCEPTION"}:
+                    continue
+                cause = m.get("CauseMetadata") or {}
+                cause = cause if isinstance(cause, dict) else {}
+                out.append(
+                    {
+                        "id": self._first(
+                            m.get("AVDID"), m.get("ID"), "TRIVY_MISCONFIG_UNKNOWN"
+                        ),
+                        "description": self._first(
+                            m.get("Title"), m.get("Description"), "No description"
+                        ),
+                        "severity": self.sev_lut.get(
+                            str(self._first(m.get("Severity"), "MEDIUM")).upper(),
+                            "MEDIUM",
+                        ),
+                        "status": "FAILED",
+                        "finding_type": "misconfig",
+                        "category": "CONTAINER_CONFIG",
+                        "resource": {
+                            "name": tgt,
+                            "path": tgt,
+                            "type": result_type or "container",
+                        },
+                        "references": [
+                            str(x)
+                            for x in (m.get("References") or [])
+                            if isinstance(x, str)
+                        ],
+                        "metadata": {
+                            "scan_type": scan_type,
+                            "resolution": self._first(m.get("Resolution"), ""),
+                            "check_id": self._first(m.get("ID"), ""),
+                            "start_line": self._to_int(
+                                cause.get("StartLine"), 0
+                            ),
+                            "end_line": self._to_int(
+                                cause.get("EndLine"), 0
+                            ),
                         },
                     }
                 )

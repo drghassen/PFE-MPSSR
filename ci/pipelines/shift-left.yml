@@ -24,6 +24,12 @@ variables:
   JSONSCHEMA_VERSION: "4.25.1"
   TRIVY_IMAGE_MIN_REPORTS: "0"
 
+  # Comma-separated list of container image references to scan for CVE + misconfigs.
+  # Set in GitLab CI/CD Settings → Variables (masked if credentials are embedded).
+  # Example: registry.gitlab.com/org/project/scan-tools:latest,python:3.12-alpine
+  # Leave empty to skip image scanning (filesystem scan always runs).
+  TRIVY_IMAGE_TARGETS: ""
+
   CRITICAL_MAX: "0"
   HIGH_MAX: "5"
 
@@ -48,20 +54,6 @@ stages:
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323"
   before_script: []
 
-.trivy_cache_pull: &trivy_cache_pull
-  cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
-    policy: pull
-    paths:
-      - .trivy-cache
-
-.trivy_cache_pull_push: &trivy_cache_pull_push
-  cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
-    policy: pull-push
-    paths:
-      - .trivy-cache
-
 policies-immutability:
   <<: *default_tools
   stage: guard
@@ -82,7 +74,6 @@ trivy-db-warm:
   script:
     - bash ci/scripts/shift-left/trivy-db-warm.sh
   allow_failure: false
-
 
 gitleaks-scan:
   <<: *default_tools
@@ -113,9 +104,18 @@ checkov-scan:
       - .cloudsentinel/checkov_raw.json.hmac
       - .cloudsentinel/checkov_scan.log
 
-trivy-fs-scan:
-  <<: [*default_tools, *trivy_cache_pull_push]
+trivy-scan:
+  <<: *default_tools
   stage: scan
+  # Single Trivy job — filesystem CVE/misconfig + container image scanning
+  # DB is pre-warmed by trivy-db-warm (guard stage).
+  needs:
+    - job: trivy-db-warm
+  cache:
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
+    policy: pull-push
+    paths:
+      - .trivy-cache
   script:
     - bash ci/scripts/shift-left/trivy-fs-scan.sh
   artifacts:
@@ -124,7 +124,9 @@ trivy-fs-scan:
     paths:
       - shift-left/trivy/reports/raw/trivy-fs-raw.json
       - shift-left/trivy/reports/raw/trivy-fs-raw.json.hmac
+      - shift-left/trivy/reports/raw/image/
       - shift-left/trivy/reports/sbom/trivy-fs.cdx.json
+      - shift-left/trivy/reports/sbom/trivy-image.cdx.json
 
 cloudinit-scan:
   <<: *default_tools
@@ -146,7 +148,7 @@ normalize-reports:
       artifacts: true
     - job: checkov-scan
       artifacts: true
-    - job: trivy-fs-scan
+    - job: trivy-scan
       artifacts: true
     - job: cloudinit-scan
       artifacts: true
@@ -225,7 +227,7 @@ upload-to-defectdojo:
       artifacts: true
     - job: checkov-scan
       artifacts: true
-    - job: trivy-fs-scan
+    - job: trivy-scan
       artifacts: true
     - job: cloudinit-scan
       artifacts: true

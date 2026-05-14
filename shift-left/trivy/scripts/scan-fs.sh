@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ################################################################################
-# CloudSentinel — Trivy Filesystem / SCA Scanner
-# Scope  : Language package vulnerabilities (npm, pip, maven, go, etc.)
+# CloudSentinel — Trivy Filesystem / SCA + Dockerfile Misconfig Scanner
+# Scope  : CVE vulnerabilities (OS pkgs + language libs) + Dockerfile misconfigs
 # Output : reports/raw/trivy-fs-raw.json
-# Note   : Source-level secret enforcement is handled exclusively by Gitleaks
-#          (pre-commit + CI). Trivy FS here is vuln-only.
+# Note   : Secret scanning → Gitleaks | Terraform/K8s IaC → Checkov
+#          Trivy FS covers: vuln (packages) + misconfig (Dockerfiles)
 ################################################################################
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -111,7 +111,7 @@ trivy fs \
   "${DB_REPO_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
   "${SKIP_ARGS[@]}" \
-  --scanners vuln \
+  --scanners vuln,misconfig \
   --format json \
   --output "$OUTPUT_FILE" \
   "$TARGET"
@@ -125,7 +125,7 @@ if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]]; then
     --skip-db-update \
     "${IGNORE_ARGS[@]}" \
     "${SKIP_ARGS[@]}" \
-    --scanners vuln \
+    --scanners vuln,misconfig \
     --format json \
     --output "$OUTPUT_FILE" \
     "$TARGET"
