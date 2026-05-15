@@ -13,6 +13,15 @@ set -euo pipefail
 # The token is ephemeral — generated per CI job and discarded after.
 # ==============================================================================
 
+source ci/scripts/shift-left/audit-utils.sh
+cleanup() { :; }
+on_exit() {
+  local rc="$?"
+  cleanup
+  cloudsentinel_finalize_audit "$rc" "opa-decision" "decide" "opa" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/opa_decision.json" ".cloudsentinel/decision_audit_events.jsonl" ".cloudsentinel/audit_events.jsonl"
+}
+trap on_exit EXIT
+
 # --- Artifact integrity pre-gate: fail fast before starting OPA ---
 artifact=".cloudsentinel/golden_report.json"
 
@@ -60,22 +69,45 @@ opa run --server --addr=127.0.0.1:8181 \
   .cloudsentinel/exceptions.json \
   .cloudsentinel/opa_auth_config.json \
   > /tmp/opa-server.log 2>&1 &
+OPA_PID=$!
 
+cleanup() {
+  if [[ -n "${OPA_PID:-}" ]] && kill -0 "${OPA_PID}" >/dev/null 2>&1; then
+    kill "${OPA_PID}" >/dev/null 2>&1 || true
+  fi
+}
+
+OPA_READY=false
 for i in {1..10}; do
   if curl -sf "http://127.0.0.1:8181/health" >/dev/null; then
     echo "[opa] OPA server is UP (Zero Trust: token auth + read-only API)"
+    OPA_READY=true
     break
   fi
   echo "[opa] Waiting for OPA... ($i/10)"
   sleep 2
 done
-OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
+
+if [[ "${OPA_READY}" != "true" ]]; then
+  echo "[opa-decision][ERROR] OPA server failed to start after 20s." >&2
+  echo "[opa-decision][ERROR] OPA log: /tmp/opa-server.log" >&2
+  if [[ -s /tmp/opa-server.log ]]; then
+    tail -n 80 /tmp/opa-server.log >&2 || true
+  fi
+  exit 1
+fi
+
+OPA_REQUIRE_SERVER=true OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
 
 # Sign OPA decision so downstream consumers (deploy/reporting) can verify integrity.
 decision_artifact=".cloudsentinel/opa_decision.json"
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${decision_artifact}" | awk '{print $NF}' > "${decision_artifact}.hmac"
-  echo "[artifact-hmac] Signed   ${decision_artifact} → ${decision_artifact}.hmac"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 ci/scripts/shift-left/artifact_hmac.py sign "${decision_artifact}"
+  else
+    openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${decision_artifact}" | awk '{print $NF}' > "${decision_artifact}.hmac"
+    echo "[artifact-hmac] Signed   ${decision_artifact} -> ${decision_artifact}.hmac"
+  fi
 elif [[ -n "${CI:-}" ]]; then
   echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
   echo "[opa-decision][ERROR] Cannot sign decision artifact for downstream integrity checks." >&2

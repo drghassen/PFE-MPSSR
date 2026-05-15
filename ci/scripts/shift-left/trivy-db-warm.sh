@@ -5,6 +5,9 @@ set -euo pipefail
 # trivy-db-warm.sh
 # =========================
 
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "trivy-db-warm" "guard" "trivy-db"' EXIT
+
 log()  { echo "[CloudSentinel][trivy-db-warm] $*"; }
 warn() { echo "[CloudSentinel][trivy-db-warm][WARN] $*" >&2; }
 err()  { echo "[CloudSentinel][trivy-db-warm][ERROR] $*" >&2; }

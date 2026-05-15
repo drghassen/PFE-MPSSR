@@ -22,8 +22,9 @@ ENVIRONMENT="${PROWLER_ENVIRONMENT:-${DRIFT_ENVIRONMENT:-${CI_ENVIRONMENT_NAME:-
 SUBSCRIPTION_IDS="${PROWLER_AZURE_SUBSCRIPTION_IDS:-${ARM_SUBSCRIPTION_ID:-}}"
 AUTH_MODE="${PROWLER_AZURE_AUTH_MODE:-sp-env}"
 IGNORE_EXIT_CODE_3="${PROWLER_IGNORE_EXIT_CODE_3:-true}"
-OUTPUT_FORMATS="${PROWLER_OUTPUT_FORMATS:-csv json-ocsf html}"
+OUTPUT_FORMATS="${PROWLER_OUTPUT_FORMATS:-csv json-ocsf}"
 PROWLER_DETECT_SKIP_SCAN="${PROWLER_DETECT_SKIP_SCAN:-false}"
+PROWLER_ALLOW_CI_SKIP_SCAN="${PROWLER_ALLOW_CI_SKIP_SCAN:-false}"
 PROWLER_OCSF_INPUT_PATH="${PROWLER_OCSF_INPUT_PATH:-}"
 PROWLER_FETCH_EXCEPTIONS="${PROWLER_FETCH_EXCEPTIONS:-true}"
 
@@ -53,6 +54,14 @@ if [[ -z "$SUBSCRIPTION_IDS" ]]; then
   sr_fail "Prowler subscription scope is missing" 1 '{}'
 fi
 
+if [[ -n "${CI:-}" && "$PROWLER_DETECT_SKIP_SCAN" == "true" && "$PROWLER_ALLOW_CI_SKIP_SCAN" != "true" ]]; then
+  sr_fail "PROWLER_DETECT_SKIP_SCAN is forbidden in CI unless PROWLER_ALLOW_CI_SKIP_SCAN=true" 1 \
+    "$(jq -cn \
+      --arg skip_scan "$PROWLER_DETECT_SKIP_SCAN" \
+      --arg allow_ci_skip "$PROWLER_ALLOW_CI_SKIP_SCAN" \
+      '{skip_scan:$skip_scan, allow_ci_skip:$allow_ci_skip, required_for_ci_override:"PROWLER_ALLOW_CI_SKIP_SCAN=true"}')"
+fi
+
 azure_auth_init "$AUTH_MODE" "$SUBSCRIPTION_IDS"
 
 sr_audit "INFO" "stage_start" "starting prowler detection" "$(sr_build_details \
@@ -61,6 +70,8 @@ sr_audit "INFO" "stage_start" "starting prowler detection" "$(sr_build_details \
   --arg auth_mode "$AUTH_MODE" \
   --arg output_dir "$PROWLER_OUTPUT_DIR" \
   --arg report_path "$PROWLER_REPORT_PATH" \
+  --arg output_formats "$OUTPUT_FORMATS" \
+  --arg skip_scan "$PROWLER_DETECT_SKIP_SCAN" \
   --arg fetch_exceptions "$PROWLER_FETCH_EXCEPTIONS" \
   '{
     scan_target: {
@@ -70,9 +81,11 @@ sr_audit "INFO" "stage_start" "starting prowler detection" "$(sr_build_details \
     },
     output: {
       prowler_output_dir: $output_dir,
-      normalized_report: $report_path
+      normalized_report: $report_path,
+      output_formats: $output_formats
     },
     governance: {
+      skip_scan: ($skip_scan == "true"),
       fetch_exceptions: ($fetch_exceptions == "true")
     }
   }')"

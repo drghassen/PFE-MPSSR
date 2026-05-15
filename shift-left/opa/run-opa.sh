@@ -25,6 +25,7 @@ set -euo pipefail
 #   OPA_EXCEPTIONS_FILE : Override path to exceptions.json (for testing)
 #   OPA_DECISION_FILE   : Override path for saved decision output
 #   OPA_PREFER_CLI      : Force CLI evaluation even if server is reachable
+#   OPA_REQUIRE_SERVER  : Fail instead of falling back to CLI if server is unreachable
 #
 # Usage:
 #   bash shift-left/opa/run-opa.sh --advisory   # local, always passes
@@ -74,6 +75,7 @@ OPA_SERVER_URL="${OPA_SERVER_URL:-http://localhost:8181}"
 OPA_API_PATH="/v1/data/cloudsentinel/gate/decision"
 OPA_QUERY="data.cloudsentinel.gate.decision"
 OPA_PREFER_CLI="${OPA_PREFER_CLI:-false}"
+OPA_REQUIRE_SERVER="${OPA_REQUIRE_SERVER:-false}"
 
 # --- Zero Trust: Bearer Token for OPA Server authentication ---
 # OPA_AUTH_TOKEN must be set in CI (masked variable) or locally via .env.
@@ -303,6 +305,10 @@ else
     INVOCATION_MODE="server"
     log_info "Engine      : OPA Server ${BOLD}${OPA_SERVER_URL}${NC} ${GREEN}[REST API]${NC}"
   else
+    if [[ "${OPA_REQUIRE_SERVER}" == "true" ]]; then
+      log_err "OPA Server is required for this execution but is not reachable: ${OPA_SERVER_URL}"
+      exit 2
+    fi
     log_warn "OPA Server not reachable (${OPA_SERVER_URL}). Falling back to OPA CLI."
     invoke_opa_cli
     INVOCATION_MODE="cli"

@@ -7,6 +7,8 @@ DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID_LEFT:-}
 VERIFY_HMAC_SCRIPT="ci/scripts/verify-hmac.sh"
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
 source ci/scripts/setup-custom-ca.sh
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "upload-to-defectdojo" "report" "defectdojo" ".cloudsentinel/golden_report.json" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/dojo-responses"' EXIT
 
 if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
   echo "[dojo] Missing Dojo vars. Accepted names:"
@@ -16,9 +18,29 @@ if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGA
   echo "[dojo] Skipping upload."
   exit 0
 fi
+DOJO_URL_EFF="${DOJO_URL_EFF%/}"
+DOJO_REIMPORT_URL="${DOJO_URL_EFF}/api/v2/reimport-scan/"
 
 chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
 mkdir -p .cloudsentinel/dojo-responses
+
+DOJO_TEST_CONTEXT_EFF="${DOJO_TEST_CONTEXT:-${CI_COMMIT_REF_SLUG:-${CI_COMMIT_BRANCH:-}}}"
+
+dojo_test_title() {
+  local scanner_name="$1"
+  if [[ -n "${DOJO_TEST_CONTEXT_EFF}" ]]; then
+    printf 'CloudSentinel %s (Shift-Left - %s)' "${scanner_name}" "${DOJO_TEST_CONTEXT_EFF}"
+  else
+    printf 'CloudSentinel %s (Shift-Left)' "${scanner_name}"
+  fi
+}
+
+dojo_http_success() {
+  case "$1" in
+    200|201) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 verify_artifact_integrity() {
   local file_path="$1"
@@ -33,6 +55,7 @@ upload_scan() {
   file_path="$1"
   scan_type="$2"
   label="$3"
+  test_title="$4"
   upload_file_path="$file_path"
   safe_label="$(echo "${label}" | tr ' /()' '_____' | tr -cd '[:alnum:]_.-')"
   response_file=".cloudsentinel/dojo-responses/${safe_label}.json"
@@ -66,22 +89,23 @@ upload_scan() {
     return 1
   fi
 
-  HTTP_CODE=$(curl -sS -L --post301 -o "${response_file}" -w "%{http_code}" \
-    -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+  HTTP_CODE=$(curl -sS -L --post301 --post302 -o "${response_file}" -w "%{http_code}" \
+    -X POST "${DOJO_REIMPORT_URL}" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${upload_file_path}" \
     -F "scan_type=${scan_type}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+    --form-string "test_title=${test_title}" \
     --form-string "active=true" \
     --form-string "verified=true" \
     --form-string "close_old_findings=true" \
     --form-string "close_old_findings_product_scope=false" \
     --form-string "deduplication_on_engagement=true")
 
-  if [ "${HTTP_CODE}" = "201" ]; then
-    echo "[dojo] ${label} uploaded HTTP=201"
+  if dojo_http_success "${HTTP_CODE}"; then
+    echo "[dojo] ${label} reimported HTTP=${HTTP_CODE} test_title=${test_title}"
   else
-    echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
+    echo "[dojo] ${label} reimport failed HTTP=${HTTP_CODE}"
     cat "${response_file}" || true
     return 1
   fi
@@ -174,13 +198,16 @@ upload_cloudinit_generic_findings() {
     return 0
   fi
 
-  HTTP_CODE="$(curl -sS -L --post301 -o "${response_file}" -w "%{http_code}" \
-    -X POST "${DOJO_URL_EFF}/api/v2/import-scan/" \
+  local test_title
+  test_title="$(dojo_test_title "Cloud-init")"
+
+  HTTP_CODE="$(curl -sS -L --post301 --post302 -o "${response_file}" -w "%{http_code}" \
+    -X POST "${DOJO_REIMPORT_URL}" \
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${generic_file}" \
     -F "scan_type=Generic Findings Import" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
-    --form-string "test_title=CloudSentinel Cloud-init (Shift-Left)" \
+    --form-string "test_title=${test_title}" \
     --form-string "scan_date=${scan_date}" \
     --form-string "active=true" \
     --form-string "verified=true" \
@@ -189,10 +216,10 @@ upload_cloudinit_generic_findings() {
     --form-string "deduplication_on_engagement=true" \
     --form-string "minimum_severity=Info")"
 
-  if [[ "${HTTP_CODE}" = "201" ]]; then
-    echo "[dojo] ${label} uploaded HTTP=201 (findings=${findings_count})"
+  if dojo_http_success "${HTTP_CODE}"; then
+    echo "[dojo] ${label} reimported HTTP=${HTTP_CODE} (findings=${findings_count}) test_title=${test_title}"
   else
-    echo "[dojo] ${label} upload failed HTTP=${HTTP_CODE}"
+    echo "[dojo] ${label} reimport failed HTTP=${HTTP_CODE}"
     cat "${response_file}" || true
     return 1
   fi
@@ -221,7 +248,7 @@ if [[ -f ".cloudsentinel/golden_report.json" ]]; then
 fi
 
 # Shift-Left scanners
-upload_scan ".cloudsentinel/gitleaks_raw.json"                                       "Gitleaks Scan" "Gitleaks"
-upload_scan ".cloudsentinel/checkov_raw.json"                                        "Checkov Scan"  "Checkov"
-upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json"                        "Trivy Scan"    "Trivy (FS/SCA)"
+upload_scan ".cloudsentinel/gitleaks_raw.json"                "Gitleaks Scan" "Gitleaks"       "$(dojo_test_title "Gitleaks")"
+upload_scan ".cloudsentinel/checkov_raw.json"                 "Checkov Scan"  "Checkov"        "$(dojo_test_title "Checkov")"
+upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json"  "Trivy Scan"    "Trivy (FS/SCA)" "$(dojo_test_title "Trivy FS/SCA")"
 upload_cloudinit_generic_findings

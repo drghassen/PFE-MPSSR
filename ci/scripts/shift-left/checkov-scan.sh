@@ -5,6 +5,9 @@ set -euo pipefail
 # checkov-scan.sh
 # =========================
 
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "checkov-scan" "scan" "checkov" ".cloudsentinel/checkov_raw.json" ".cloudsentinel/checkov_scan.log"' EXIT
+
 checkov --version
 mkdir -p .cloudsentinel
 

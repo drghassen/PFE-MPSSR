@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "cloudinit-scan" "scan" "cloudinit" ".cloudsentinel/cloudinit_analysis.json"' EXIT
+
 python3 shift-left/cloudinit-scanner/cloudinit_scan.py \
   --terraform-dir . \
   --output .cloudsentinel/cloudinit_analysis.json \

@@ -9,6 +9,9 @@ set -euo pipefail
 #   2. Image scan loop  → CVE + container misconfigs for each TRIVY_IMAGE_TARGETS entry
 # DB warm-up is handled by the separate trivy-db-warm job (guard stage).
 
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "trivy-scan" "scan" "trivy" "shift-left/trivy/reports/raw/trivy-fs-raw.json" "shift-left/trivy/reports/raw/image" "shift-left/trivy/reports/sbom/trivy-fs.cdx.json" "shift-left/trivy/reports/sbom/trivy-image.cdx.json"' EXIT
+
 trivy --version
 mkdir -p shift-left/trivy/reports/raw/image .cloudsentinel
 

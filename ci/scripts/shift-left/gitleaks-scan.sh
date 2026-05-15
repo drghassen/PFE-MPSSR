@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "gitleaks-scan" "scan" "gitleaks" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_range_raw.json"' EXIT
+
 gitleaks version
 mkdir -p .cloudsentinel
 bash shift-left/gitleaks/run-gitleaks.sh

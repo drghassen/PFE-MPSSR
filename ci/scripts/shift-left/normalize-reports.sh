@@ -9,6 +9,8 @@ export DOJO_URL="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
 source ci/scripts/setup-custom-ca.sh
+source ci/scripts/shift-left/audit-utils.sh
+trap 'cloudsentinel_finalize_audit "$?" "normalize-reports" "normalize" "normalizer" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/dropped_exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
 
 list_input_artifacts() {
   local artifacts=(
