@@ -22,13 +22,14 @@ variables:
   TRIVY_DB_RETRY_BACKOFF_SEC: "5"
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
-  TRIVY_IMAGE_MIN_REPORTS: "0"
+  TRIVY_IMAGE_MIN_REPORTS: "1"
+  TRIVY_IMAGE_STRICT: "true"
 
   # Comma-separated list of container image references to scan for CVE + misconfigs.
   # Set in GitLab CI/CD Settings → Variables (masked if credentials are embedded).
   # Example: registry.gitlab.com/org/project/scan-tools:latest,python:3.12-alpine
-  # Leave empty to skip image scanning (filesystem scan always runs).
-  TRIVY_IMAGE_TARGETS: ""
+  # Filesystem scan always runs; these default targets cover CloudSentinel CI images.
+  TRIVY_IMAGE_TARGETS: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323,registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d,registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:dc56369d20c03f05a46ad8b8b8b4f1f65e07d0ab491231a4b2244bdd9eb547a2"
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "5"
@@ -147,7 +148,6 @@ trivy-scan:
       - shift-left/trivy/reports/raw/trivy-fs-raw.json.hmac
       - shift-left/trivy/reports/raw/image/
       - shift-left/trivy/reports/sbom/trivy-fs.cdx.json
-      # trivy-image.cdx.json exists only when TRIVY_IMAGE_TARGETS is set — GitLab skips silently if absent
       - shift-left/trivy/reports/sbom/trivy-image.cdx.json
       - .cloudsentinel/audit/trivy-scan_audit.json
       - .cloudsentinel/audit/trivy-scan_audit.json.hmac

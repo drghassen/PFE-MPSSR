@@ -42,19 +42,40 @@ jq -r '"[scan-summary] trivy_fs_raw_results=" + (((.Results // []) | length) | t
 # Set TRIVY_IMAGE_TARGETS in GitLab CI/CD Settings as a comma-separated list
 # of image references to scan, e.g.:
 #   registry.gitlab.com/org/project/scan-tools:latest,python:3.12-alpine
-# If empty, image scanning is skipped (advisory mode).
+# If empty, image scanning is skipped. In CI, keep TRIVY_IMAGE_STRICT=true
+# when targets are configured so a broken image scan cannot pass silently.
 TRIVY_IMAGE_TARGETS="${TRIVY_IMAGE_TARGETS:-}"
+TRIVY_IMAGE_MIN_REPORTS_EFF="${TRIVY_IMAGE_MIN_REPORTS:-0}"
+TRIVY_IMAGE_STRICT_EFF="${TRIVY_IMAGE_STRICT:-false}"
+
+if ! [[ "${TRIVY_IMAGE_MIN_REPORTS_EFF}" =~ ^[0-9]+$ ]]; then
+  echo "[trivy-image][ERROR] TRIVY_IMAGE_MIN_REPORTS must be a non-negative integer: ${TRIVY_IMAGE_MIN_REPORTS_EFF}" >&2
+  exit 2
+fi
+
+trivy_image_strict_enabled() {
+  case "${TRIVY_IMAGE_STRICT_EFF}" in
+    1|true|TRUE|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 if [[ -z "$TRIVY_IMAGE_TARGETS" ]]; then
-  echo "[trivy-image][INFO] TRIVY_IMAGE_TARGETS is empty — image scanning skipped."
+  if [[ "${TRIVY_IMAGE_MIN_REPORTS_EFF}" -gt 0 ]]; then
+    echo "[trivy-image][ERROR] TRIVY_IMAGE_TARGETS is empty but TRIVY_IMAGE_MIN_REPORTS=${TRIVY_IMAGE_MIN_REPORTS_EFF}." >&2
+    exit 1
+  fi
+  echo "[trivy-image][INFO] TRIVY_IMAGE_TARGETS is empty - image scanning skipped."
 else
   IMAGE_COUNT=0
   IMAGE_ERRORS=0
+  IMAGE_EXPECTED=0
 
   IFS=',' read -r -a _images <<< "$TRIVY_IMAGE_TARGETS"
   for _img in "${_images[@]}"; do
     _img="$(echo "$_img" | xargs)"
     [[ -z "$_img" ]] && continue
+    IMAGE_EXPECTED=$(( IMAGE_EXPECTED + 1 ))
 
     # Sanitize image reference → safe filename token (replace /:@. with -)
     _img_slug="$(echo "$_img" | tr '/:@.' '----' | tr -dc '[:alnum:]-_' | cut -c1-80)"
@@ -73,12 +94,22 @@ else
       echo "[trivy-image][INFO] Image ${_img} — findings: ${_count} → ${_out}"
       IMAGE_COUNT=$(( IMAGE_COUNT + 1 ))
     else
-      echo "[trivy-image][WARN] Image scan failed for: ${_img} (non-blocking)" >&2
+      echo "[trivy-image][ERROR] Image scan failed for: ${_img}" >&2
       IMAGE_ERRORS=$(( IMAGE_ERRORS + 1 ))
     fi
   done
 
-  echo "[trivy-image][INFO] Image scan complete — scanned: ${IMAGE_COUNT}, errors: ${IMAGE_ERRORS}"
+  echo "[trivy-image][INFO] Image scan complete - expected: ${IMAGE_EXPECTED}, scanned: ${IMAGE_COUNT}, errors: ${IMAGE_ERRORS}"
+
+  if [[ "${IMAGE_COUNT}" -lt "${TRIVY_IMAGE_MIN_REPORTS_EFF}" ]]; then
+    echo "[trivy-image][ERROR] Image scan produced ${IMAGE_COUNT} reports, below required minimum ${TRIVY_IMAGE_MIN_REPORTS_EFF}." >&2
+    exit 1
+  fi
+
+  if trivy_image_strict_enabled && [[ "${IMAGE_ERRORS}" -gt 0 ]]; then
+    echo "[trivy-image][ERROR] Image scan strict mode is enabled and ${IMAGE_ERRORS} image scan(s) failed." >&2
+    exit 1
+  fi
 fi
 
 chmod -R a+r shift-left/trivy/reports/raw 2>/dev/null || true

@@ -21,6 +21,7 @@ if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGA
   exit 0
 fi
 DOJO_URL_EFF="${DOJO_URL_EFF%/}"
+DOJO_IMPORT_URL="${DOJO_URL_EFF}/api/v2/import-scan/"
 DOJO_REIMPORT_URL="${DOJO_URL_EFF}/api/v2/reimport-scan/"
 
 chmod -R a+r .cloudsentinel shift-left/trivy/reports/raw 2>/dev/null || true
@@ -42,6 +43,11 @@ dojo_http_success() {
     200|201) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+dojo_response_is_missing_test() {
+  local response_file="$1"
+  grep -Fq "does not exist in Engagement" "${response_file}" 2>/dev/null
 }
 
 resolve_dojo_product_name() {
@@ -203,6 +209,33 @@ upload_scan() {
   if dojo_http_success "${HTTP_CODE}"; then
     echo "[dojo] ${label} reimported HTTP=${HTTP_CODE} test_title=${test_title}"
   else
+    if [[ "${HTTP_CODE}" == "400" ]] && dojo_response_is_missing_test "${response_file}"; then
+      import_response_file=".cloudsentinel/dojo-responses/${safe_label}.import.json"
+      echo "[dojo] ${label}: test does not exist yet; creating it via import-scan."
+
+      HTTP_CODE=$(curl -sS -L --post301 --post302 -o "${import_response_file}" -w "%{http_code}" \
+        -X POST "${DOJO_IMPORT_URL}" \
+        -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+        -F "file=@${upload_file_path}" \
+        -F "scan_type=${scan_type}" \
+        --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
+        --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+        --form-string "engagement_name=${DOJO_ENGAGEMENT_NAME_EFF}" \
+        --form-string "test_title=${test_title}" \
+        --form-string "active=true" \
+        --form-string "verified=true" \
+        --form-string "deduplication_on_engagement=true")
+
+      if dojo_http_success "${HTTP_CODE}"; then
+        echo "[dojo] ${label} imported HTTP=${HTTP_CODE} test_title=${test_title}"
+        return 0
+      fi
+
+      echo "[dojo] ${label} import failed HTTP=${HTTP_CODE}"
+      cat "${import_response_file}" || true
+      return 1
+    fi
+
     echo "[dojo] ${label} reimport failed HTTP=${HTTP_CODE}"
     cat "${response_file}" || true
     return 1
@@ -319,6 +352,35 @@ upload_cloudinit_generic_findings() {
   if dojo_http_success "${HTTP_CODE}"; then
     echo "[dojo] ${label} reimported HTTP=${HTTP_CODE} (findings=${findings_count}) test_title=${test_title}"
   else
+    if [[ "${HTTP_CODE}" == "400" ]] && dojo_response_is_missing_test "${response_file}"; then
+      local import_response_file=".cloudsentinel/dojo-responses/cloudinit-generic-import-response.json"
+      echo "[dojo] ${label}: test does not exist yet; creating it via import-scan."
+
+      HTTP_CODE="$(curl -sS -L --post301 --post302 -o "${import_response_file}" -w "%{http_code}" \
+        -X POST "${DOJO_IMPORT_URL}" \
+        -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+        -F "file=@${generic_file}" \
+        -F "scan_type=Generic Findings Import" \
+        --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
+        --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+        --form-string "engagement_name=${DOJO_ENGAGEMENT_NAME_EFF}" \
+        --form-string "test_title=${test_title}" \
+        --form-string "scan_date=${scan_date}" \
+        --form-string "active=true" \
+        --form-string "verified=true" \
+        --form-string "deduplication_on_engagement=true" \
+        --form-string "minimum_severity=Info")"
+
+      if dojo_http_success "${HTTP_CODE}"; then
+        echo "[dojo] ${label} imported HTTP=${HTTP_CODE} (findings=${findings_count}) test_title=${test_title}"
+        return 0
+      fi
+
+      echo "[dojo] ${label} import failed HTTP=${HTTP_CODE}"
+      cat "${import_response_file}" || true
+      return 1
+    fi
+
     echo "[dojo] ${label} reimport failed HTTP=${HTTP_CODE}"
     cat "${response_file}" || true
     return 1
@@ -361,4 +423,12 @@ fi
 upload_scan ".cloudsentinel/gitleaks_raw.json"                "Gitleaks Scan" "Gitleaks"       "$(dojo_test_title "Gitleaks")"
 upload_scan ".cloudsentinel/checkov_raw.json"                 "Checkov Scan"  "Checkov"        "$(dojo_test_title "Checkov")"
 upload_scan "shift-left/trivy/reports/raw/trivy-fs-raw.json"  "Trivy Scan"    "Trivy (FS/SCA)" "$(dojo_test_title "Trivy FS/SCA")"
+
+shopt -s nullglob
+for trivy_image_report in shift-left/trivy/reports/raw/image/trivy-image-*-raw.json; do
+  trivy_image_label="Trivy Image $(basename "${trivy_image_report}" .json)"
+  upload_scan "${trivy_image_report}" "Trivy Scan" "${trivy_image_label}" "$(dojo_test_title "${trivy_image_label}")"
+done
+shopt -u nullglob
+
 upload_cloudinit_generic_findings
