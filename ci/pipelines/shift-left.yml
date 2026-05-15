@@ -84,8 +84,6 @@ trivy-db-warm:
     when: always
     expire_in: 30 days
     paths:
-      - .trivy-cache/db/trivy.db
-      - .trivy-cache/db/metadata.json
       - .cloudsentinel/audit/trivy-db-warm_audit.json
       - .cloudsentinel/audit/trivy-db-warm_audit.json.hmac
 
@@ -126,10 +124,12 @@ trivy-scan:
   <<: *default_tools
   stage: scan
   # Single Trivy job — filesystem CVE-only + container image scanning (if TRIVY_IMAGE_TARGETS set)
-  # DB is pre-warmed by trivy-db-warm (guard stage). IaC misconfigs → Checkov.
+  # DB is pre-warmed by trivy-db-warm (guard stage) and handed over through
+  # the runner cache. Do not publish trivy.db as an artifact: it is ~1GB and
+  # makes the guard stage slower than the scan. IaC misconfigs → Checkov.
   needs:
     - job: trivy-db-warm
-      artifacts: true
+      artifacts: false
   variables:
     TRIVY_SKIP_DB_UPDATE_IN_SCAN: "true"
   cache:
