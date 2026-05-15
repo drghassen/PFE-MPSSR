@@ -4,6 +4,7 @@ set -euo pipefail
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID_LEFT:-}}"
+DOJO_PRODUCT_NAME_EFF="${DOJO_PRODUCT_NAME:-${DEFECTDOJO_PRODUCT_NAME:-}}"
 VERIFY_HMAC_SCRIPT="ci/scripts/verify-hmac.sh"
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
 source ci/scripts/setup-custom-ca.sh
@@ -40,6 +41,71 @@ dojo_http_success() {
     200|201) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+resolve_dojo_product_name() {
+  if [[ -n "${DOJO_PRODUCT_NAME_EFF}" ]]; then
+    return 0
+  fi
+
+  local engagement_response=".cloudsentinel/dojo-responses/engagement-context.json"
+  local product_response=".cloudsentinel/dojo-responses/product-context.json"
+  local http_code product_id product_name
+
+  http_code="$(curl -sS -L -o "${engagement_response}" -w "%{http_code}" \
+    -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+    "${DOJO_URL_EFF}/api/v2/engagements/${DOJO_ENGAGEMENT_ID_EFF}/")"
+
+  if ! dojo_http_success "${http_code}"; then
+    echo "[dojo] Unable to resolve product from engagement=${DOJO_ENGAGEMENT_ID_EFF} HTTP=${http_code}" >&2
+    cat "${engagement_response}" >&2 || true
+    return 1
+  fi
+
+  product_name="$(jq -r '
+    if (.product | type) == "object" then (.product.name // "")
+    else (.product_name // "")
+    end
+  ' "${engagement_response}")"
+
+  if [[ -n "${product_name}" && "${product_name}" != "null" ]]; then
+    DOJO_PRODUCT_NAME_EFF="${product_name}"
+    echo "[dojo] Resolved product_name from engagement context: ${DOJO_PRODUCT_NAME_EFF}"
+    return 0
+  fi
+
+  product_id="$(jq -r '
+    if (.product | type) == "number" then (.product | tostring)
+    elif (.product | type) == "string" then .product
+    else ""
+    end
+  ' "${engagement_response}")"
+
+  if [[ -z "${product_id}" || "${product_id}" == "null" ]]; then
+    echo "[dojo] Engagement context does not contain product name or product id." >&2
+    cat "${engagement_response}" >&2 || true
+    return 1
+  fi
+
+  http_code="$(curl -sS -L -o "${product_response}" -w "%{http_code}" \
+    -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+    "${DOJO_URL_EFF}/api/v2/products/${product_id}/")"
+
+  if ! dojo_http_success "${http_code}"; then
+    echo "[dojo] Unable to resolve product id=${product_id} HTTP=${http_code}" >&2
+    cat "${product_response}" >&2 || true
+    return 1
+  fi
+
+  product_name="$(jq -r '.name // ""' "${product_response}")"
+  if [[ -z "${product_name}" || "${product_name}" == "null" ]]; then
+    echo "[dojo] Product context does not contain a product name." >&2
+    cat "${product_response}" >&2 || true
+    return 1
+  fi
+
+  DOJO_PRODUCT_NAME_EFF="${product_name}"
+  echo "[dojo] Resolved product_name from product context: ${DOJO_PRODUCT_NAME_EFF}"
 }
 
 verify_artifact_integrity() {
@@ -94,6 +160,7 @@ upload_scan() {
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${upload_file_path}" \
     -F "scan_type=${scan_type}" \
+    --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
     --form-string "test_title=${test_title}" \
     --form-string "active=true" \
@@ -206,6 +273,7 @@ upload_cloudinit_generic_findings() {
     -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
     -F "file=@${generic_file}" \
     -F "scan_type=Generic Findings Import" \
+    --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
     --form-string "test_title=${test_title}" \
     --form-string "scan_date=${scan_date}" \
@@ -245,6 +313,11 @@ validate_optional_json_artifact() {
 validate_optional_json_artifact ".cloudsentinel/golden_report.json" "golden_report"
 if [[ -f ".cloudsentinel/golden_report.json" ]]; then
   verify_artifact_integrity ".cloudsentinel/golden_report.json" "golden_report"
+fi
+
+if ! resolve_dojo_product_name; then
+  echo "[dojo] Missing product_name. Set DOJO_PRODUCT_NAME or DEFECTDOJO_PRODUCT_NAME, or ensure the API key can read engagement/product context." >&2
+  exit 1
 fi
 
 # Shift-Left scanners

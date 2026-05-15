@@ -54,10 +54,15 @@ ensure_cache_writable() {
 
 EFFECTIVE_CACHE_DIR="$TRIVY_CACHE_DIR_EFF"
 if ! ensure_cache_writable "$EFFECTIVE_CACHE_DIR"; then
-  warn "Cache dir ${EFFECTIVE_CACHE_DIR} is not writable after all repair attempts."
-  warn "Falling back to a temp dir — DB will not be cached this run."
-  EFFECTIVE_CACHE_DIR="$(mktemp -d)"
-  log "Fallback cache dir: ${EFFECTIVE_CACHE_DIR}"
+  if [[ -n "${CI:-}" ]]; then
+    err "Cache dir ${EFFECTIVE_CACHE_DIR} is not writable after all repair attempts. CI warm-up must produce reusable DB artifacts."
+    exit 2
+  else
+    warn "Cache dir ${EFFECTIVE_CACHE_DIR} is not writable after all repair attempts."
+    warn "Falling back to a temp dir — DB will not be cached this run."
+    EFFECTIVE_CACHE_DIR="$(mktemp -d)"
+    log "Fallback cache dir: ${EFFECTIVE_CACHE_DIR}"
+  fi
 fi
 
 IFS=',' read -r -a RAW_REPOS <<< "$TRIVY_DB_REPOSITORIES_EFF"
@@ -78,6 +83,23 @@ log "cache_dir=${EFFECTIVE_CACHE_DIR} timeout=${TRIVY_DB_TIMEOUT_EFF}"
 log "db_repositories=${TRIVY_DB_REPOSITORIES_EFF}"
 log "attempts_per_repo=${TRIVY_DB_ATTEMPTS_PER_REPO_EFF} retry_backoff_sec=${TRIVY_DB_RETRY_BACKOFF_SEC_EFF}"
 
+validate_warmed_db() {
+  local db_file="${EFFECTIVE_CACHE_DIR}/db/trivy.db"
+  local metadata_file="${EFFECTIVE_CACHE_DIR}/db/metadata.json"
+
+  [[ -s "$db_file" ]] || { err "Warm-up completed but DB file is missing or empty: $db_file"; return 1; }
+  [[ -s "$metadata_file" ]] || { err "Warm-up completed but DB metadata is missing or empty: $metadata_file"; return 1; }
+  jq -e '
+    type == "object"
+    and (.Version | tostring == "2")
+    and (.NextUpdate | type == "string")
+    and (.DownloadedAt | type == "string")
+  ' "$metadata_file" >/dev/null 2>&1 || {
+    err "Warm-up completed but DB metadata is invalid: $metadata_file"
+    return 1
+  }
+}
+
 for repo in "${DB_REPOS[@]}"; do
   for attempt in $(seq 1 "${TRIVY_DB_ATTEMPTS_PER_REPO_EFF}"); do
     log "Attempting DB warm-up via ${repo} (attempt ${attempt}/${TRIVY_DB_ATTEMPTS_PER_REPO_EFF})"
@@ -87,6 +109,7 @@ for repo in "${DB_REPOS[@]}"; do
       --timeout "${TRIVY_DB_TIMEOUT_EFF}" \
       --db-repository "${repo}" \
       --no-progress; then
+      validate_warmed_db
       log "DB warm-up succeeded via ${repo}"
       exit 0
     fi

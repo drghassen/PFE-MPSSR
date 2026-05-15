@@ -11,6 +11,7 @@ scan:
   # IaC misconfigs → Checkov | Container misconfigs → trivy image scan
   skip-dirs:
     - shift-left/trivy/tests
+    - .trivy-cache
 
 severity:
   - CRITICAL

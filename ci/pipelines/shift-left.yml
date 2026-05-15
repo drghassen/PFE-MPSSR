@@ -84,6 +84,8 @@ trivy-db-warm:
     when: always
     expire_in: 30 days
     paths:
+      - .trivy-cache/db/trivy.db
+      - .trivy-cache/db/metadata.json
       - .cloudsentinel/audit/trivy-db-warm_audit.json
       - .cloudsentinel/audit/trivy-db-warm_audit.json.hmac
 
@@ -127,6 +129,9 @@ trivy-scan:
   # DB is pre-warmed by trivy-db-warm (guard stage). IaC misconfigs → Checkov.
   needs:
     - job: trivy-db-warm
+      artifacts: true
+  variables:
+    TRIVY_SKIP_DB_UPDATE_IN_SCAN: "true"
   cache:
     key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
     policy: pull
