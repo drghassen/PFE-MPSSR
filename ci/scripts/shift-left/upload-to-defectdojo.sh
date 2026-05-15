@@ -4,6 +4,7 @@ set -euo pipefail
 DOJO_URL_EFF="${DOJO_URL:-${DEFECTDOJO_URL:-}}"
 DOJO_API_KEY_EFF="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKEN:-}}}"
 DOJO_ENGAGEMENT_ID_EFF="${DOJO_ENGAGEMENT_ID:-${DEFECTDOJO_ENGAGEMENT_ID_LEFT:-}}"
+DOJO_ENGAGEMENT_NAME_EFF="${DOJO_ENGAGEMENT_NAME:-${DEFECTDOJO_ENGAGEMENT_NAME:-${DEFECTDOJO_ENGAGEMENT_NAME_LEFT:-}}}"
 DOJO_PRODUCT_NAME_EFF="${DOJO_PRODUCT_NAME:-${DEFECTDOJO_PRODUCT_NAME:-}}"
 VERIFY_HMAC_SCRIPT="ci/scripts/verify-hmac.sh"
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
@@ -108,6 +109,35 @@ resolve_dojo_product_name() {
   echo "[dojo] Resolved product_name from product context: ${DOJO_PRODUCT_NAME_EFF}"
 }
 
+resolve_dojo_engagement_name() {
+  if [[ -n "${DOJO_ENGAGEMENT_NAME_EFF}" ]]; then
+    return 0
+  fi
+
+  local engagement_response=".cloudsentinel/dojo-responses/engagement-context.json"
+  local http_code engagement_name
+
+  http_code="$(curl -sS -L -o "${engagement_response}" -w "%{http_code}" \
+    -H "Authorization: Token ${DOJO_API_KEY_EFF}" \
+    "${DOJO_URL_EFF}/api/v2/engagements/${DOJO_ENGAGEMENT_ID_EFF}/")"
+
+  if ! dojo_http_success "${http_code}"; then
+    echo "[dojo] Unable to resolve engagement_name from engagement=${DOJO_ENGAGEMENT_ID_EFF} HTTP=${http_code}" >&2
+    cat "${engagement_response}" >&2 || true
+    return 1
+  fi
+
+  engagement_name="$(jq -r '.name // ""' "${engagement_response}")"
+  if [[ -z "${engagement_name}" || "${engagement_name}" == "null" ]]; then
+    echo "[dojo] Engagement context does not contain an engagement name." >&2
+    cat "${engagement_response}" >&2 || true
+    return 1
+  fi
+
+  DOJO_ENGAGEMENT_NAME_EFF="${engagement_name}"
+  echo "[dojo] Resolved engagement_name from engagement context: ${DOJO_ENGAGEMENT_NAME_EFF}"
+}
+
 verify_artifact_integrity() {
   local file_path="$1"
   local label="$2"
@@ -162,6 +192,7 @@ upload_scan() {
     -F "scan_type=${scan_type}" \
     --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+    --form-string "engagement_name=${DOJO_ENGAGEMENT_NAME_EFF}" \
     --form-string "test_title=${test_title}" \
     --form-string "active=true" \
     --form-string "verified=true" \
@@ -275,6 +306,7 @@ upload_cloudinit_generic_findings() {
     -F "scan_type=Generic Findings Import" \
     --form-string "product_name=${DOJO_PRODUCT_NAME_EFF}" \
     --form-string "engagement=${DOJO_ENGAGEMENT_ID_EFF}" \
+    --form-string "engagement_name=${DOJO_ENGAGEMENT_NAME_EFF}" \
     --form-string "test_title=${test_title}" \
     --form-string "scan_date=${scan_date}" \
     --form-string "active=true" \
@@ -317,6 +349,11 @@ fi
 
 if ! resolve_dojo_product_name; then
   echo "[dojo] Missing product_name. Set DOJO_PRODUCT_NAME or DEFECTDOJO_PRODUCT_NAME, or ensure the API key can read engagement/product context." >&2
+  exit 1
+fi
+
+if ! resolve_dojo_engagement_name; then
+  echo "[dojo] Missing engagement_name. Set DOJO_ENGAGEMENT_NAME or DEFECTDOJO_ENGAGEMENT_NAME, or ensure the API key can read engagement context." >&2
   exit 1
 fi
 
