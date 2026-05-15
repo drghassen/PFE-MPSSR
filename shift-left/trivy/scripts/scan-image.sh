@@ -58,36 +58,6 @@ for _repo in "${_raw_db_repos[@]}"; do
   DB_REPO_ARGS+=(--db-repository "$_repo")
 done
 
-use_warmed_db_cache() {
-  case "${TRIVY_SKIP_DB_UPDATE_IN_SCAN:-}" in
-    1|true|TRUE|yes|YES) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-require_warmed_db_cache() {
-  local db_file="${TRIVY_CACHE_DIR_EFF}/db/trivy.db"
-  local metadata_file="${TRIVY_CACHE_DIR_EFF}/db/metadata.json"
-
-  [[ -s "$db_file" ]] || { err "Warmed Trivy DB is missing or empty: $db_file"; exit 2; }
-  [[ -s "$metadata_file" ]] || { err "Warmed Trivy DB metadata is missing or empty: $metadata_file"; exit 2; }
-  jq -e '
-    type == "object"
-    and (.Version | tostring == "2")
-    and (.NextUpdate | type == "string")
-    and (.DownloadedAt | type == "string")
-  ' "$metadata_file" >/dev/null 2>&1 || {
-    err "Warmed Trivy DB metadata is invalid: $metadata_file"
-    exit 2
-  }
-}
-
-SKIP_DB_UPDATE_ARGS=()
-if use_warmed_db_cache; then
-  require_warmed_db_cache
-  SKIP_DB_UPDATE_ARGS=(--skip-db-update)
-fi
-
 log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
@@ -95,11 +65,6 @@ log "Output    : $OUTPUT_FILE"
 log "SBOM      : $SBOM_FILE"
 log "Cache dir : $TRIVY_CACHE_DIR_EFF"
 log "DB repos  : $TRIVY_DB_REPOSITORIES_EFF"
-if use_warmed_db_cache; then
-  log "DB update : disabled (using warmed DB cache)"
-else
-  log "DB update : enabled"
-fi
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 
 # ── SBOM Generation ──────────────────────────────────────────────────────────
@@ -114,7 +79,6 @@ trivy image \
   --config "$CONFIG_FILE" \
   --cache-dir "$TRIVY_CACHE_DIR_EFF" \
   "${DB_REPO_ARGS[@]}" \
-  "${SKIP_DB_UPDATE_ARGS[@]}" \
   --format cyclonedx \
   --output "$SBOM_FILE" \
   "$TARGET" || warn "Failed to generate SBOM, continuing scan."
@@ -138,7 +102,6 @@ trivy image \
   --config "$CONFIG_FILE" \
   --cache-dir "$TRIVY_CACHE_DIR_EFF" \
   "${DB_REPO_ARGS[@]}" \
-  "${SKIP_DB_UPDATE_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
   --scanners vuln,misconfig \
   --format json \
@@ -146,7 +109,7 @@ trivy image \
   "$TARGET"
 TRIVY_RC=$?
 
-if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]] && ! use_warmed_db_cache; then
+if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]]; then
   warn "Trivy DB update failed in CI; retrying image scan with cached DB (--skip-db-update)."
   trivy image \
     "${AUTH_ARGS[@]}" \

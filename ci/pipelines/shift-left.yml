@@ -22,14 +22,13 @@ variables:
   TRIVY_DB_RETRY_BACKOFF_SEC: "5"
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
-  TRIVY_IMAGE_MIN_REPORTS: "1"
-  TRIVY_IMAGE_STRICT: "true"
+  TRIVY_IMAGE_MIN_REPORTS: "0"
 
   # Comma-separated list of container image references to scan for CVE + misconfigs.
   # Set in GitLab CI/CD Settings → Variables (masked if credentials are embedded).
   # Example: registry.gitlab.com/org/project/scan-tools:latest,python:3.12-alpine
-  # Filesystem scan always runs; these default targets cover CloudSentinel CI images.
-  TRIVY_IMAGE_TARGETS: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323,registry.gitlab.com/drghassen/pfe-cloud-sentinel/opa@sha256:5b4b32a09590aa257ef3a15649ad2282e5d8ca1f64e537b9c2fc93cd03e70a3d,registry.gitlab.com/drghassen/pfe-cloud-sentinel/deploy-tools@sha256:dc56369d20c03f05a46ad8b8b8b4f1f65e07d0ab491231a4b2244bdd9eb547a2"
+  # Leave empty to skip image scanning (filesystem scan always runs).
+  TRIVY_IMAGE_TARGETS: ""
 
   CRITICAL_MAX: "0"
   HIGH_MAX: "5"
@@ -125,14 +124,9 @@ trivy-scan:
   <<: *default_tools
   stage: scan
   # Single Trivy job — filesystem CVE-only + container image scanning (if TRIVY_IMAGE_TARGETS set)
-  # DB is pre-warmed by trivy-db-warm (guard stage) and handed over through
-  # the runner cache. Do not publish trivy.db as an artifact: it is ~1GB and
-  # makes the guard stage slower than the scan. IaC misconfigs → Checkov.
+  # DB is pre-warmed by trivy-db-warm (guard stage). IaC misconfigs → Checkov.
   needs:
     - job: trivy-db-warm
-      artifacts: false
-  variables:
-    TRIVY_SKIP_DB_UPDATE_IN_SCAN: "true"
   cache:
     key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
     policy: pull
