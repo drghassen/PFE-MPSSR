@@ -1,46 +1,44 @@
-version: "3.9"
-
 services:
-
   postgres:
     image: postgres:16-alpine
     container_name: cloudsentinel-postgres
-
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: cloudsentinel
       POSTGRES_USER: cloudsentinel
-      POSTGRES_PASSWORD: cloudsentinel123
-
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cloudsentinel123}
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
+      - ./init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudsentinel -d cloudsentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - cloudsentinel-network
 
   grafana:
-    image: grafana/grafana-oss:latest
+    image: grafana/grafana-oss:${GRAFANA_VERSION:-11.5.2}
     container_name: cloudsentinel-grafana
-
     restart: unless-stopped
-
     depends_on:
-      - postgres
-
+      postgres:
+        condition: service_healthy
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin123
-
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 10s
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cloudsentinel123}
     ports:
       - "3000:3000"
-
     volumes:
       - grafana_data:/var/lib/grafana
-
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - cloudsentinel-network
 
