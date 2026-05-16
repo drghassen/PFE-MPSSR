@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudsentinel-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: cloudsentinel
+      POSTGRES_USER: cloudsentinel
+      POSTGRES_PASSWORD: cloudsentinel123
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - cloudsentinel-network
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: cloudsentinel-grafana
+
+    restart: unless-stopped
+
+    depends_on:
+      - postgres
+
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+    networks:
+      - cloudsentinel-network
+
+volumes:
+  postgres_data:
+  grafana_data:
+
+networks:
+  cloudsentinel-network:
