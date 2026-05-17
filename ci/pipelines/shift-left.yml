@@ -16,6 +16,7 @@ variables:
   GITLEAKS_VERSION: "8.21.2"
   CHECKOV_VERSION: "3.2.502"
   TRIVY_VERSION: "0.69.3"
+  TRIVY_CACHE_DIR: ".trivy-cache"
   TRIVY_DB_TIMEOUT: "15m"
   TRIVY_DB_REPOSITORIES: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
   TRIVY_DB_ATTEMPTS_PER_REPO: "2"
@@ -132,6 +133,11 @@ trivy-scan:
     policy: pull
     paths:
       - .trivy-cache
+  variables:
+    # The guard-stage trivy-db-warm job owns network DB updates.
+    # Scan jobs must consume the warmed cache and fail fast if it is missing,
+    # instead of silently downloading the DB again in filesystem/SBOM/image scans.
+    TRIVY_SKIP_DB_UPDATE_IN_SCAN: "true"
   script:
     - bash ci/scripts/shift-left/trivy-fs-scan.sh
   artifacts:
