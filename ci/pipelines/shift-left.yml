@@ -298,8 +298,9 @@ export-metrics:
     - normalize-reports
     - opa-decision
   script:
-    - pip install psycopg2-binary -q
-    - python3 observability/cs_metrics_exporter.py
+    - mkdir -p .cloudsentinel/python-deps
+    - python3 -m pip install --no-cache-dir --target .cloudsentinel/python-deps psycopg2-binary -q
+    - PYTHONPATH="$CI_PROJECT_DIR/.cloudsentinel/python-deps" python3 observability/cs_metrics_exporter.py
   variables:
     CS_PG_DSN: "host=$POSTGRES_HOST dbname=cloudsentinel user=cloudsentinel password=$POSTGRES_PASSWORD"
   allow_failure: true
