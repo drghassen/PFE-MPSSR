@@ -41,6 +41,10 @@
                 "1": {
                   "color": "green",
                   "text": "ALLOW"
+                },
+                "-1": {
+                  "color": "orange",
+                  "text": "UNKNOWN"
                 }
               },
               "type": "value"
@@ -93,7 +97,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE gate_decision WHEN 'ALLOW' THEN 1 WHEN 'DENY' THEN 0 ELSE -1 END AS value\nFROM pipeline_runs\nWHERE $__timeFilter(timestamp)\nORDER BY timestamp DESC\nLIMIT 1;",
+          "rawSql": "SELECT CASE gate_decision WHEN 'ALLOW' THEN 1 WHEN 'DENY' THEN 0 ELSE -1 END AS value\nFROM v_security_posture_latest;",
           "refId": "A"
         }
       ],
@@ -229,7 +233,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT failed_effective + effective_drift AS value FROM v_security_posture_latest;",
+          "rawSql": "SELECT detected_failed + effective_drift AS value FROM v_security_posture_latest;",
           "refId": "A"
         }
       ],
@@ -518,7 +522,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  pr.timestamp AS \"time\",\n  om.critical_effective AS \"Critical effective\",\n  om.high_effective AS \"High effective\",\n  om.failed_effective AS \"Failed effective\",\n  om.excepted_findings AS \"Excepted findings\"\nFROM pipeline_runs pr\nLEFT JOIN opa_metrics om ON om.pipeline_id = pr.pipeline_id\nWHERE $__timeFilter(pr.timestamp)\nORDER BY pr.timestamp;",
+          "rawSql": "SELECT\n  pr.timestamp AS \"time\",\n  COALESCE(om.critical_effective, 0) AS \"Critical effective\",\n  COALESCE(om.high_effective, 0) AS \"High effective\",\n  COALESCE(om.failed_effective, 0) AS \"Failed effective\",\n  COALESCE(fd.detected_critical, 0) AS \"Critical detected\",\n  COALESCE(fd.detected_high, 0) AS \"High detected\",\n  COALESCE(om.excepted_findings, 0) AS \"Excepted findings\"\nFROM pipeline_runs pr\nLEFT JOIN opa_metrics om ON om.pipeline_id = pr.pipeline_id\nLEFT JOIN (\n  SELECT\n    pipeline_id,\n    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false AND severity = 'CRITICAL') AS detected_critical,\n    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false AND severity = 'HIGH') AS detected_high\n  FROM normalized_findings\n  GROUP BY pipeline_id\n) fd ON fd.pipeline_id = pr.pipeline_id\nWHERE $__timeFilter(pr.timestamp)\nORDER BY pr.timestamp;",
           "refId": "A"
         }
       ],

@@ -159,6 +159,12 @@ WHERE a.id > b.id
 CREATE UNIQUE INDEX IF NOT EXISTS remediation_runs_pipeline_uidx
   ON remediation_runs(pipeline_id);
 
+DROP VIEW IF EXISTS v_scanner_latest;
+DROP VIEW IF EXISTS v_findings_latest;
+DROP VIEW IF EXISTS v_drift_latest;
+DROP VIEW IF EXISTS v_security_posture_latest;
+DROP VIEW IF EXISTS v_latest_pipeline;
+
 CREATE OR REPLACE VIEW v_latest_pipeline AS
 SELECT pr.*
 FROM pipeline_runs pr
@@ -175,6 +181,17 @@ WITH latest AS (
 drift AS (
   SELECT pipeline_id, count(*) FILTER (WHERE is_effective) AS effective_drift
   FROM drift_violations
+  GROUP BY pipeline_id
+),
+finding_debt AS (
+  SELECT
+    pipeline_id,
+    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false) AS detected_failed,
+    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false AND severity = 'CRITICAL') AS detected_critical,
+    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false AND severity = 'HIGH') AS detected_high,
+    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = false AND severity = 'MEDIUM') AS detected_medium,
+    count(*) FILTER (WHERE status = 'FAILED' AND is_duplicate = true) AS duplicate_findings
+  FROM normalized_findings
   GROUP BY pipeline_id
 ),
 remediation AS (
@@ -200,6 +217,11 @@ SELECT
   COALESCE(om.high_effective, 0) AS high_effective,
   COALESCE(om.failed_input, 0) AS failed_input,
   COALESCE(om.failed_effective, 0) AS failed_effective,
+  COALESCE(finding_debt.detected_failed, 0) AS detected_failed,
+  COALESCE(finding_debt.detected_critical, 0) AS detected_critical,
+  COALESCE(finding_debt.detected_high, 0) AS detected_high,
+  COALESCE(finding_debt.detected_medium, 0) AS detected_medium,
+  COALESCE(finding_debt.duplicate_findings, 0) AS duplicate_findings,
   COALESCE(om.excepted_findings, 0) AS excepted_findings,
   COALESCE(om.active_break_glass, 0) AS active_break_glass,
   COALESCE(om.expired_enabled_exceptions, 0) AS expired_enabled_exceptions,
@@ -214,10 +236,13 @@ SELECT
   END AS remediation_rate,
   GREATEST(0, LEAST(100,
     100
-    - COALESCE(om.critical_effective, 0) * 25
-    - COALESCE(om.high_effective, 0) * 10
-    - COALESCE(om.failed_effective, 0) * 8
-    - COALESCE(drift.effective_drift, 0) * 20
+	    - COALESCE(om.critical_effective, 0) * 25
+	    - COALESCE(om.high_effective, 0) * 10
+	    - COALESCE(om.failed_effective, 0) * 8
+	    - LEAST(COALESCE(finding_debt.detected_critical, 0), 25) * 3
+	    - LEAST(COALESCE(finding_debt.detected_high, 0), 25) * 2
+	    - LEAST(COALESCE(finding_debt.detected_medium, 0), 25)
+	    - COALESCE(drift.effective_drift, 0) * 20
     - COALESCE(om.active_break_glass, 0) * 30
     - COALESCE(om.expired_enabled_exceptions, 0) * 15
     - CASE WHEN COALESCE(remediation.remediation_failed, false) THEN 20 ELSE 0 END
@@ -225,6 +250,7 @@ SELECT
 FROM latest
 LEFT JOIN opa_metrics om ON om.pipeline_id = latest.pipeline_id
 LEFT JOIN drift ON drift.pipeline_id = latest.pipeline_id
+LEFT JOIN finding_debt ON finding_debt.pipeline_id = latest.pipeline_id
 LEFT JOIN remediation ON remediation.pipeline_id = latest.pipeline_id;
 
 CREATE OR REPLACE VIEW v_scanner_latest AS
