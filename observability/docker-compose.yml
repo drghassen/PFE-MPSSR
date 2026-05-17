@@ -20,31 +20,8 @@ services:
     networks:
       - cloudsentinel-network
 
-  grafana:
-    image: grafana/grafana-oss:${GRAFANA_VERSION:-11.5.2}
-    container_name: cloudsentinel-grafana
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
-      GF_USERS_DEFAULT_THEME: dark
-      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 10s
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cloudsentinel123}
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./provisioning:/etc/grafana/provisioning:ro
-      - ./dashboards:/var/lib/grafana/dashboards:ro
-    networks:
-      - cloudsentinel-network
-
 volumes:
   postgres_data:
-  grafana_data:
 
 networks:
   cloudsentinel-network:
