@@ -29,7 +29,7 @@ OPA_RUNNER="${REPO_ROOT}/shift-left/opa/run-opa.sh"
 OPA_DECISION_FILE="${REPO_ROOT}/.cloudsentinel/opa_decision_precommit.json"
 
 PRECOMMIT_MODE="${CLOUDSENTINEL_PRECOMMIT_MODE:-advisory}"
-PRECOMMIT_SCAN_SCOPE="${CLOUDSENTINEL_PRECOMMIT_SCAN_SCOPE:-staged}"
+PRECOMMIT_SCAN_SCOPE="${CLOUDSENTINEL_PRECOMMIT_SCAN_SCOPE:-staged_history}"
 if [[ "${PRECOMMIT_ENFORCE:-false}" == "true" ]]; then
   PRECOMMIT_MODE="enforce"
 fi
@@ -145,6 +145,9 @@ if [[ -f "$GOLDEN_REPORT" ]]; then
   NORM_CRITICAL="$(json_get_or "$GOLDEN_REPORT" '.summary.by_tool.gitleaks.CRITICAL // 0' 0)"
   NORM_HIGH="$(json_get_or "$GOLDEN_REPORT" '.summary.by_tool.gitleaks.HIGH // 0' 0)"
   log "Gitleaks normalized summary: total=${NORM_TOTAL}, failed=${NORM_FAILED}, critical=${NORM_CRITICAL}, high=${NORM_HIGH}"
+  GITLEAKS_LATEST="$(json_get_or "$GOLDEN_REPORT" '[.findings[] | select(.source.tool=="gitleaks" and .context.git.in_latest_push == true)] | length' 0)"
+  GITLEAKS_HISTORY_ONLY="$(json_get_or "$GOLDEN_REPORT" '[.findings[] | select(.source.tool=="gitleaks" and .context.git.in_latest_push == false)] | length' 0)"
+  log "Gitleaks decision scope: latest_staged=${GITLEAKS_LATEST}, history_only=${GITLEAKS_HISTORY_ONLY}"
 fi
 
 # 3) OPA advisory (server preferred, CLI fallback)

@@ -15,7 +15,8 @@ make pre-commit-install
 - Local behavior is advisory by default (`exit 0`) even when findings exist or OPA returns DENY.
 - The hook enables `USE_BASELINE=true`; the Gitleaks baseline is used only when `shift-left/gitleaks/.gitleaks-baseline.json` exists.
 - Set `CLOUDSENTINEL_PRECOMMIT_MODE=enforce` to make local pre-commit block like the CI OPA gate.
-- Set `CLOUDSENTINEL_PRECOMMIT_SCAN_SCOPE=staged_history` to scan both the staged diff (`git add .`) and the full Git history. Only staged findings are treated as latest-change findings; history-only findings remain advisory, matching the CI full-history plus range model.
+- Default scan scope is `staged_history`: the hook scans both the staged diff (`git add .`) and the full Git history. Only staged findings are treated as latest-change findings; history-only findings remain advisory, matching the CI full-history plus range model.
+- Set `CLOUDSENTINEL_PRECOMMIT_SCAN_SCOPE=staged` for a faster staged-only local hook.
 - Set `OPA_LOCAL_MODE=cli` to force OPA CLI locally.
 - Set `OPA_LOCAL_ADVISORY=false` to skip local OPA evaluation.
 - If OPA server/CLI is unavailable, the hook warns and continues.
