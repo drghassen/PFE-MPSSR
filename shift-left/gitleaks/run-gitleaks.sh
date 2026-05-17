@@ -51,6 +51,12 @@ run_cmd() {
   fi
 }
 
+validate_gitleaks_report() {
+  local report_path="$1"
+  [[ -s "$report_path" ]] || { err "gitleaks raw output missing: $report_path"; exit 2; }
+  jq -e 'type=="array"' "$report_path" >/dev/null || { err "gitleaks raw output invalid JSON array: $report_path"; exit 2; }
+}
+
 enrich_with_secret_hash() {
   local report_path="$1"
   python3 - "$report_path" "$REPO_ROOT" <<'PY'
@@ -174,18 +180,80 @@ esac
 
 set +e
 if [[ "$SCAN_MODE" == "local" ]]; then
-  if [[ "$SCAN_TARGET" == "repo" ]]; then
-    run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
-  else
-    run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
-  fi
+  case "$SCAN_TARGET" in
+    repo|history)
+      run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+      ;;
+    staged)
+      run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+      ;;
+    staged_history|staged+history|all)
+      STAGED_OUT="$OUT_DIR/gitleaks_staged_raw.json"
+      HISTORY_OUT="$OUT_DIR/gitleaks_history_raw.json"
+      RANGE_OUT="$OUT_DIR/gitleaks_range_raw.json"
+      rm -f "$STAGED_OUT" "$HISTORY_OUT" "$RANGE_OUT"
+
+      run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$STAGED_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+      RC_STAGED=$?
+      if [[ "$RC_STAGED" -gt 1 ]]; then
+        RC="$RC_STAGED"
+      else
+        run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$HISTORY_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+        RC_HISTORY=$?
+        if [[ "$RC_HISTORY" -gt 1 ]]; then
+          RC="$RC_HISTORY"
+        else
+          RC=0
+          validate_gitleaks_report "$STAGED_OUT"
+          validate_gitleaks_report "$HISTORY_OUT"
+          enrich_with_secret_hash "$STAGED_OUT"
+          enrich_with_secret_hash "$HISTORY_OUT"
+
+          jq -s --arg repo_root "$REPO_ROOT" '
+            def dedup_key:
+              def norm_file:
+                ((.File // .file // "") | tostring
+                 | gsub("\\\\"; "/")
+                 | if startswith(($repo_root | tostring) + "/")
+                   then .[(($repo_root | tostring | length) + 1):]
+                   else .
+                   end
+                 | gsub("^\\./+"; ""));
+              [
+                ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
+                norm_file,
+                ((.StartLine // .start_line // .line // 0) | tostring),
+                ((.EndLine // .end_line // .line // 0) | tostring),
+                ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
+              ] | join(":");
+            .[0] + .[1] | unique_by(dedup_key)
+          ' "$STAGED_OUT" "$HISTORY_OUT" > "$REPORT_RAW_OUT"
+
+          # Local equivalent of the CI range report: only staged findings are
+          # considered latest-change findings by the normalizer/OPA gate.
+          jq \
+            --arg commit "STAGED" \
+            --arg email "$(git config user.email 2>/dev/null || printf 'local@example.invalid')" \
+            --arg date "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+            'map(. + {Commit: ((.Commit // "") | if . == "" then $commit else . end),
+                       Email:  ((.Email // "")  | if . == "" then $email  else . end),
+                       Date:   ((.Date // "")   | if . == "" then $date   else . end)})' \
+            "$STAGED_OUT" > "$RANGE_OUT"
+        fi
+      fi
+      ;;
+    *)
+      err "invalid SCAN_TARGET=${SCAN_TARGET}; expected repo, history, staged, or staged_history"
+      exit 2
+      ;;
+  esac
 else
   # CI scans full git history (GIT_DEPTH=0 guarantees a complete clone).
   # --no-git is intentionally absent: a secret removed in a prior commit
   # stays visible in history and must not be silently dropped from the gate.
   run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
 fi
-RC=$?
+RC="${RC:-$?}"
 set -e
 
 if [[ "$RC" -gt 1 ]]; then
@@ -193,8 +261,7 @@ if [[ "$RC" -gt 1 ]]; then
   exit 2
 fi
 
-[[ -s "$REPORT_RAW_OUT" ]] || { err "gitleaks raw output missing: $REPORT_RAW_OUT"; exit 2; }
-jq -e 'type=="array"' "$REPORT_RAW_OUT" >/dev/null || { err "gitleaks raw output invalid JSON array"; exit 2; }
+validate_gitleaks_report "$REPORT_RAW_OUT"
 enrich_with_secret_hash "$REPORT_RAW_OUT"
 jq -e 'all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "$REPORT_RAW_OUT" >/dev/null \
   || { err "gitleaks raw output missing CloudSentinelSecretHash"; exit 2; }
