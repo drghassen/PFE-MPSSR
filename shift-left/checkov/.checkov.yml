@@ -3,7 +3,7 @@
 # This file owns scanner execution settings only.
 # Suppressions are maintained separately in:
 #   shift-left/checkov/config/checkov-suppressions.yml
-
+#
 framework:
   - terraform
   - kubernetes
