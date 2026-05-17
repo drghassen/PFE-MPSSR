@@ -40,6 +40,18 @@ checkov_cmd=(checkov --directory "$SCAN_TARGET")
 checkov_cmd+=("--config-file" "$EFFECTIVE_CONFIG_FILE")
 checkov_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
 
+CHECKOV_CHECKS_CSV="${CHECKOV_CHECKS:-}"
+if [[ -n "$CHECKOV_CHECKS_CSV" ]]; then
+  checkov_cmd+=("--check" "$CHECKOV_CHECKS_CSV")
+  log_info "Applied explicit checks from CHECKOV_CHECKS: $CHECKOV_CHECKS_CSV"
+fi
+
+CHECKOV_SKIP_CHECKS_CSV="${CHECKOV_SKIP_CHECKS:-}"
+if [[ -n "$CHECKOV_SKIP_CHECKS_CSV" ]]; then
+  checkov_cmd+=("--skip-check" "$CHECKOV_SKIP_CHECKS_CSV")
+  log_info "Applied explicit skip checks from CHECKOV_SKIP_CHECKS: $CHECKOV_SKIP_CHECKS_CSV"
+fi
+
 SKIP_PATHS_CSV="${CHECKOV_SKIP_PATHS:-}"
 if [[ -n "$SKIP_PATHS_CSV" ]]; then
   IFS=',' read -r -a skip_paths <<< "$SKIP_PATHS_CSV"

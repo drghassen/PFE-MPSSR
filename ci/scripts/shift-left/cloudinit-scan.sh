@@ -4,8 +4,11 @@ set -euo pipefail
 source ci/scripts/shift-left/audit-utils.sh
 trap 'cloudsentinel_finalize_audit "$?" "cloudinit-scan" "scan" "cloudinit" ".cloudsentinel/cloudinit_analysis.json"' EXIT
 
+readonly CLOUDINIT_TERRAFORM_DIR_EFF="${CLOUDINIT_TERRAFORM_DIR:-.}"
+echo "[cloudinit] terraform_dir=${CLOUDINIT_TERRAFORM_DIR_EFF}"
+
 python3 shift-left/cloudinit-scanner/cloudinit_scan.py \
-  --terraform-dir . \
+  --terraform-dir "${CLOUDINIT_TERRAFORM_DIR_EFF}" \
   --output .cloudsentinel/cloudinit_analysis.json \
   --default-env "${CI_ENVIRONMENT_NAME:-dev}"
 

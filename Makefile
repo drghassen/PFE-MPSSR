@@ -3,7 +3,7 @@
 # Commandes pratiques pour le développement et l'exploitation
 # ============================================================================
 
-.PHONY: help setup install-tools config scan scan-secrets scan-iac checkov-smoke gitleaks-test precommit-test normalizer-test gitleaks-update-baseline scan-vulns trivy-test opa-test opa-test-gate opa-test-drift opa-test-system opa-eval opa-compose-bootstrap opa-up opa-up-shiftright opa-down custodian-dryrun custodian-run drift-detect prowler-azure-local fetch-drift-exceptions terraform-init terraform-plan terraform-apply terraform-destroy defectdojo-start defectdojo-stop defectdojo-setup defectdojo-import dashboard-start dashboard-stop test test-python test-vulnerable-samples clean clean-all logs pre-commit-install validate docs status version sync-ip check-ip
+.PHONY: help setup install-tools config scan scan-secrets scan-iac shift-left-one-finding-test checkov-smoke gitleaks-test precommit-test normalizer-test gitleaks-update-baseline scan-vulns trivy-test opa-test opa-test-gate opa-test-drift opa-test-system opa-eval opa-compose-bootstrap opa-up opa-up-shiftright opa-down custodian-dryrun custodian-run drift-detect prowler-azure-local fetch-drift-exceptions terraform-init terraform-plan terraform-apply terraform-destroy defectdojo-start defectdojo-stop defectdojo-setup defectdojo-import dashboard-start dashboard-stop test test-python test-vulnerable-samples clean clean-all logs pre-commit-install validate docs status version sync-ip check-ip
 
 # Couleurs pour l'affichage
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -93,6 +93,10 @@ scan-secrets: ## Scanner uniquement les secrets (Gitleaks)
 scan-iac: ## Scanner uniquement l'IaC (Checkov)
 	@echo "$(GREEN)🏗️  Scan IaC...$(RESET)"
 	@bash shift-left/checkov/run-checkov.sh .
+
+shift-left-one-finding-test: ## E2E Shift-Left avec au moins 1 finding par scanner
+	@echo "$(GREEN)🧪 E2E Shift-Left multi-scanners...$(RESET)"
+	@bash ci/scripts/shift-left/test-one-finding-e2e.sh
 
 checkov-smoke: ## Smoke test des policies Checkov sur fixtures internes
 	@echo "$(GREEN)🧪 Smoke Checkov (fixtures)...$(RESET)"

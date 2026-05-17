@@ -100,6 +100,18 @@ if use_warmed_db_cache; then
   SKIP_DB_UPDATE_ARGS=(--skip-db-update)
 fi
 
+skip_java_db_update() {
+  case "${TRIVY_SKIP_JAVA_DB_UPDATE_IN_SCAN:-}" in
+    1|true|TRUE|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+JAVA_DB_UPDATE_ARGS=()
+if skip_java_db_update; then
+  JAVA_DB_UPDATE_ARGS=(--skip-java-db-update)
+fi
+
 log "Mode      : $SCAN_MODE"
 log "Config    : $CONFIG_FILE"
 log "Target    : $TARGET"
@@ -112,6 +124,11 @@ if use_warmed_db_cache; then
 else
   log "DB update : enabled"
 fi
+if skip_java_db_update; then
+  log "Java DB   : disabled"
+else
+  log "Java DB   : enabled"
+fi
 [[ -f "$IGNORE_FILE" ]] && log "Ignore   : $IGNORE_FILE"
 [[ ${#SKIP_ARGS[@]} -gt 0 ]] && log "Skip dirs: $SKIP_DIRS_CSV"
 
@@ -122,6 +139,7 @@ if ! trivy fs \
   --cache-dir "$TRIVY_CACHE_DIR_EFF" \
   "${DB_REPO_ARGS[@]}" \
   "${SKIP_DB_UPDATE_ARGS[@]}" \
+  "${JAVA_DB_UPDATE_ARGS[@]}" \
   --format cyclonedx \
   --output "$SBOM_FILE" \
   "$TARGET"; then
@@ -133,6 +151,7 @@ if ! trivy fs \
       --config "$CONFIG_FILE" \
       --cache-dir "$TRIVY_CACHE_DIR_EFF" \
       --skip-db-update \
+      "${JAVA_DB_UPDATE_ARGS[@]}" \
       --format cyclonedx \
       --output "$SBOM_FILE" \
       "$TARGET" || warn "Failed to generate SBOM, continuing scan."
@@ -151,6 +170,7 @@ trivy fs \
   --cache-dir "$TRIVY_CACHE_DIR_EFF" \
   "${DB_REPO_ARGS[@]}" \
   "${SKIP_DB_UPDATE_ARGS[@]}" \
+  "${JAVA_DB_UPDATE_ARGS[@]}" \
   "${IGNORE_ARGS[@]}" \
   "${SKIP_ARGS[@]}" \
   --scanners vuln \
@@ -165,6 +185,7 @@ if [[ "$TRIVY_RC" -gt 1 ]] && [[ -n "${CI:-}" ]] && ! use_warmed_db_cache; then
     --config "$CONFIG_FILE" \
     --cache-dir "$TRIVY_CACHE_DIR_EFF" \
     --skip-db-update \
+    "${JAVA_DB_UPDATE_ARGS[@]}" \
     "${IGNORE_ARGS[@]}" \
     "${SKIP_ARGS[@]}" \
     --scanners vuln \

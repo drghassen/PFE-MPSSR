@@ -17,10 +17,15 @@ variables:
   CHECKOV_VERSION: "3.2.502"
   TRIVY_VERSION: "0.69.3"
   TRIVY_CACHE_DIR: ".trivy-cache"
+  TRIVY_CACHE_KEY_SUFFIX: "3"
   TRIVY_DB_TIMEOUT: "15m"
   TRIVY_DB_REPOSITORIES: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
   TRIVY_DB_ATTEMPTS_PER_REPO: "2"
   TRIVY_DB_RETRY_BACKOFF_SEC: "5"
+  # This repository has no Java/JAR workload. Keeping Java DB disabled avoids
+  # downloading/caching ~GB-scale Java indexes during SBOM/FS/image scans.
+  # Set to "false" if Java dependency coverage becomes required.
+  TRIVY_SKIP_JAVA_DB_UPDATE_IN_SCAN: "true"
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
   TRIVY_IMAGE_MIN_REPORTS: "0"
@@ -74,10 +79,12 @@ trivy-db-warm:
   <<: *default_tools
   stage: guard
   cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-${TRIVY_CACHE_KEY_SUFFIX}"
     policy: pull-push
     paths:
-      - .trivy-cache
+      - .trivy-cache/db/trivy.db
+      - .trivy-cache/db/metadata.json
+      - .trivy-cache/policy/
   script:
     - bash ci/scripts/shift-left/trivy-db-warm.sh
   allow_failure: false
@@ -129,10 +136,12 @@ trivy-scan:
   needs:
     - job: trivy-db-warm
   cache:
-    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-2"
+    key: "trivy-db-${CI_PROJECT_ID}-${TRIVY_VERSION}-${TRIVY_CACHE_KEY_SUFFIX}"
     policy: pull
     paths:
-      - .trivy-cache
+      - .trivy-cache/db/trivy.db
+      - .trivy-cache/db/metadata.json
+      - .trivy-cache/policy/
   variables:
     # The guard-stage trivy-db-warm job owns network DB updates.
     # Scan jobs must consume the warmed cache and fail fast if it is missing,

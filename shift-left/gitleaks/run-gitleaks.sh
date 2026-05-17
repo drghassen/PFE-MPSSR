@@ -24,6 +24,8 @@ IGNORE_PATH="${IGNORE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaksignore}"
 BASELINE_PATH="${BASELINE_PATH:-${GITLEAKS_BASELINE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaks-baseline.json}}"
 USE_BASELINE="${USE_BASELINE:-false}"
 SCAN_TARGET="${SCAN_TARGET:-repo}"
+GITLEAKS_SOURCE_PATH="${GITLEAKS_SOURCE_PATH:-$REPO_ROOT}"
+GITLEAKS_NO_GIT="${GITLEAKS_NO_GIT:-false}"
 MAX_SIZE_MB="${GITLEAKS_MAX_SIZE:-5}"
 
 if [[ -n "${CI:-}" ]]; then
@@ -151,7 +153,7 @@ if [[ "$SCAN_MODE" != "ci" && "$SCAN_MODE" != "local" ]]; then
   [[ -n "${CI:-}" ]] && SCAN_MODE="ci" || SCAN_MODE="local"
 fi
 
-log "Starting raw scan (mode=$SCAN_MODE, max_size=${MAX_SIZE_MB}MB)..."
+log "Starting raw scan (mode=$SCAN_MODE, target=$SCAN_TARGET, source=$GITLEAKS_SOURCE_PATH, max_size=${MAX_SIZE_MB}MB)..."
 
 if [[ "$SCAN_MODE" == "local" ]]; then
   rm -f "$OUT_DIR/gitleaks_range_raw.json" "$OUT_DIR/gitleaks_range_raw.json.hmac"
@@ -178,11 +180,25 @@ case "${USE_BASELINE,,}" in
     ;;
 esac
 
+NO_GIT_ARGS=()
+case "${GITLEAKS_NO_GIT,,}" in
+  true|1|yes)
+    NO_GIT_ARGS=(--no-git)
+    log "Using non-git filesystem scan mode."
+    ;;
+  false|0|no|"")
+    ;;
+  *)
+    err "invalid GITLEAKS_NO_GIT=${GITLEAKS_NO_GIT}; expected true or false"
+    exit 2
+    ;;
+esac
+
 set +e
 if [[ "$SCAN_MODE" == "local" ]]; then
   case "$SCAN_TARGET" in
     repo|history)
-      run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+      run_cmd gitleaks detect --source "$GITLEAKS_SOURCE_PATH" "${NO_GIT_ARGS[@]}" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
       ;;
     staged)
       run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
@@ -198,7 +214,7 @@ if [[ "$SCAN_MODE" == "local" ]]; then
       if [[ "$RC_STAGED" -gt 1 ]]; then
         RC="$RC_STAGED"
       else
-        run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$HISTORY_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+        run_cmd gitleaks detect --source "$GITLEAKS_SOURCE_PATH" "${NO_GIT_ARGS[@]}" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$HISTORY_OUT" --max-target-megabytes "$MAX_SIZE_MB"
         RC_HISTORY=$?
         if [[ "$RC_HISTORY" -gt 1 ]]; then
           RC="$RC_HISTORY"
@@ -251,7 +267,7 @@ else
   # CI scans full git history (GIT_DEPTH=0 guarantees a complete clone).
   # --no-git is intentionally absent: a secret removed in a prior commit
   # stays visible in history and must not be silently dropped from the gate.
-  run_cmd gitleaks detect --source "$REPO_ROOT" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+  run_cmd gitleaks detect --source "$GITLEAKS_SOURCE_PATH" --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$REPORT_RAW_OUT" --max-target-megabytes "$MAX_SIZE_MB"
 fi
 RC="${RC:-$?}"
 set -e
@@ -290,7 +306,7 @@ if [[ -n "${CI:-}" ]]; then
   log "Starting range scan (enrichissement, best-effort, log-opts='$LOG_OPTS')..."
   set +e
   run_cmd gitleaks detect \
-    --source "$REPO_ROOT" \
+    --source "$GITLEAKS_SOURCE_PATH" \
     --log-opts "$LOG_OPTS" \
     --redact \
     --config "$CONFIG_PATH" \

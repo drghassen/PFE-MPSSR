@@ -10,13 +10,13 @@ bash shift-left/gitleaks/run-gitleaks.sh
 python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
   --artifact .cloudsentinel/gitleaks_raw.json \
   --tool gitleaks \
-  --executed-target "${SCAN_TARGET:-repo}" \
+  --executed-target "${GITLEAKS_SOURCE_PATH:-${SCAN_TARGET:-repo}}" \
   --scan-status success
 if [[ -f .cloudsentinel/gitleaks_range_raw.json ]]; then
   python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
     --artifact .cloudsentinel/gitleaks_range_raw.json \
     --tool gitleaks \
-    --executed-target "${SCAN_TARGET:-repo}" \
+    --executed-target "${GITLEAKS_SOURCE_PATH:-${SCAN_TARGET:-repo}}" \
     --scan-status success
 fi
 

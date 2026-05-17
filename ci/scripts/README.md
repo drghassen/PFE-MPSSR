@@ -18,6 +18,7 @@ These scripts are CI entrypoints. They stay intentionally thin and delegate reus
 | `trivy-fs-scan.sh` | run Trivy SCA/vulnerability-only scan and emit summary | trivy, jq, `shift-left/trivy/scripts/run-trivy.sh` | n/a |
 | `trivy-config-scan.sh` | deprecated guard; exits because IaC/config scanning is owned by Checkov | bash | n/a |
 | `trivy-db-warm.sh` | warm Trivy vulnerability DB cache with timeout + repository fallback | trivy | n/a |
+| `test-one-finding-e2e.sh` | local E2E that generates controlled fixtures and validates at least one finding per shift-left scanner | gitleaks, checkov, trivy, opa, jq, python3 | scanner wrappers, normalizer, artifact contract |
 | `normalize-reports.sh` | run normalizer and fetch exceptions | python3, jq, `shift-left/normalizer/normalize.py`, `shift-left/opa/fetch-exceptions.py` | n/a |
 | `contract-test.sh` | enforce detection+normalization artifact contract | python3, bash | `cloudsentinel_contracts.py validate-artifact-contract` |
 | `verify-hmac.sh` | reusable HMAC-SHA256 verifier for consumer jobs | bash, python3 | n/a |
