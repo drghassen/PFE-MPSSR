@@ -91,7 +91,12 @@ def export_pipeline(cur, golden, opa, exceptions):
     git = meta.get("git") or {}
     normalizer = meta.get("normalizer") or {}
     result = (opa or {}).get("result") or {}
-    gate = "ALLOW" if result.get("allow", True) else "DENY"
+    if result.get("allow") is True:
+        gate = "ALLOW"
+    elif result.get("allow") is False:
+        gate = "DENY"
+    else:
+        gate = "UNKNOWN"
     exc_mode = get(
         exceptions or {},
         ["cloudsentinel", "exceptions", "metadata", "mode"],
@@ -170,6 +175,7 @@ def export_scanner_stats(cur, golden):
 
 
 def export_findings(cur, golden):
+    cur.execute("DELETE FROM normalized_findings WHERE pipeline_id = %s", (PIPELINE_ID,))
     for finding in golden.get("findings", []) or []:
         cur.execute(
             """
@@ -210,6 +216,7 @@ def export_findings(cur, golden):
 
 
 def export_opa(cur, opa):
+    cur.execute("DELETE FROM opa_decision_events WHERE pipeline_id = %s", (PIPELINE_ID,))
     if not opa:
         return
 

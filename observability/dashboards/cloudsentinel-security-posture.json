@@ -937,7 +937,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  severity,\n  scanner,\n  category,\n  resource_path,\n  start_line,\n  description,\n  sla_hours,\n  is_duplicate,\n  in_latest_push,\n  fingerprint\nFROM v_findings_latest\nWHERE status = 'FAILED'\nORDER BY\n  CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5 END,\n  scanner,\n  resource_path\nLIMIT 100;",
+          "rawSql": "SELECT\n  severity,\n  scanner,\n  category,\n  resource_path,\n  start_line,\n  description,\n  sla_hours,\n  is_duplicate,\n  in_latest_push,\n  fingerprint\nFROM v_findings_latest\nWHERE status = 'FAILED'\n  AND is_duplicate = false\nORDER BY\n  CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 WHEN 'LOW' THEN 4 ELSE 5 END,\n  scanner,\n  resource_path\nLIMIT 100;",
           "refId": "A"
         }
       ],

@@ -161,6 +161,7 @@ fi
 if [[ -z "$FETCH_ERROR" ]]; then
   mkdir -p "$(dirname "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH")"
   cp "$DRIFT_EXCEPTIONS_FILE" "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH"
+  rm -f "${DRIFT_EXCEPTIONS_SNAPSHOT_PATH}.sha256"
   sr_sign_file "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH"
 else
   if [[ "$EXCEPTIONS_FETCH_MODE" != "degraded" ]]; then
@@ -185,6 +186,13 @@ else
        --arg snapshot "$DRIFT_EXCEPTIONS_SNAPSHOT_PATH" \
        --arg hmac_sidecar "$DRIFT_EXCEPTIONS_SNAPSHOT_HMAC_PATH" \
        '{snapshot:$snapshot, hmac_sidecar:$hmac_sidecar}')"
+
+  {
+    echo "[CloudSentinel][DRIFT][DEGRADED] DefectDojo unavailable; using HMAC-verified last-known-good drift exceptions snapshot."
+    echo "[CloudSentinel][DRIFT][DEGRADED] Snapshot: ${DRIFT_EXCEPTIONS_SNAPSHOT_PATH}"
+    echo "[CloudSentinel][DRIFT][DEGRADED] Signature: ${DRIFT_EXCEPTIONS_SNAPSHOT_HMAC_PATH}"
+    echo "[CloudSentinel][DRIFT][DEGRADED] Runtime exceptions file: ${DRIFT_EXCEPTIONS_FILE}"
+  } >&2
 fi
 
 sr_require_nonempty_file "$DRIFT_EXCEPTIONS_FILE" "drift exceptions"

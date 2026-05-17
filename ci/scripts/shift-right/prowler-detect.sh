@@ -293,6 +293,7 @@ if [[ "$PROWLER_FETCH_EXCEPTIONS" == "true" ]]; then
   if [[ -z "$FETCH_ERROR" ]]; then
     mkdir -p "$(dirname "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH")"
     cp "$PROWLER_EXCEPTIONS_FILE" "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH"
+    rm -f "${PROWLER_EXCEPTIONS_SNAPSHOT_PATH}.sha256"
     sr_sign_file "$PROWLER_EXCEPTIONS_SNAPSHOT_PATH"
   else
     if [[ "$EXCEPTIONS_FETCH_MODE" != "degraded" ]]; then

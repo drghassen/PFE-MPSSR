@@ -162,13 +162,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS remediation_runs_pipeline_uidx
 CREATE OR REPLACE VIEW v_latest_pipeline AS
 SELECT pr.*
 FROM pipeline_runs pr
-WHERE pr.timestamp = (SELECT max(timestamp) FROM pipeline_runs);
+ORDER BY pr.updated_at DESC, pr.timestamp DESC, pr.pipeline_id DESC
+LIMIT 1;
 
 CREATE OR REPLACE VIEW v_security_posture_latest AS
 WITH latest AS (
   SELECT *
   FROM pipeline_runs
-  ORDER BY timestamp DESC
+  ORDER BY updated_at DESC, timestamp DESC, pipeline_id DESC
   LIMIT 1
 ),
 drift AS (

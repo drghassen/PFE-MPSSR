@@ -262,23 +262,45 @@ sr_assert_positive_if_expected() {
 #   - The .hmac sidecar stores only the hex digest.
 #   - This makes the artifact tree relocatable: moving a file does NOT
 #     invalidate its .hmac, because the path is never part of the signed data.
-#   - The CI key must be injected as CS_HMAC_KEY env var (masked CI variable).
+#   - The CI key must be injected as CLOUDSENTINEL_HMAC_SECRET
+#     (masked+protected CI/CD variable), matching shift-left artifact signing.
+#   - CS_HMAC_KEY is accepted only as a backward-compatible legacy alias.
 #
 # Security guarantee: unlike plain sha256sum, HMAC requires the secret key
 # to produce a valid digest. An attacker who can write to the snapshot
-# directory cannot forge a .hmac sidecar without CS_HMAC_KEY.
+# directory cannot forge a .hmac sidecar without the HMAC secret.
 # ---------------------------------------------------------------------------
+
+sr_hmac_secret() {
+  local secret="${CLOUDSENTINEL_HMAC_SECRET:-}"
+  if [[ -n "$secret" ]]; then
+    printf '%s' "$secret"
+    return 0
+  fi
+
+  secret="${CS_HMAC_KEY:-}"
+  if [[ -n "$secret" ]]; then
+    sr_audit "WARN" "legacy_hmac_secret_alias" \
+      "CS_HMAC_KEY is deprecated; use CLOUDSENTINEL_HMAC_SECRET for shift-right snapshot signing" \
+      '{}'
+    printf '%s' "$secret"
+    return 0
+  fi
+
+  sr_fail "CLOUDSENTINEL_HMAC_SECRET is required for HMAC-SHA256 artifact integrity" 1 \
+    '{"required_env":"CLOUDSENTINEL_HMAC_SECRET","legacy_alias":"CS_HMAC_KEY"}'
+}
 
 sr_sign_file() {
   local file="${1:?file is required}"
   local hmac_file="${file}.hmac"
-  sr_require_env CS_HMAC_KEY
   sr_require_nonempty_file "$file" "$(basename "$file")"
 
-  local digest
+  local digest secret
+  secret="$(sr_hmac_secret)"
   digest="$(
     openssl dgst -sha256 \
-      -hmac "${CS_HMAC_KEY}" \
+      -hmac "${secret}" \
       -hex \
       "$file" \
     | awk '{print $NF}'
@@ -292,15 +314,20 @@ sr_sign_file() {
 sr_verify_file() {
   local file="${1:?file is required}"
   local hmac_file="${file}.hmac"
-  sr_require_env CS_HMAC_KEY
   sr_require_nonempty_file "$file"      "$(basename "$file")"
   sr_require_nonempty_file "$hmac_file" "$(basename "$hmac_file")"
 
-  local expected actual
-  expected="$(cat "$hmac_file")"
+  local expected actual secret
+  expected="$(tr -d '[:space:]' < "$hmac_file")"
+  if [[ ! "$expected" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    sr_fail "Invalid HMAC format in sidecar" 1 \
+      "$(sr_build_details --arg h "$hmac_file" '{sidecar:$h, expected:"64 hex chars"}')"
+  fi
+
+  secret="$(sr_hmac_secret)"
   actual="$(
     openssl dgst -sha256 \
-      -hmac "${CS_HMAC_KEY}" \
+      -hmac "${secret}" \
       -hex \
       "$file" \
     | awk '{print $NF}'

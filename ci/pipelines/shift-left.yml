@@ -291,6 +291,22 @@ upload-to-defectdojo:
       - .cloudsentinel/audit/upload-to-defectdojo_audit.json.hmac
   when: always
 
+export-metrics:
+  <<: *default_tools
+  stage: report
+  dependencies:
+    - normalize-reports
+    - opa-decision
+  script:
+    - pip install psycopg2-binary -q
+    - python3 observability/cs_metrics_exporter.py
+  variables:
+    CS_PG_DSN: "host=$POSTGRES_HOST dbname=cloudsentinel user=cloudsentinel password=$POSTGRES_PASSWORD"
+  allow_failure: true
+  when: always
+
+
+
 deploy-infrastructure:
   # Digest pinned to current production build. Update after each rebuild via:
   # docker inspect registry.gitlab.com/.../deploy-tools:latest --format '{{index .RepoDigests 0}}'
