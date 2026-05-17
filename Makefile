@@ -276,7 +276,8 @@ logs: ## Afficher les logs Docker (DefectDojo + Monitoring)
 
 pre-commit-install: ## Installer le hook Git pre-commit
 	@echo "$(GREEN)🪝 Installation pre-commit hook...$(RESET)"
-	@cp shift-left/pre-commit/pre-commit.sh .git/hooks/pre-commit
+	@mkdir -p .git/hooks
+	@ln -sf ../../shift-left/pre-commit/pre-commit.sh .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
 	@echo "$(GREEN)✅ Hook pre-commit installé$(RESET)"
 
