@@ -90,4 +90,7 @@ reports/
 tests/
 !shift-left/checkov/tests/
 !shift-left/checkov/tests/validate-policy-catalog.py
+!shift-right/drift-engine/tests/
+shift-right/drift-engine/tests/*
+!shift-right/drift-engine/tests/test_module_contracts.py
 integration-tests/

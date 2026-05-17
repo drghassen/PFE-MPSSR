@@ -240,8 +240,16 @@
     "quality_gate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["thresholds"],
+      "required": ["decision", "reason", "thresholds"],
       "properties": {
+        "decision": {
+          "type": "string",
+          "const": "NOT_EVALUATED"
+        },
+        "reason": {
+          "type": "string",
+          "const": "evaluation-performed-by-opa-only"
+        },
         "thresholds": {
           "type": "object",
           "additionalProperties": false,

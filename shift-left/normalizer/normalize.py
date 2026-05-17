@@ -235,6 +235,8 @@ class CloudSentinelNormalizer(
             "findings": findings,
             "summary": summary,
             "quality_gate": {
+                "decision": "NOT_EVALUATED",
+                "reason": "evaluation-performed-by-opa-only",
                 "thresholds": {
                     "critical_max": self.critical_max,
                     "high_max": self.high_max,

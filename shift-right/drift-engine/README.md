@@ -68,7 +68,7 @@ docker build -t cloudsentinel-drift-engine:local shift-right/drift-engine
 
 ## Exécuter (Docker)
 
-Exemple avec le projet Terraform sample `infra/azure/student-secure`:
+Exemple avec l'environnement Terraform principal `infra/azure/envs/dev`:
 
 ```bash
 mkdir -p shift-right/drift-engine/output
@@ -80,7 +80,7 @@ docker run --rm \
   -e TF_DATA_DIR=/tmp/cloudsentinel-tfdata \
   -e TF_LOCKFILE_MODE=readonly \
   -e DRIFT_OUTPUT_PATH=/work/output/drift-report.json \
-  -v "$PWD/infra/azure/student-secure:/work/iac:ro" \
+  -v "$PWD/infra/azure/envs/dev:/work/iac:ro" \
   -v "$PWD/shift-right/drift-engine/output:/work/output" \
   cloudsentinel-drift-engine:local
 ```
@@ -93,7 +93,7 @@ Le rapport est écrit dans `shift-right/drift-engine/output/drift-report.json` (
 cd shift-right/drift-engine
 # Optionnel (recommandé): créer un .env pour injecter les variables (ARM_*, DefectDojo, etc.)
 cp .env.example .env
-# Optionnel: pointer vers un autre projet Terraform que ../../infra/azure/student-secure
+# Optionnel: pointer vers un autre projet Terraform que ../../infra/azure/envs/dev
 # echo "TF_IAC_PATH=/chemin/vers/iac" >> .env
 docker compose -f docker-compose.drift.yml up --build --abort-on-container-exit
 ```

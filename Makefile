@@ -3,7 +3,7 @@
 # Commandes pratiques pour le développement et l'exploitation
 # ============================================================================
 
-.PHONY: help setup scan test test-python clean deploy dashboard opa-test opa-test-gate opa-test-drift opa-test-system opa-compose-bootstrap opa-up opa-up-shiftright opa-down
+.PHONY: help setup install-tools config scan scan-secrets scan-iac checkov-smoke gitleaks-test precommit-test normalizer-test gitleaks-update-baseline scan-vulns trivy-test opa-test opa-test-gate opa-test-drift opa-test-system opa-eval opa-compose-bootstrap opa-up opa-up-shiftright opa-down custodian-dryrun custodian-run drift-detect prowler-azure-local fetch-drift-exceptions terraform-init terraform-plan terraform-apply terraform-destroy defectdojo-start defectdojo-stop defectdojo-setup defectdojo-import dashboard-start dashboard-stop test test-python test-vulnerable-samples clean clean-all logs pre-commit-install validate docs status version sync-ip check-ip
 
 # Couleurs pour l'affichage
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -14,6 +14,11 @@ RESET  := $(shell tput -Txterm sgr0)
 # Configuration
 ENV_FILE := .env
 VENV := venv
+TF_ENV_DIR ?= infra/azure/envs/dev
+CUSTODIAN_POLICIES_DIR ?= shift-right/custodian/policies
+OBSERVABILITY_DIR ?= observability
+DRIFT_CONFIG_PATH ?= shift-right/drift-engine/config/drift_config.yaml
+DRIFT_OUTPUT_PATH ?= $(CURDIR)/shift-right/drift-engine/output/drift-report.json
 GITLEAKS_VERSION ?= 8.21.2
 CHECKOV_VERSION ?= 3.2.502
 TRIVY_VERSION ?= 0.69.3
@@ -128,8 +133,8 @@ trivy-test: ## Tests d'intégration Trivy (SCA/vuln only + contrat OPA)
 
 opa-test: ## Tester les policies OPA (DB_PORTS + isolation gate/drift + opa check + tests scopés)
 	@echo "$(GREEN)⚖️  Vérification DB_PORTS / db_ports...$(RESET)"
-	@bash ci/scripts/verify-db-ports-sync.sh
-	@bash ci/scripts/verify-opa-architecture.sh
+	@bash ci/scripts/shift-left/verify-db-ports-sync.sh
+	@bash ci/scripts/shift-left/verify-opa-architecture.sh
 
 opa-test-gate: ## Tests OPA uniquement shift-left gate (+ pipeline_decision_test)
 	@opa test policies/opa/gate policies/opa/pipeline_decision_test.rego policies/opa/test_pipeline_decision.rego -v
@@ -165,16 +170,19 @@ opa-down: ## Arrêter les serveurs OPA docker-compose
 
 custodian-dryrun: ## Exécuter Cloud Custodian en mode dry-run
 	@echo "$(GREEN)☁️  Cloud Custodian (Dry-Run)...$(RESET)"
-	@custodian run -s custodian-output/ policies/custodian/azure/ --dryrun
+	@custodian run -s custodian-output/ $(CUSTODIAN_POLICIES_DIR)/ --dryrun
 
 custodian-run: ## Exécuter Cloud Custodian (RÉEL - ATTENTION)
 	@echo "$(YELLOW)⚠️  Cloud Custodian - Exécution RÉELLE$(RESET)"
 	@read -p "Êtes-vous sûr ? (y/N) " confirm && [ $$confirm = y ] || exit 1
-	@custodian run -s custodian-output/ policies/custodian/azure/
+	@custodian run -s custodian-output/ $(CUSTODIAN_POLICIES_DIR)/
 
 drift-detect: ## Détecter les drifts de configuration
 	@echo "$(GREEN)🔄 Détection de drift...$(RESET)"
-	@cd shift-right/drift-engine && python detect-drift.py
+	@mkdir -p "$$(dirname "$(DRIFT_OUTPUT_PATH)")"
+	@TF_WORKING_DIR="$${TF_WORKING_DIR:-$(CURDIR)/$(TF_ENV_DIR)}" \
+	 DRIFT_OUTPUT_PATH="$(DRIFT_OUTPUT_PATH)" \
+	 python shift-right/drift-engine/drift-engine.py --config "$(DRIFT_CONFIG_PATH)"
 
 prowler-azure-local: ## Scanner Azure runtime avec Prowler (local only)
 	@echo "$(GREEN)🛰️  Prowler Azure (local)...$(RESET)"
@@ -191,51 +199,55 @@ fetch-drift-exceptions: ## Récupérer les exceptions drift depuis DefectDojo (s
 
 terraform-init: ## Initialiser Terraform
 	@echo "$(GREEN)🏗️  Terraform init...$(RESET)"
-	@cd infra/azure/student-secure && terraform init
+	@cd $(TF_ENV_DIR) && terraform init
 
 terraform-plan: ## Planifier le déploiement Terraform
 	@echo "$(GREEN)📋 Terraform plan...$(RESET)"
-	@cd infra/azure/student-secure && terraform plan
+	@cd $(TF_ENV_DIR) && terraform plan
 
 terraform-apply: ## Déployer l'infrastructure Terraform
 	@echo "$(YELLOW)⚠️  Déploiement infrastructure$(RESET)"
-	@cd infra/azure/student-secure && terraform apply
+	@cd $(TF_ENV_DIR) && terraform apply
 
 terraform-destroy: ## Détruire l'infrastructure Terraform
 	@echo "$(YELLOW)⚠️  DESTRUCTION infrastructure$(RESET)"
 	@read -p "Êtes-vous VRAIMENT sûr ? (y/N) " confirm && [ $$confirm = y ] || exit 1
-	@cd infra/azure/student-secure && terraform destroy
+	@cd $(TF_ENV_DIR) && terraform destroy
 
 ##@ DefectDojo & Gouvernance
 
 defectdojo-start: ## Démarrer DefectDojo (Docker)
 	@echo "$(GREEN)📊 Démarrage DefectDojo...$(RESET)"
-	@cd defectdojo && docker-compose up -d
-	@echo "$(GREEN)✅ DefectDojo disponible sur http://localhost:8080$(RESET)"
+	@if [ -f defectdojo/docker-compose.yml ]; then \
+		cd defectdojo && docker compose up -d; \
+		echo "$(GREEN)✅ DefectDojo disponible sur http://localhost:8080$(RESET)"; \
+	else \
+		echo "$(YELLOW)⚠️  Aucun stack DefectDojo local versionné. Utilisez DOJO_URL/DOJO_API_KEY/DOJO_ENGAGEMENT_ID dans .env ou GitLab CI.$(RESET)"; \
+	fi
 
 defectdojo-stop: ## Arrêter DefectDojo
 	@echo "$(YELLOW)📊 Arrêt DefectDojo...$(RESET)"
-	@cd defectdojo && docker-compose down
+	@if [ -f defectdojo/docker-compose.yml ]; then cd defectdojo && docker compose down; else echo "$(YELLOW)⚠️  Aucun stack DefectDojo local à arrêter.$(RESET)"; fi
 
 defectdojo-setup: ## Configurer DefectDojo (products, engagements)
 	@echo "$(GREEN)⚙️  Configuration DefectDojo...$(RESET)"
-	@cd defectdojo && python setup-engagements.py
+	@echo "$(YELLOW)⚠️  La configuration DefectDojo est externe à ce dépôt. Définissez les engagements via l'UI/API, puis exposez les IDs en variables CI.$(RESET)"
 
 defectdojo-import: ## Importer les findings dans DefectDojo
 	@echo "$(GREEN)📤 Import findings...$(RESET)"
-	@cd defectdojo && python import-findings.py
+	@bash ci/scripts/shift-left/upload-to-defectdojo.sh
 
 ##@ Monitoring & Dashboard
 
 dashboard-start: ## Démarrer Grafana + Prometheus
 	@echo "$(GREEN)📈 Démarrage dashboard...$(RESET)"
-	@cd monitoring && docker-compose up -d
+	@cd $(OBSERVABILITY_DIR) && docker compose up -d
 	@echo "$(GREEN)✅ Grafana: http://localhost:3000$(RESET)"
 	@echo "$(GREEN)✅ Prometheus: http://localhost:9090$(RESET)"
 
 dashboard-stop: ## Arrêter Grafana + Prometheus
 	@echo "$(YELLOW)📈 Arrêt dashboard...$(RESET)"
-	@cd monitoring && docker-compose down
+	@cd $(OBSERVABILITY_DIR) && docker compose down
 
 ##@ Tests
 
@@ -259,18 +271,18 @@ clean: ## Nettoyer les artifacts et rapports
 	@echo "$(GREEN)🧹 Nettoyage...$(RESET)"
 	@rm -rf reports/*.json
 	@rm -rf custodian-output/
-	@rm -rf infra/azure/student-secure/.terraform
-	@rm -rf infra/azure/student-secure/terraform.tfstate*
+	@rm -rf $(TF_ENV_DIR)/.terraform
+	@rm -rf $(TF_ENV_DIR)/terraform.tfstate*
 	@echo "$(GREEN)✅ Nettoyage terminé$(RESET)"
 
 clean-all: clean ## Nettoyage complet (y compris Docker)
 	@echo "$(YELLOW)🧹 Nettoyage complet...$(RESET)"
-	@cd defectdojo && docker-compose down -v
-	@cd monitoring && docker-compose down -v
+	@if [ -f defectdojo/docker-compose.yml ]; then cd defectdojo && docker compose down -v; fi
+	@if [ -f $(OBSERVABILITY_DIR)/docker-compose.yml ]; then cd $(OBSERVABILITY_DIR) && docker compose down -v; fi
 	@echo "$(GREEN)✅ Nettoyage complet terminé$(RESET)"
 
 logs: ## Afficher les logs Docker (DefectDojo + Monitoring)
-	@docker-compose -f defectdojo/docker-compose.yml logs -f
+	@docker compose -f $(OBSERVABILITY_DIR)/docker-compose.yml logs -f
 
 ##@ Développement
 
@@ -283,7 +295,7 @@ pre-commit-install: ## Installer le hook Git pre-commit
 
 validate: ## Valider la configuration (Terraform, OPA, etc.)
 	@echo "$(GREEN)✅ Validation de la configuration...$(RESET)"
-	@cd infra/azure/student-secure && terraform validate
+	@cd $(TF_ENV_DIR) && terraform validate
 	@cd policies/opa && opa check .
 	@echo "$(GREEN)✅ Configuration valide$(RESET)"
 
@@ -296,11 +308,11 @@ docs: ## Générer la documentation (si applicable)
 status: ## Afficher l'état des services
 	@echo "$(GREEN)📊 État des services:$(RESET)"
 	@echo ""
-	@echo "DefectDojo:"
-	@docker-compose -f defectdojo/docker-compose.yml ps 2>/dev/null || echo "  ❌ Arrêté"
+	@echo "DefectDojo externe:"
+	@if [ -n "$${DOJO_URL:-$${DEFECTDOJO_URL:-}}" ]; then echo "  ✅ Configuré: $${DOJO_URL:-$${DEFECTDOJO_URL}}"; else echo "  ⚠️  Non configuré localement"; fi
 	@echo ""
-	@echo "Monitoring:"
-	@docker-compose -f monitoring/docker-compose.yml ps 2>/dev/null || echo "  ❌ Arrêté"
+	@echo "Observability:"
+	@docker compose -f $(OBSERVABILITY_DIR)/docker-compose.yml ps 2>/dev/null || echo "  ❌ Arrêté"
 	@echo ""
 
 version: ## Afficher les versions des outils

@@ -32,7 +32,7 @@ services:
       DOJO_ENGAGEMENT_ID_RIGHT: ${DOJO_ENGAGEMENT_ID_RIGHT:-${DEFECTDOJO_ENGAGEMENT_ID_RIGHT:-}}
     volumes:
       # Default points to the sample IaC in this repo; override with an absolute path if needed.
-      - ${TF_IAC_PATH:-../../infra/azure/student-secure}:/work/iac:ro
+      - ${TF_IAC_PATH:-../../infra/azure/envs/dev}:/work/iac:ro
       - drift_output:/work/output
     extra_hosts:
       - "host.docker.internal:host-gateway"
