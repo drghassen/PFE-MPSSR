@@ -301,12 +301,13 @@ if [[ "${OPA_PREFER_CLI}" == "true" ]]; then
   INVOCATION_MODE="cli"
   log_info "Engine      : OPA CLI ${YELLOW}[forced]${NC}"
 else
-  if invoke_opa_server 2>/dev/null; then
+  if invoke_opa_server; then
     INVOCATION_MODE="server"
     log_info "Engine      : OPA Server ${BOLD}${OPA_SERVER_URL}${NC} ${GREEN}[REST API]${NC}"
   else
     if [[ "${OPA_REQUIRE_SERVER}" == "true" ]]; then
-      log_err "OPA Server is required for this execution but is not reachable: ${OPA_SERVER_URL}"
+      log_err "OPA Server call failed (see HTTP error above). Server: ${OPA_SERVER_URL}"
+      log_err "Check /tmp/opa-server.log for OPA startup errors (policy load, auth config, etc.)"
       exit 2
     fi
     log_warn "OPA Server not reachable (${OPA_SERVER_URL}). Falling back to OPA CLI."

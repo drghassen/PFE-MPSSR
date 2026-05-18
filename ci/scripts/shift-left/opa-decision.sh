@@ -97,7 +97,17 @@ if [[ "${OPA_READY}" != "true" ]]; then
   exit 1
 fi
 
-OPA_REQUIRE_SERVER=true OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce
+_opa_rc=0
+OPA_REQUIRE_SERVER=true OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce || _opa_rc=$?
+if [[ "$_opa_rc" -ne 0 ]]; then
+  echo "[opa-decision][ERROR] run-opa.sh exited with code ${_opa_rc}. OPA server log:" >&2
+  if [[ -s /tmp/opa-server.log ]]; then
+    tail -n 100 /tmp/opa-server.log >&2
+  else
+    echo "[opa-decision] /tmp/opa-server.log is empty or missing" >&2
+  fi
+  exit "$_opa_rc"
+fi
 
 # Sign OPA decision so downstream consumers (deploy/reporting) can verify integrity.
 decision_artifact=".cloudsentinel/opa_decision.json"
