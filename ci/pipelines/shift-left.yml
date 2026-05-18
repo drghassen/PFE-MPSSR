@@ -29,6 +29,7 @@ variables:
   OPA_VERSION: "1.13.1"
   JSONSCHEMA_VERSION: "4.25.1"
   TRIVY_IMAGE_MIN_REPORTS: "0"
+  CHECKOV_SCAN_TARGET: "infra/azure"
 
   # Comma-separated list of container image references to scan for CVE + misconfigs.
   # Set in GitLab CI/CD Settings → Variables (masked if credentials are embedded).
@@ -278,7 +279,6 @@ upload-to-defectdojo:
   image: "registry.gitlab.com/drghassen/pfe-cloud-sentinel/scan-tools@sha256:8bfa00f85e78a7b288b39f444ca32bd4e300e3b861bf6c171af8ec0cecd4e323"
   timeout: 5 minutes
   retry: 2
-  allow_failure: true
   variables:
     GIT_STRATEGY: fetch
   # Report upload consumes scanner raw artifacts from detection jobs and the
@@ -304,7 +304,12 @@ upload-to-defectdojo:
       - .cloudsentinel/dojo-responses/
       - .cloudsentinel/audit/upload-to-defectdojo_audit.json
       - .cloudsentinel/audit/upload-to-defectdojo_audit.json.hmac
-  when: always
+  rules:
+    - if: '$CLOUDSENTINEL_DOJO_FAIL_CLOSED == "true" || $CI_ENVIRONMENT_NAME =~ /^(prod|production)$/'
+      when: always
+      allow_failure: false
+    - when: always
+      allow_failure: true
 
 deploy-infrastructure:
   # Digest pinned to current production build. Update after each rebuild via:

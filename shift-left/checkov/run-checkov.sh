@@ -30,6 +30,24 @@ command -v jq >/dev/null 2>&1 || { log_err "jq binary missing"; exit 2; }
 SCAN_TARGET="${1:-$REPO_ROOT}"
 log_info "Starting raw scan on: $SCAN_TARGET"
 
+INLINE_SUPPRESSIONS="$(
+  grep -RInE '#[[:space:]]*checkov:skip[[:space:]]*=' "$SCAN_TARGET" \
+    --include='*.tf' \
+    --include='*.tfvars' \
+    --include='*.hcl' \
+    --include='*.yaml' \
+    --include='*.yml' \
+    --exclude-dir='.git' \
+    --exclude-dir='.terraform' \
+    --exclude-dir='.cloudsentinel' \
+    2>/dev/null || true
+)"
+if [[ -n "$INLINE_SUPPRESSIONS" ]]; then
+  log_err "Inline checkov:skip detected. Use DefectDojo/OPA risk acceptance instead."
+  printf '%s\n' "$INLINE_SUPPRESSIONS" >&2
+  exit 1
+fi
+
 {
   cat "$CONFIG_FILE"
   printf '\n'
@@ -39,6 +57,7 @@ log_info "Starting raw scan on: $SCAN_TARGET"
 checkov_cmd=(checkov --directory "$SCAN_TARGET")
 checkov_cmd+=("--config-file" "$EFFECTIVE_CONFIG_FILE")
 checkov_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
+checkov_cmd+=("--run-all-external-checks")
 
 CHECKOV_CHECKS_CSV="${CHECKOV_CHECKS:-}"
 if [[ -n "$CHECKOV_CHECKS_CSV" ]]; then
@@ -48,6 +67,10 @@ fi
 
 CHECKOV_SKIP_CHECKS_CSV="${CHECKOV_SKIP_CHECKS:-}"
 if [[ -n "$CHECKOV_SKIP_CHECKS_CSV" ]]; then
+  if [[ -n "${CI:-}" ]]; then
+    log_err "CHECKOV_SKIP_CHECKS is forbidden in CI. Use DefectDojo/OPA exceptions."
+    exit 1
+  fi
   checkov_cmd+=("--skip-check" "$CHECKOV_SKIP_CHECKS_CSV")
   log_info "Applied explicit skip checks from CHECKOV_SKIP_CHECKS: $CHECKOV_SKIP_CHECKS_CSV"
 fi
@@ -73,6 +96,75 @@ set -e
 if [[ "$RC" -ge 2 ]]; then
   log_err "Technical Checkov failure (rc=$RC). See $REPORT_LOG"
   exit 2
+fi
+
+if grep -E "No __init__\\.py found|Cannot load any check here|Failed to load external check" "$REPORT_LOG" >/dev/null 2>&1; then
+  log_err "Custom Checkov policies were not loaded correctly. See $REPORT_LOG"
+  exit 2
+fi
+
+MODULE_ROOT=""
+if [[ -d "$SCAN_TARGET/infra/azure/modules" ]]; then
+  MODULE_ROOT="$SCAN_TARGET/infra/azure/modules"
+elif [[ -d "$SCAN_TARGET/modules" && "$SCAN_TARGET" == *"infra/azure"* ]]; then
+  MODULE_ROOT="$SCAN_TARGET/modules"
+elif [[ -d "$REPO_ROOT/infra/azure/modules" && "$SCAN_TARGET" == "." ]]; then
+  MODULE_ROOT="$REPO_ROOT/infra/azure/modules"
+fi
+
+module_reports=()
+if [[ -n "$MODULE_ROOT" ]]; then
+  while IFS= read -r module_file; do
+    module_report="$(mktemp "$OUT_DIR/checkov_module_XXXXXX.json")"
+    module_log="$(mktemp "$OUT_DIR/checkov_module_XXXXXX.log")"
+    module_cmd=(checkov --file "$module_file")
+    module_cmd+=("--config-file" "$EFFECTIVE_CONFIG_FILE")
+    module_cmd+=("--external-checks-dir" "$CUSTOM_CHECKS_DIR")
+    module_cmd+=("--run-all-external-checks")
+    set +e
+    "${module_cmd[@]}" > "$module_report" 2> "$module_log"
+    module_rc=$?
+    set -e
+    cat "$module_log" >> "$REPORT_LOG"
+    rm -f "$module_log"
+    if [[ "$module_rc" -ge 2 ]]; then
+      log_err "Technical Checkov module scan failure (rc=$module_rc) on $module_file. See $REPORT_LOG"
+      exit 2
+    fi
+    module_rel_path="${module_file#"$MODULE_ROOT"/}"
+    module_display_path="/modules/${module_rel_path}"
+    module_normalized_report="$(mktemp "$OUT_DIR/checkov_module_norm_XXXXXX.json")"
+    jq --arg file_path "$module_display_path" '
+      .results.failed_checks = ((.results.failed_checks // []) | map(.file_path = $file_path))
+    ' "$module_report" > "$module_normalized_report"
+    mv "$module_normalized_report" "$module_report"
+    module_reports+=("$module_report")
+  done < <(find "$MODULE_ROOT" -mindepth 2 -maxdepth 2 -type f -name "main.tf" | sort)
+fi
+
+if [[ "${#module_reports[@]}" -gt 0 ]]; then
+  merged_report="$(mktemp "$OUT_DIR/checkov_merged_XXXXXX.json")"
+  jq -s '
+    def norm_resource:
+      ((.resource // "") | tostring | sub("^module\\.[^.]+\\."; ""));
+    def finding_key:
+      [
+        (.check_id // ""),
+        (.file_abs_path // .file_path // ""),
+        norm_resource
+      ] | join("|");
+
+    .[0] as $base
+    | (.[1:] | map(.results.failed_checks // []) | add) as $module_failed
+    | (($base.results.failed_checks // []) | map(finding_key)) as $existing_keys
+    | ($module_failed | map(select((finding_key as $key | ($existing_keys | index($key) | not))))) as $new_failed
+    | $base
+    | .results.failed_checks = (($base.results.failed_checks // []) + $new_failed)
+    | .summary.failed = (.results.failed_checks | length)
+  ' "$REPORT_RAW" "${module_reports[@]}" > "$merged_report"
+  mv "$merged_report" "$REPORT_RAW"
+  rm -f "${module_reports[@]}"
+  log_info "Merged module-library Checkov findings from $MODULE_ROOT"
 fi
 
 [[ -s "$REPORT_RAW" ]] || { log_err "checkov raw output missing: $REPORT_RAW"; exit 2; }

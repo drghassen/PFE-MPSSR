@@ -12,13 +12,41 @@ source ci/scripts/setup-custom-ca.sh
 source ci/scripts/shift-left/audit-utils.sh
 trap 'cloudsentinel_finalize_audit "$?" "upload-to-defectdojo" "report" "defectdojo" ".cloudsentinel/golden_report.json" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/dojo-responses"' EXIT
 
+DOJO_ENVIRONMENT_EFF="${CI_ENVIRONMENT_NAME:-${ENVIRONMENT:-dev}}"
+DOJO_FAIL_CLOSED_EFF="${CLOUDSENTINEL_DOJO_FAIL_CLOSED:-}"
+if [[ -z "${DOJO_FAIL_CLOSED_EFF}" ]]; then
+  if [[ "${DOJO_ENVIRONMENT_EFF,,}" == "prod" || "${DOJO_ENVIRONMENT_EFF,,}" == "production" ]]; then
+    DOJO_FAIL_CLOSED_EFF="true"
+  else
+    DOJO_FAIL_CLOSED_EFF="false"
+  fi
+fi
+
+dojo_fail_closed() {
+  case "${DOJO_FAIL_CLOSED_EFF,,}" in
+    true|1|yes|enforcing) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+dojo_nonfatal_or_fail() {
+  local message="$1"
+  if dojo_fail_closed; then
+    echo "[dojo][ERROR] ${message}" >&2
+    echo "[dojo][ERROR] fail_closed=true environment=${DOJO_ENVIRONMENT_EFF}. Blocking pipeline." >&2
+    exit 1
+  fi
+  echo "[dojo][WARN] ${message}" >&2
+  echo "[dojo][WARN] fail_closed=false environment=${DOJO_ENVIRONMENT_EFF}. Upload remains advisory." >&2
+  exit 0
+}
+
 if [ -z "${DOJO_URL_EFF}" ] || [ -z "${DOJO_API_KEY_EFF}" ] || [ -z "${DOJO_ENGAGEMENT_ID_EFF}" ]; then
   echo "[dojo] Missing Dojo vars. Accepted names:"
   echo "[dojo] URL: DOJO_URL or DEFECTDOJO_URL"
   echo "[dojo] API key: DOJO_API_KEY or DEFECTDOJO_API_KEY or DEFECTDOJO_API_TOKEN"
   echo "[dojo] Engagement: DOJO_ENGAGEMENT_ID or DEFECTDOJO_ENGAGEMENT_ID_LEFT"
-  echo "[dojo] Skipping upload."
-  exit 0
+  dojo_nonfatal_or_fail "Missing required DefectDojo variables. Skipping upload is allowed only outside fail-closed mode."
 fi
 DOJO_URL_EFF="${DOJO_URL_EFF%/}"
 DOJO_IMPORT_URL="${DOJO_URL_EFF}/api/v2/import-scan/"

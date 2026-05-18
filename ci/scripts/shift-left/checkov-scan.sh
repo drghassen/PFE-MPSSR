@@ -10,10 +10,17 @@ trap 'cloudsentinel_finalize_audit "$?" "checkov-scan" "scan" "checkov" ".clouds
 
 checkov --version
 mkdir -p .cloudsentinel
+cloudsentinel_invalidate_downstream_artifacts
 
-# Default target is repository root for full-repo IaC coverage.
+# Default target is the active IaC root. This avoids scanning generated
+# artifacts/caches while preserving Terraform module coverage through
+# shift-left/checkov/run-checkov.sh's module-library pass.
+if [[ -d "infra/azure" ]]; then
+  readonly DEFAULT_SCAN_TARGET="infra/azure"
+else
+  readonly DEFAULT_SCAN_TARGET="."
+fi
 # Override with CHECKOV_SCAN_TARGET=<path> only for an explicit targeted run.
-readonly DEFAULT_SCAN_TARGET="."
 SCAN_TARGET_EFF="${CHECKOV_SCAN_TARGET:-${DEFAULT_SCAN_TARGET}}"
 
 TF_FILE_COUNT=$(find "${SCAN_TARGET_EFF}" -name "*.tf" 2>/dev/null | wc -l)

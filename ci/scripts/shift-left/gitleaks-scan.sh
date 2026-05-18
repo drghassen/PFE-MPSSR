@@ -6,6 +6,7 @@ trap 'cloudsentinel_finalize_audit "$?" "gitleaks-scan" "scan" "gitleaks" ".clou
 
 gitleaks version
 mkdir -p .cloudsentinel
+cloudsentinel_invalidate_downstream_artifacts
 bash shift-left/gitleaks/run-gitleaks.sh
 python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
   --artifact .cloudsentinel/gitleaks_raw.json \

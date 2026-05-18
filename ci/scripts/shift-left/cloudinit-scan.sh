@@ -4,6 +4,9 @@ set -euo pipefail
 source ci/scripts/shift-left/audit-utils.sh
 trap 'cloudsentinel_finalize_audit "$?" "cloudinit-scan" "scan" "cloudinit" ".cloudsentinel/cloudinit_analysis.json"' EXIT
 
+mkdir -p .cloudsentinel
+cloudsentinel_invalidate_downstream_artifacts
+
 readonly CLOUDINIT_TERRAFORM_DIR_EFF="${CLOUDINIT_TERRAFORM_DIR:-.}"
 echo "[cloudinit] terraform_dir=${CLOUDINIT_TERRAFORM_DIR_EFF}"
 

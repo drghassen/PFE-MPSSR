@@ -20,6 +20,25 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 POLICY_ROOT = REPO_ROOT / "shift-left" / "checkov" / "policies"
 AZURE_POLICY_ROOT = POLICY_ROOT / "azure"
 MAPPING_FILE = POLICY_ROOT / "mapping.json"
+SUPPRESSIONS_FILE = REPO_ROOT / "shift-left" / "checkov" / "config" / "checkov-suppressions.yml"
+
+DANGEROUS_SUPPRESSIONS = {
+    "CKV_AZURE_59",
+    "CKV_AZURE_99",
+    "CKV_AZURE_100",
+    "CKV_AZURE_101",
+    "CKV_AZURE_109",
+    "CKV_AZURE_140",
+    "CKV_AZURE_189",
+    "CKV2_AZURE_1",
+    "CKV2_AZURE_21",
+    "CKV2_AZURE_32",
+    "CKV2_AZURE_33",
+    "CKV2_AZURE_40",
+    "CKV2_CS_AZ_008",
+    "CKV2_CS_AZ_010",
+    "CKV2_CS_AZ_039",
+}
 
 
 def fail(message: str) -> None:
@@ -60,12 +79,42 @@ def yaml_policy_id(path: Path) -> str:
     return str(metadata["id"])
 
 
+def validate_python_packages() -> None:
+    for directory in sorted(path for path in AZURE_POLICY_ROOT.rglob("*") if path.is_dir()):
+        if directory.name == "__pycache__":
+            continue
+        if not (directory / "__init__.py").is_file():
+            fail(f"missing __init__.py required by Checkov external Python checks: {directory}")
+
+
+def validate_suppressions() -> None:
+    doc = yaml.safe_load(SUPPRESSIONS_FILE.read_text(encoding="utf-8")) or {}
+    skipped = doc.get("skip-check", [])
+    if skipped is None:
+        skipped = []
+    if not isinstance(skipped, list):
+        fail("checkov suppressions skip-check must be a list")
+    forbidden = sorted(DANGEROUS_SUPPRESSIONS & {str(item) for item in skipped})
+    if forbidden:
+        fail(
+            "dangerous Checkov suppressions must stay visible for OPA/DefectDojo: "
+            + ", ".join(forbidden)
+        )
+
+
 def main() -> None:
+    validate_python_packages()
+    validate_suppressions()
+
     mapping = json.loads(MAPPING_FILE.read_text(encoding="utf-8"))
     custom_mapping_ids = {key for key in mapping if key.startswith("CKV2_CS_AZ_")}
     policy_ids: dict[str, Path] = {}
 
     for path in sorted(AZURE_POLICY_ROOT.rglob("*")):
+        if "__pycache__" in path.parts:
+            continue
+        if path.name == "__init__.py":
+            continue
         if path.suffix == ".py":
             policy_id = python_policy_id(path)
         elif path.suffix in {".yaml", ".yml"}:

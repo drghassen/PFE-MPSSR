@@ -30,6 +30,17 @@ def _unwrap(value, default=""):
     return value if value is not None else default
 
 
+def _as_rule_blocks(value):
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        blocks = []
+        for item in value:
+            blocks.extend(_as_rule_blocks(item))
+        return blocks
+    return []
+
+
 class CheckNSGDenyAll(BaseResourceCheck):
     def __init__(self):
         super().__init__(
@@ -40,18 +51,7 @@ class CheckNSGDenyAll(BaseResourceCheck):
         )
 
     def scan_resource_conf(self, conf):  # noqa: ANN001
-        # security_rule is wrapped by Checkov: [[rule_dict, rule_dict, ...]]
-        rules_outer = conf.get("security_rule", [[]])
-        rules = (
-            rules_outer[0] if (isinstance(rules_outer, list) and rules_outer) else []
-        )
-        if not isinstance(rules, list):
-            rules = [rules]
-
-        for rule in rules:
-            if not isinstance(rule, dict):
-                continue
-
+        for rule in _as_rule_blocks(conf.get("security_rule", [])):
             access = str(_unwrap(rule.get("access", ""), "")).lower()
             direction = str(_unwrap(rule.get("direction", ""), "")).lower()
             dst_port = str(_unwrap(rule.get("destination_port_range", ""), ""))

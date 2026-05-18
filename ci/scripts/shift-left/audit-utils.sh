@@ -1,11 +1,46 @@
 #!/usr/bin/env bash
 
+cloudsentinel_epoch_ms() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+  else
+    printf '%s000\n' "$(date +%s)"
+  fi
+}
+
+: "${CLOUDSENTINEL_JOB_START_EPOCH_MS:=$(cloudsentinel_epoch_ms)}"
+export CLOUDSENTINEL_JOB_START_EPOCH_MS
+
+cloudsentinel_invalidate_downstream_artifacts() {
+  if [[ "${CLOUDSENTINEL_PRESERVE_DOWNSTREAM_ARTIFACTS:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  rm -f \
+    .cloudsentinel/golden_report.json \
+    .cloudsentinel/golden_report.json.hmac \
+    .cloudsentinel/opa_decision.json \
+    .cloudsentinel/opa_decision.json.hmac \
+    .cloudsentinel/decision_audit_events.jsonl \
+    .cloudsentinel/artifact_contract_report.json
+}
+
 cloudsentinel_finalize_audit() {
   local rc="$1"
   local job_name="$2"
   local stage_name="$3"
   local component="$4"
   shift 4
+
+  local end_epoch_ms duration_ms
+  end_epoch_ms="$(cloudsentinel_epoch_ms)"
+  duration_ms=$(( end_epoch_ms - CLOUDSENTINEL_JOB_START_EPOCH_MS ))
+  if [[ "${duration_ms}" -lt 0 ]]; then
+    duration_ms=0
+  fi
 
   local status="success"
   if [[ "${rc}" -ne 0 ]]; then
@@ -21,6 +56,7 @@ cloudsentinel_finalize_audit() {
     --status "${status}"
     --exit-code "${rc}"
     --output "${output}"
+    --metric "duration_ms=${duration_ms}"
   )
   local artifact
   for artifact in "$@"; do

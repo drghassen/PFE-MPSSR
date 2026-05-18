@@ -14,6 +14,7 @@ trap 'cloudsentinel_finalize_audit "$?" "trivy-scan" "scan" "trivy" "shift-left/
 
 trivy --version
 mkdir -p shift-left/trivy/reports/raw/image .cloudsentinel
+cloudsentinel_invalidate_downstream_artifacts
 
 readonly DEFAULT_TRIVY_TARGET="."
 TRIVY_TARGET_EFF="${TRIVY_FS_TARGET:-${TRIVY_TARGET:-${DEFAULT_TRIVY_TARGET}}}"

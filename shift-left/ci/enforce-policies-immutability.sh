@@ -76,7 +76,87 @@ if [[ -z "$CHANGED_FILES" ]]; then
 fi
 
 # ── Protected-file check ───────────────────────────────────────────────────
-PROTECTED_REGEX='^(policies/opa/.*\.rego|ci/scripts/shift-left/.*\.sh|ci/scripts/shift-left/.*\.py|ci/scripts/shift-right/.*\.sh|ci/scripts/.*\.sh|ci/contracts/artifact_contract\.json|ci/libs/cloudsentinel_contracts\.py|shift-left/normalizer/.*|shift-left/opa/.*|shift-left/.*/run-.*\.sh|shift-left/opa/schema/exceptions_v2\.schema\.json|shift-left/normalizer/schema/cloudsentinel_report\.schema\.json|shift-left/gitleaks/gitleaks\.toml|shift-left/checkov/\.checkov\.yml|shift-left/checkov/policies/mapping\.json|shift-left/trivy/configs/trivy\.yaml|shift-left/trivy/configs/trivy-ci\.yaml|shift-left/trivy/configs/severity-mapping\.json|\.gitlab-ci\.yml|\.gitlab-ci-image-factory\.yml)$'
+# Each entry below is a path pattern (anchored ERE, relative to repo root).
+# Any change to a matching file requires AppSec approval (CLOUDSENTINEL_APPSEC_USERS).
+declare -a _PROTECTED_PATTERNS=(
+  # ── OPA policies ───────────────────────────────────────────────────────────
+  'policies/opa/.*\.rego'
+
+  # ── CI scripts & libraries ─────────────────────────────────────────────────
+  'ci/scripts/.*\.sh'
+  'ci/scripts/.*\.py'
+  'ci/libs/cloudsentinel_contracts\.py'
+
+  # ── CI pipeline definitions ────────────────────────────────────────────────
+  'ci/pipelines/.*\.yml'
+  '\.gitlab-ci\.yml'
+  '\.gitlab-ci-image-factory\.yml'
+
+  # ── CI data contracts (artifact + shift-right integrity) ───────────────────
+  'ci/contracts/.*\.json'
+
+  # ── CI OPA authentication ──────────────────────────────────────────────────
+  'ci/\.cloudsentinel/.*\.json'
+
+  # ── Scanner container images ───────────────────────────────────────────────
+  'ci/images/.*/Dockerfile'
+
+  # ── Shift-left: shared library & immutability enforcement ──────────────────
+  'shift-left/lib_scanner_utils\.sh'
+  'shift-left/ci/enforce-policies-immutability\.sh'
+
+  # ── Shift-left: scanner run-scripts (checkov, trivy, opa, gitleaks …) ──────
+  'shift-left/.*/run-.*\.sh'
+
+  # ── Shift-left: OPA server config & schemas ────────────────────────────────
+  'shift-left/opa/.*'
+
+  # ── Shift-left: normalizer & report schema ─────────────────────────────────
+  'shift-left/normalizer/.*'
+
+  # ── Shift-left: Checkov ────────────────────────────────────────────────────
+  'shift-left/checkov/\.checkov\.yml'
+  'shift-left/checkov/config/checkov-suppressions\.yml'
+  'shift-left/checkov/policies/.*'
+
+  # ── Shift-left: Trivy (config + CVE exemption list) ───────────────────────
+  'shift-left/trivy/configs/trivy\.yaml'
+  'shift-left/trivy/configs/trivy-ci\.yaml'
+  'shift-left/trivy/configs/severity-mapping\.json'
+  'shift-left/trivy/\.trivyignore'
+
+  # ── Shift-left: Gitleaks (config + secret exemption list) ─────────────────
+  'shift-left/gitleaks/gitleaks\.toml'
+  'shift-left/gitleaks/\.gitleaksignore'
+
+  # ── Shift-left: Cloud-init malicious pattern definitions ───────────────────
+  'shift-left/cloudinit-scanner/rules/.*'
+
+  # ── Shift-left: pre-commit developer hook ─────────────────────────────────
+  'shift-left/pre-commit/.*\.sh'
+
+  # ── Config: OPA data (exceptions + auth token) ────────────────────────────
+  'config/opa/data/.*\.json'
+
+  # ── Config: Prowler mute-list & check exclusions (post-deployment) ─────────
+  'config/prowler/.*'
+
+  # ── Config: remediation capability mapping ─────────────────────────────────
+  'config/remediation-capabilities\.json'
+
+  # ── Shift-right: drift engine config & report schema ──────────────────────
+  'shift-right/drift-engine/config/.*'
+  'shift-right/drift-engine/schemas/.*\.json'
+
+  # ── Shift-right: Cloud Custodian automated-remediation policies ────────────
+  'shift-right/custodian/policies/.*\.yml'
+
+  # ── Verification scripts & runtime-state schema ────────────────────────────
+  'verification/.*\.sh'
+  'verification/.*\.json'
+)
+
+PROTECTED_REGEX="^($(printf '%s|' "${_PROTECTED_PATTERNS[@]}" | sed 's/|$//'))$"
 
 CHANGED_PROTECTED_FILES="$(echo "$CHANGED_FILES" | grep -E "$PROTECTED_REGEX" || true)"
 

@@ -31,5 +31,8 @@ bash "$REPO_ROOT/shift-left/checkov/run-checkov.sh" "$TMP_DIR"
 
 test -f "$OUT_FILE"
 jq -e 'type == "object" and (.results | type == "object")' "$OUT_FILE" >/dev/null
+jq -e '
+  [.results.failed_checks[]? | select(.check_id == "CKV2_CS_AZ_045")] | length == 1
+' "$OUT_FILE" >/dev/null
 
 echo "[smoke][checkov] PASS"
