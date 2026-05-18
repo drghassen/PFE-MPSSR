@@ -206,24 +206,29 @@ mkdir -p "$OUTPUT_DIR"
 # Production pattern: OPA runs as a persistent daemon, policies hot-reloaded.
 # Decouples the CI pipeline from policy evaluation logic.
 invoke_opa_server() {
-  local input_json
   local http_code
   local curl_err
+  local input_tmp
 
-  # Inline the golden_report as the OPA input document
-  input_json="$(jq -c '.' "$GOLDEN_REPORT")"
+  # Write the OPA request body to a temp file.
+  # Passing the golden_report inline via -d "..." hits Linux ARG_MAX when the
+  # report is large (many scanner findings), causing execve E2BIG (exit 126).
+  input_tmp="$(mktemp -t opa_input.XXXXXX.json)"
+  trap 'rm -f "$input_tmp"' RETURN
+
+  jq -c '{input: .}' "$GOLDEN_REPORT" > "$input_tmp"
 
   # OPA v1 REST API:
   #   POST /v1/data/<package>/<rule>
   #   Body: { "input": <input_document> }
   #   Response: { "result": <rule_value> }
   http_code=$(curl -s -S -w "%{http_code}" \
-    --max-time 5 \
-    --connect-timeout 2 \
+    --max-time 30 \
+    --connect-timeout 5 \
     -X POST "${OPA_SERVER_URL}${OPA_API_PATH}" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${OPA_AUTH_TOKEN}" \
-    -d "{\"input\": ${input_json}}" \
+    --data-binary "@${input_tmp}" \
     -o "$DECISION_FILE" \
     2>/dev/null) || curl_err=$?
 
