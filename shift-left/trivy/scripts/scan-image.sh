@@ -65,27 +65,27 @@ use_warmed_db_cache() {
   esac
 }
 
-require_warmed_db_cache() {
+warmed_db_cache_available() {
   local db_file="${TRIVY_CACHE_DIR_EFF}/db/trivy.db"
   local metadata_file="${TRIVY_CACHE_DIR_EFF}/db/metadata.json"
 
-  [[ -s "$db_file" ]] || { err "Warmed Trivy DB is missing or empty: $db_file"; exit 2; }
-  [[ -s "$metadata_file" ]] || { err "Warmed Trivy DB metadata is missing or empty: $metadata_file"; exit 2; }
+  [[ -s "$db_file" ]] || return 1
+  [[ -s "$metadata_file" ]] || return 1
   jq -e '
     type == "object"
     and (.Version | tostring == "2")
     and (.NextUpdate | type == "string")
     and (.DownloadedAt | type == "string")
-  ' "$metadata_file" >/dev/null 2>&1 || {
-    err "Warmed Trivy DB metadata is invalid: $metadata_file"
-    exit 2
-  }
+  ' "$metadata_file" >/dev/null 2>&1 || return 1
 }
 
 SKIP_DB_UPDATE_ARGS=()
 if use_warmed_db_cache; then
-  require_warmed_db_cache
-  SKIP_DB_UPDATE_ARGS=(--skip-db-update)
+  if warmed_db_cache_available; then
+    SKIP_DB_UPDATE_ARGS=(--skip-db-update)
+  else
+    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download. Check trivy-db-warm job."
+  fi
 fi
 
 skip_java_db_update() {
@@ -108,7 +108,11 @@ log "SBOM      : $SBOM_FILE"
 log "Cache dir : $TRIVY_CACHE_DIR_EFF"
 log "DB repos  : $TRIVY_DB_REPOSITORIES_EFF"
 if use_warmed_db_cache; then
-  log "DB update : disabled (using warmed DB cache)"
+  if [[ ${#SKIP_DB_UPDATE_ARGS[@]} -gt 0 ]]; then
+    log "DB update : disabled (using warmed DB cache)"
+  else
+    log "DB update : enabled (cache miss — downloading fresh DB)"
+  fi
 else
   log "DB update : enabled"
 fi
