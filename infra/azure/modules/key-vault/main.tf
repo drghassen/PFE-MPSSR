@@ -12,6 +12,12 @@ resource "azurerm_key_vault" "this" {
   enabled_for_template_deployment = false
   rbac_authorization_enabled      = true
   tags                            = var.tags
+
+  network_acls {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+    virtual_network_subnet_ids = var.allowed_subnet_ids
+  }
 }
 
 resource "azurerm_private_dns_zone" "vault" {

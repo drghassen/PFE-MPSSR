@@ -18,6 +18,11 @@ variable "vnet_id" {
   type = string
 }
 
+variable "allowed_subnet_ids" {
+  type    = list(string)
+  default = []
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
