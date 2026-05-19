@@ -7,4 +7,3 @@ quiet: true
 compact: true
 
 download-external-modules: false
-soft-fail: true
