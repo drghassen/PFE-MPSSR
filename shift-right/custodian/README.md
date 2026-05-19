@@ -5,12 +5,13 @@ Cloud Custodian is used as the runtime executor in Shift-Right.
 ## Contract with OPA
 
 - OPA drift decision outputs `custodian_policy` per violation.
-- `ci/scripts/shift-right/custodian-autofix.sh` runs only policies listed in `OPA_CUSTODIAN_POLICIES`.
+- `ci/scripts/shift-right/custodian-autofix.sh` builds its execution plan from `.cloudsentinel/opa_drift_decision.json`.
+- Only `effective_violations` with `remediation_level == "L3"`, `requires_remediation == true`, a non-empty `custodian_policy`, and a concrete Azure ARM `resource_id` are executable.
+- Every Custodian run uses a generated policy scoped with a `value` filter on that exact `resource_id`; broad policy execution is refused.
+- `custodian validate` runs before remediation. Validation failure aborts the whole Custodian stage before any resource is changed.
+- Runtime observability is written to `.cloudsentinel/remediation_metrics.json` with `remediated`, `failed`, `ignored`, and `verified` counters.
 - Prowler decisions never dispatch Custodian policies (ticket/alert only).
-- `OPA_CUSTODIAN_POLICIES` is populated from `effective_violations` where:
-  - `remediation_level == "L3"`
-  - `requires_remediation == true`
-  - `custodian_policy != null`
+- `OPA_CUSTODIAN_POLICIES` remains an audit/dotenv summary, not the execution authority.
 
 This enforces L3-only auto-remediation from Drift Engine only.
 

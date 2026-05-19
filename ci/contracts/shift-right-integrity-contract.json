@@ -82,6 +82,27 @@
         "reporting cannot synthesize empty payloads when source data is non-empty"
       ]
     },
+    "remediation": {
+      "inputs": [
+        ".cloudsentinel/opa_drift_decision.json",
+        "shift-right/custodian/policies/"
+      ],
+      "outputs": [
+        ".cloudsentinel/custodian_remediation_plan.json",
+        ".cloudsentinel/remediation_metrics.json",
+        ".cloudsentinel/custodian-scoped-policies/",
+        ".cloudsentinel/custodian.env",
+        ".cloudsentinel/custodian_audit.jsonl"
+      ],
+      "invariants": [
+        "Custodian execution plan must be derived only from OPA effective_violations",
+        "Every Custodian target must have remediation_level == L3, requires_remediation == true, custodian_policy non-empty, and ARM resource_id starting with /subscriptions/",
+        "Custodian must execute generated resource_id-scoped policies only; broad policy execution is forbidden",
+        "custodian validate must pass for original and resource_id-scoped policies before any remediation command runs",
+        "Any validation failure aborts remediation before cloud state changes",
+        "remediation_metrics.json must expose counters.remediated, counters.failed, counters.ignored, and counters.verified"
+      ]
+    },
     "enforcement": {
       "inputs": [
         ".cloudsentinel/opa_drift.env",

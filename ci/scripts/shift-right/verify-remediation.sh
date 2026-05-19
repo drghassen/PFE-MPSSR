@@ -9,6 +9,7 @@ ENV_FILE="${OUTPUT_DIR}/remediation_verify.env"
 STATE_DIR="${OUTPUT_DIR}/runtime-state"
 STATE_FILE="${STATE_DIR}/runtime-state.jsonl"
 SUMMARY_FILE="${STATE_DIR}/remediation-summary.json"
+METRICS_FILE="${OUTPUT_DIR}/remediation_metrics.json"
 DRIFT_DECISION_FILE="${OUTPUT_DIR}/opa_drift_decision.json"
 PROWLER_DECISION_FILE="${OUTPUT_DIR}/opa_prowler_decision.json"
 CUSTODIAN_ENV_FILE="${OUTPUT_DIR}/custodian.env"
@@ -34,17 +35,136 @@ VERIFICATION_TIMEOUT_SECONDS="${VERIFICATION_TIMEOUT_SECONDS:-30}"
 REMEDIATION_FAILED_STATE="false"
 REMEDIATION_UNVERIFIABLE_STATE="false"
 REMEDIATION_SKIP_REASON_STATE=""
+REMEDIATION_REMEDIATED_COUNT=0
+REMEDIATION_FAILED_COUNT=0
+REMEDIATION_IGNORED_COUNT=0
+REMEDIATION_VERIFIED_COUNT=0
+VERIFICATION_TOTAL_CANDIDATES=0
+VERIFICATION_SKIPPED_UNVERIFIABLE_COUNT=0
+VERIFICATION_STATUS="init"
 
 write_verify_env_file() {
   {
     echo "REMEDIATION_FAILED=${REMEDIATION_FAILED_STATE}"
     echo "REMEDIATION_UNVERIFIABLE=${REMEDIATION_UNVERIFIABLE_STATE}"
     echo "REMEDIATION_SKIP_REASON=${REMEDIATION_SKIP_REASON_STATE}"
+    echo "REMEDIATION_REMEDIATED_COUNT=${REMEDIATION_REMEDIATED_COUNT}"
+    echo "REMEDIATION_FAILED_COUNT=${REMEDIATION_FAILED_COUNT}"
+    echo "REMEDIATION_IGNORED_COUNT=${REMEDIATION_IGNORED_COUNT}"
+    echo "REMEDIATION_VERIFIED_COUNT=${REMEDIATION_VERIFIED_COUNT}"
+    echo "REMEDIATION_METRICS_FILE=${METRICS_FILE}"
   } > "$ENV_FILE"
 }
 
 trap write_verify_env_file EXIT
 write_verify_env_file
+
+_existing_metrics_json() {
+  if [[ -s "$METRICS_FILE" ]] && jq -e . "$METRICS_FILE" >/dev/null 2>&1; then
+    jq -c . "$METRICS_FILE"
+    return
+  fi
+  printf '{}'
+}
+
+write_verify_metrics_file() {
+  local existing has_custodian_metrics custodian_remediated custodian_failed custodian_ignored
+  local verification_failed verification_ignored total_failed total_ignored
+  existing="$(_existing_metrics_json)"
+  has_custodian_metrics="$(jq -r '((.stages // {}) | has("custodian"))' <<< "$existing")"
+  custodian_remediated="$(jq -r '(.stages.custodian.remediated // .counters.remediated // 0) | tonumber' <<< "$existing")"
+  custodian_failed="$(jq -r '(.stages.custodian.failed // 0) | tonumber' <<< "$existing")"
+  custodian_ignored="$(jq -r '(.stages.custodian.ignored // 0) | tonumber' <<< "$existing")"
+
+  if [[ "$has_custodian_metrics" != "true" && "$CUSTODIAN_EXECUTED" == "true" && "$CUSTODIAN_DRY_RUN" == "false" ]]; then
+    custodian_remediated="$VERIFICATION_TOTAL_CANDIDATES"
+  fi
+
+  verification_failed="$REMEDIATION_FAILED_COUNT"
+  verification_ignored="$REMEDIATION_IGNORED_COUNT"
+  total_failed=$((custodian_failed + verification_failed))
+  if [[ "$REMEDIATION_SKIP_REASON_STATE" == "custodian_dry_run" ]]; then
+    if ((custodian_ignored > verification_ignored)); then
+      total_ignored="$custodian_ignored"
+    else
+      total_ignored="$verification_ignored"
+    fi
+  else
+    total_ignored=$((custodian_ignored + verification_ignored))
+  fi
+
+  REMEDIATION_REMEDIATED_COUNT="$custodian_remediated"
+  REMEDIATION_FAILED_COUNT="$total_failed"
+  REMEDIATION_IGNORED_COUNT="$total_ignored"
+
+  jq -cn \
+    --argjson existing "$existing" \
+    --arg schema_version "1.0" \
+    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg correlation_id "$OPA_CORRELATION_ID" \
+    --arg status "$VERIFICATION_STATUS" \
+    --arg skip_reason "$REMEDIATION_SKIP_REASON_STATE" \
+    --arg remediation_failed "$REMEDIATION_FAILED_STATE" \
+    --arg remediation_unverifiable "$REMEDIATION_UNVERIFIABLE_STATE" \
+    --argjson custodian_remediated "$custodian_remediated" \
+    --argjson custodian_failed "$custodian_failed" \
+    --argjson custodian_ignored "$custodian_ignored" \
+    --argjson total_candidates "$VERIFICATION_TOTAL_CANDIDATES" \
+    --argjson verified "$REMEDIATION_VERIFIED_COUNT" \
+    --argjson verification_failed "$verification_failed" \
+    --argjson verification_ignored "$verification_ignored" \
+    --argjson total_failed "$total_failed" \
+    --argjson total_ignored "$total_ignored" \
+    --argjson skipped_unverifiable "$VERIFICATION_SKIPPED_UNVERIFIABLE_COUNT" \
+    '{
+      schema_version: ($existing.schema_version // $schema_version),
+      generated_at: $timestamp,
+      correlation_id: ($existing.correlation_id // $correlation_id),
+      scope: "shift-right-runtime-remediation",
+      counters: {
+        remediated: $custodian_remediated,
+        failed: $total_failed,
+        ignored: $total_ignored,
+        verified: $verified
+      },
+      stages: (($existing.stages // {}) + {
+        custodian: (($existing.stages.custodian // {}) + {
+          remediated: $custodian_remediated,
+          failed: $custodian_failed,
+          ignored: $custodian_ignored
+        }),
+        verification: {
+          total_candidates: $total_candidates,
+          verified: $verified,
+          failed: $verification_failed,
+          ignored: $verification_ignored,
+          skipped_unverifiable: $skipped_unverifiable,
+          remediation_failed: ($remediation_failed == "true"),
+          remediation_unverifiable: ($remediation_unverifiable == "true"),
+          skip_reason: $skip_reason,
+          status: $status
+        }
+      })
+    }' > "$METRICS_FILE"
+}
+
+complete_verification_metrics() {
+  local status="$1"
+  local remediated="$2"
+  local failed="$3"
+  local ignored="$4"
+  local verified="$5"
+  local skipped_unverifiable="${6:-0}"
+
+  VERIFICATION_STATUS="$status"
+  REMEDIATION_REMEDIATED_COUNT="$remediated"
+  REMEDIATION_FAILED_COUNT="$failed"
+  REMEDIATION_IGNORED_COUNT="$ignored"
+  REMEDIATION_VERIFIED_COUNT="$verified"
+  VERIFICATION_SKIPPED_UNVERIFIABLE_COUNT="$skipped_unverifiable"
+  write_verify_metrics_file
+  write_verify_env_file
+}
 
 _env_key() {
   local file="$1" key="$2" default="${3:-}"
@@ -124,6 +244,7 @@ collect_candidates() {
 
 CANDIDATES_JSON="$(collect_candidates)"
 CANDIDATE_COUNT="$(jq -r 'length' <<< "$CANDIDATES_JSON")"
+VERIFICATION_TOTAL_CANDIDATES="$CANDIDATE_COUNT"
 PROWLER_RUNTIME_REQUESTED="$(jq -r '[((.result.effective_violations // .result.violations // [])[]) | select((.requires_remediation // false) == true)] | length' "$PROWLER_DECISION_FILE")"
 
 if [[ "$PROWLER_RUNTIME_REQUESTED" -gt 0 ]]; then
@@ -135,9 +256,9 @@ fi
 if [[ "$OPA_REQUIRES_AUTO_REMEDIATION" != "true" ]]; then
   REMEDIATION_FAILED_STATE="false"
   REMEDIATION_SKIP_REASON_STATE="no_auto_remediation_required"
-  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{timestamp:$timestamp, total_candidates:0, verified:0, failed:0, skipped:true, skip_reason:"no_auto_remediation_required"}' > "$SUMMARY_FILE"
+  complete_verification_metrics "skipped" 0 0 0 0 0
 
   sr_audit "INFO" "skip" "no L3 auto-remediation required" "$(sr_build_details \
     --argjson candidates "$CANDIDATE_COUNT" \
@@ -150,9 +271,9 @@ fi
 if [[ "$CUSTODIAN_DRY_RUN" == "true" ]]; then
   REMEDIATION_FAILED_STATE="false"
   REMEDIATION_SKIP_REASON_STATE="custodian_dry_run"
-  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson candidates "$CANDIDATE_COUNT" '{timestamp:$timestamp, total_candidates:$candidates, verified:0, failed:0, skipped:true, skip_reason:"custodian_dry_run"}' > "$SUMMARY_FILE"
+  complete_verification_metrics "skipped" 0 0 "$CANDIDATE_COUNT" 0 0
 
   sr_audit "WARN" "dry_run_skip" "custodian dry-run, verification skipped" "$(sr_build_details --argjson candidates "$CANDIDATE_COUNT" '{candidates:$candidates}')"
   exit 0
@@ -161,9 +282,9 @@ fi
 if [[ "$CANDIDATE_COUNT" -eq 0 ]]; then
   REMEDIATION_FAILED_STATE="false"
   REMEDIATION_SKIP_REASON_STATE="no_runtime_candidates"
-  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{timestamp:$timestamp, total_candidates:0, verified:0, failed:0, skipped:true, skip_reason:"no_runtime_candidates"}' > "$SUMMARY_FILE"
+  complete_verification_metrics "skipped" 0 0 0 0 0
 
   sr_audit "INFO" "skip" "no runtime remediation candidates found" '{}'
   exit 0
@@ -172,9 +293,9 @@ fi
 if [[ "$CUSTODIAN_EXECUTED" != "true" ]]; then
   REMEDIATION_FAILED_STATE="false"
   REMEDIATION_SKIP_REASON_STATE="custodian_not_executed"
-  write_verify_env_file
 
   jq -cn --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson candidates "$CANDIDATE_COUNT" '{timestamp:$timestamp, total_candidates:$candidates, verified:0, failed:0, skipped:true, skip_reason:"custodian_not_executed"}' > "$SUMMARY_FILE"
+  complete_verification_metrics "skipped" 0 0 "$CANDIDATE_COUNT" 0 0
 
   sr_audit "WARN" "skip" "custodian did not execute, verification skipped" "$(sr_build_details --argjson candidates "$CANDIDATE_COUNT" '{candidates:$candidates}')"
   exit 0
@@ -237,7 +358,6 @@ if [[ "$skipped_count" -gt 0 ]]; then
   REMEDIATION_UNVERIFIABLE_STATE="true"
 fi
 REMEDIATION_SKIP_REASON_STATE=""
-write_verify_env_file
 
 jq -cn \
   --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -254,6 +374,8 @@ jq -cn \
     skipped_unverifiable: $skipped_unverifiable,
     remediation_failed: ($remediation_failed == "true")
   }' > "$SUMMARY_FILE"
+
+complete_verification_metrics "completed" 0 "$failed_count" "$skipped_count" "$verified_count" "$skipped_count"
 
 sr_audit "INFO" "stage_complete" "post-remediation verification completed" "$(sr_build_details \
   --argjson total_candidates "$CANDIDATE_COUNT" \
