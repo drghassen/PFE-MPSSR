@@ -84,14 +84,16 @@ if use_warmed_db_cache; then
   if warmed_db_cache_available; then
     SKIP_DB_UPDATE_ARGS=(--skip-db-update)
   else
-    # Same rationale as scan-fs.sh: if the warm job ran but the cache is absent,
-    # the pipeline setup is broken — failing loudly is safer than a silent
-    # fallback to a potentially stale or incomplete live download.
+    # TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB found at the expected path.
+    # Known safe causes — all recoverable via live download:
+    #   - First pipeline run: GitLab cache key has never been uploaded by trivy-db-warm.
+    #   - Cache evicted: GitLab purges caches after ~14 days of inactivity (configurable).
+    #   - Runner mis-config: cache storage not shared across runner pool members.
+    # Falls back to live download. Hard-fail preserved for trivy rc>1 (no DB reachable).
+    warn "Warmed Trivy DB cache miss at ${TRIVY_CACHE_DIR_EFF}/db — falling back to live DB download."
     if [[ -n "${CI:-}" ]]; then
-      err "TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB cache at ${TRIVY_CACHE_DIR_EFF}/db — trivy-db-warm job may have failed or cache was not restored."
-      exit 2
+      warn "Expected on first pipeline run or after cache eviction. Check trivy-db-warm logs if this recurs."
     fi
-    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download."
   fi
 fi
 

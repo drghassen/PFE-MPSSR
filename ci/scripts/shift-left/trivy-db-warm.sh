@@ -82,6 +82,15 @@ ensure_cache_writable() {
 EFFECTIVE_CACHE_DIR="$TRIVY_CACHE_DIR_EFF"
 if ! ensure_cache_writable "$EFFECTIVE_CACHE_DIR"; then
   warn "Cache dir ${EFFECTIVE_CACHE_DIR} is not writable after all repair attempts."
+  if [[ -n "${CI:-}" ]]; then
+    # In CI the DB must be written to the declared cache path so the GitLab cache
+    # upload can find the files and trivy-scan can pull them. A temp-dir fallback
+    # would cause the cache upload to produce empty archives, making every scan
+    # job fall back to a live download (slower but safe — not a hard failure).
+    err "Cache dir ${EFFECTIVE_CACHE_DIR} is not writable in CI — cannot populate GitLab cache for trivy-scan."
+    err "Fix: ensure the runner has write access to the project workspace directory."
+    exit 2
+  fi
   warn "Falling back to a temp dir — DB will not be cached this run."
   EFFECTIVE_CACHE_DIR="$(mktemp -d)"
   log "Fallback cache dir: ${EFFECTIVE_CACHE_DIR}"

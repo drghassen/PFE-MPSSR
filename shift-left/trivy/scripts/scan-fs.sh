@@ -96,19 +96,19 @@ if use_warmed_db_cache; then
   if warmed_db_cache_available; then
     SKIP_DB_UPDATE_ARGS=(--skip-db-update)
   else
-    # TRIVY_SKIP_DB_UPDATE_IN_SCAN=true signals that trivy-db-warm ran in the
-    # guard stage and the GitLab cache should have been restored before this job.
-    # A cache miss here means either the warm job failed, the cache was evicted,
-    # or there is a pipeline dependency misconfiguration — all of which make a
-    # live download unreliable (stale mirror, network timeout, race with another
-    # warm job). Fail hard so the problem is visible rather than silently using
-    # a potentially outdated or incomplete DB.
-    # To allow fallback to live download, unset TRIVY_SKIP_DB_UPDATE_IN_SCAN.
+    # TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB found at the expected path.
+    # Known safe causes — all recoverable via live download:
+    #   - First pipeline run: GitLab cache key has never been uploaded by trivy-db-warm.
+    #   - Cache evicted: GitLab purges caches after ~14 days of inactivity (configurable).
+    #   - Runner mis-config: cache storage not shared across runner pool members.
+    # The scan job falls back to a live download. This adds 2-8 min but is correct.
+    # trivy-db-warm will populate the cache key for all subsequent pipeline runs.
+    # A true hard-fail is still enforced below when trivy itself exits rc>1 (no DB
+    # source reachable at all — network down, all mirrors exhausted, etc.).
+    warn "Warmed Trivy DB cache miss at ${TRIVY_CACHE_DIR_EFF}/db — falling back to live DB download."
     if [[ -n "${CI:-}" ]]; then
-      err "TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB cache at ${TRIVY_CACHE_DIR_EFF}/db — trivy-db-warm job may have failed or cache was not restored."
-      exit 2
+      warn "Expected on first pipeline run or after cache eviction. Check trivy-db-warm logs if this recurs."
     fi
-    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download."
   fi
 fi
 
