@@ -74,12 +74,23 @@ else
       echo "[trivy-image][INFO] Image ${_img} — findings: ${_count} → ${_out}"
       IMAGE_COUNT=$(( IMAGE_COUNT + 1 ))
     else
-      echo "[trivy-image][WARN] Image scan failed for: ${_img} (non-blocking)" >&2
+      echo "[trivy-image][ERROR] Image scan failed for: ${_img}" >&2
       IMAGE_ERRORS=$(( IMAGE_ERRORS + 1 ))
     fi
   done
 
   echo "[trivy-image][INFO] Image scan complete — scanned: ${IMAGE_COUNT}, errors: ${IMAGE_ERRORS}"
+
+  # A failed image scan means that image's CVE surface is unknown — the pipeline
+  # must not proceed as if it were clean. In CI this is always a hard failure
+  # unless TRIVY_IMAGE_SCAN_FAIL_ON_ERROR=false is explicitly set.
+  if [[ "${IMAGE_ERRORS}" -gt 0 ]]; then
+    if [[ -n "${CI:-}" && "${TRIVY_IMAGE_SCAN_FAIL_ON_ERROR:-true}" != "false" ]]; then
+      echo "[trivy-image][ERROR] ${IMAGE_ERRORS} image scan(s) failed — aborting. Set TRIVY_IMAGE_SCAN_FAIL_ON_ERROR=false to allow failures." >&2
+      exit 1
+    fi
+    echo "[trivy-image][WARN] ${IMAGE_ERRORS} image scan(s) failed (non-CI mode, continuing)." >&2
+  fi
 fi
 
 chmod -R a+r shift-left/trivy/reports/raw 2>/dev/null || true

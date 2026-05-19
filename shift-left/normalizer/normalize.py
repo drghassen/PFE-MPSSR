@@ -255,10 +255,27 @@ class CloudSentinelNormalizer(
             (time.time() - self.start_time) * 1000
         )
 
-        self.out_dir.mkdir(parents=True, exist_ok=True)
-        with self.out_file.open("w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2)
+        # Validate the in-memory report dict BEFORE touching any file on disk.
+        # If validation raises sys.exit(1), the output file is never written and
+        # the HMAC signer downstream will never see a schema-invalid artifact.
         self._validate_schema(report)
+
+        # Atomic write: serialize to a .tmp sibling, then rename.
+        # The output path is either absent or contains a complete, valid JSON
+        # file — never a partial write left behind by a crash or KeyboardInterrupt.
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        _tmp = self.out_file.parent / (self.out_file.name + ".tmp")
+        try:
+            with _tmp.open("w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+            _tmp.replace(self.out_file)
+        except Exception:
+            try:
+                _tmp.unlink()
+            except OSError:
+                pass
+            raise
+
         print(
             f"\033[34m[INFO]\033[0m Golden Report generated successfully: {self.out_file}"
         )
@@ -271,21 +288,42 @@ class CloudSentinelNormalizer(
             / "schema"
             / "cloudsentinel_report.schema.json"
         )
+        # The schema file is part of the published contract and must always be
+        # present in the repo — treat its absence as a hard error in all modes.
+        if not schema_path.is_file():
+            print(
+                f"\033[31m[ERROR]\033[0m Schema file missing: {schema_path}. "
+                "The schema is required for golden-report integrity.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         try:
             from jsonschema import Draft7Validator, validate
-
-            if schema_path.is_file():
-                with schema_path.open("r", encoding="utf-8") as f:
-                    schema = json.load(f)
-                Draft7Validator.check_schema(schema)
-                validate(report, schema)
         except ImportError:
+            # jsonschema is mandatory in CI (schema_strict=true by default).
+            # Locally it is strongly recommended but degrading to a WARN is acceptable
+            # to avoid blocking developers who haven't installed the extra package.
             if self.schema_strict:
                 print(
-                    "\033[31m[ERROR]\033[0m jsonschema module missing in strict mode",
+                    "\033[31m[ERROR]\033[0m jsonschema is not installed. "
+                    "Required in CI. Install with: pip install jsonschema",
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            print(
+                "\033[33m[WARN]\033[0m jsonschema not installed — "
+                "schema validation skipped (non-CI mode). "
+                "Install with: pip install jsonschema"
+            )
+            return
+
+        try:
+            with schema_path.open("r", encoding="utf-8") as f:
+                schema = json.load(f)
+            Draft7Validator.check_schema(schema)
+            validate(report, schema)
+            print("\033[34m[INFO]\033[0m Schema validation passed.")
         except Exception as e:
             print(
                 f"\033[31m[ERROR]\033[0m Golden report schema validation failed: {e}",

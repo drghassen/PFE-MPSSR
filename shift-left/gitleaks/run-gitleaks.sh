@@ -59,6 +59,13 @@ validate_gitleaks_report() {
   jq -e 'type=="array"' "$report_path" >/dev/null || { err "gitleaks raw output invalid JSON array: $report_path"; exit 2; }
 }
 
+# Returns 0 if <sha> is a commit reachable in the current git clone.
+# Needed to guard against shallow/fork clones where CI_MERGE_REQUEST_TARGET_BRANCH_SHA
+# or CI_COMMIT_BEFORE_SHA may reference commits not present locally.
+git_sha_reachable() {
+  git cat-file -e "${1}^{commit}" 2>/dev/null
+}
+
 enrich_with_secret_hash() {
   local report_path="$1"
   python3 - "$report_path" "$REPO_ROOT" <<'PY'
@@ -290,16 +297,40 @@ log "Raw report ready: $REPORT_RAW_OUT"
 # (Fingerprint varie entre modes --no-git et --log-opts).
 if [[ -n "${CI:-}" ]]; then
   RANGE_OUT="$OUT_DIR/gitleaks_range_raw.json"
-  LOG_OPTS=""
   ZERO_SHA="0000000000000000000000000000000000000000"
 
+  # Pre-initialize range file with an empty JSON array.
+  # This guarantees the file always exists after this block. If the range scan
+  # fails for any reason, the normalizer will read [] instead of a missing file,
+  # preventing it from defaulting all findings to in_latest_push=true (which
+  # would block deployments for secrets added months ago).
+  printf '[]' > "$RANGE_OUT"
+
+  LOG_OPTS=""
   if [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-}" \
         && "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}" != "$ZERO_SHA" ]]; then
-    LOG_OPTS="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}..${CI_COMMIT_SHA:-HEAD}"
+    if git_sha_reachable "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}"; then
+      LOG_OPTS="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA}..${CI_COMMIT_SHA:-HEAD}"
+    else
+      # SHA exists in CI variables but is not in the local clone (fork clone, shallow
+      # fetch, or corrupted variable). Fall back to just the latest commit so the
+      # range report is non-empty and correct for the current push.
+      log "WARN: CI_MERGE_REQUEST_TARGET_BRANCH_SHA=${CI_MERGE_REQUEST_TARGET_BRANCH_SHA} not reachable in clone — falling back to latest-commit range"
+      LOG_OPTS="--max-count=1"
+    fi
   elif [[ -n "${CI_COMMIT_BEFORE_SHA:-}" \
           && "${CI_COMMIT_BEFORE_SHA}" != "$ZERO_SHA" ]]; then
-    LOG_OPTS="${CI_COMMIT_BEFORE_SHA}..${CI_COMMIT_SHA:-HEAD}"
+    if git_sha_reachable "${CI_COMMIT_BEFORE_SHA}"; then
+      LOG_OPTS="${CI_COMMIT_BEFORE_SHA}..${CI_COMMIT_SHA:-HEAD}"
+    else
+      # Before-SHA not reachable (force-push rewrote history, or rebase rebased
+      # commits that aren't locally present). Scan only the latest commit.
+      log "WARN: CI_COMMIT_BEFORE_SHA=${CI_COMMIT_BEFORE_SHA} not reachable (force-push?) — falling back to latest-commit range"
+      LOG_OPTS="--max-count=1"
+    fi
   else
+    # First push to a new branch: no before/after SHA available.
+    # Scan the last 200 commits as a reasonable approximation of what is new.
     LOG_OPTS="--max-count=200"
   fi
 
@@ -319,59 +350,65 @@ if [[ -n "${CI:-}" ]]; then
   set -e
 
   if [[ "$RC_RANGE" -gt 1 ]]; then
-    log "WARN: range scan failed rc=$RC_RANGE — skipping enrichment"
+    # Technical failure: keep the pre-initialized [] so the normalizer does not
+    # treat all findings as new.
+    log "WARN: range scan failed rc=$RC_RANGE — range report stays empty (no in_latest_push enrichment)"
   else
-    if jq -e 'type=="array"' "$RANGE_OUT" >/dev/null 2>&1; then
+    # Gitleaks may not overwrite the file when there are no findings (version-
+    # dependent). Re-validate and reset to [] if the file is absent or non-array.
+    if ! jq -e 'type=="array"' "$RANGE_OUT" >/dev/null 2>&1; then
+      log "WARN: range report missing or invalid JSON after scan — resetting to empty array"
+      printf '[]' > "$RANGE_OUT"
+    fi
+
+    if jq -e 'length > 0' "$RANGE_OUT" >/dev/null 2>&1; then
       enrich_with_secret_hash "$RANGE_OUT"
       log "Range report ready: $RANGE_OUT"
       # Merge range findings into the main report for OPA gate evaluation.
       # Deduplication uses composite key (RuleID:File:StartLine:SecretHash), not Fingerprint.
       # File is normalized (absolute repo prefix removed, slashes unified) to align --no-git vs --log-opts.
-      if [[ -s "$RANGE_OUT" ]] && jq -e 'length > 0' "$RANGE_OUT" >/dev/null 2>&1; then
-        MERGED_COUNT=$(jq -s --arg repo_root "$REPO_ROOT" '
-          def dedup_key:
-            def norm_file:
-              ((.File // .file // "") | tostring
-               | gsub("\\\\"; "/")
-               | if startswith(($repo_root | tostring) + "/")
-                 then .[(($repo_root | tostring | length) + 1):]
-                 else .
-                 end
-               | gsub("^\\./+"; ""));
-            [
-              ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
-              norm_file,
-              ((.StartLine // .start_line // .line // 0) | tostring),
-              ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
-            ] | join(":");
-          .[0] + .[1] | unique_by(dedup_key)
-        ' \
-          "$REPORT_RAW_OUT" "$RANGE_OUT" | jq 'length')
-        jq -s --arg repo_root "$REPO_ROOT" '
-          def dedup_key:
-            def norm_file:
-              ((.File // .file // "") | tostring
-               | gsub("\\\\"; "/")
-               | if startswith(($repo_root | tostring) + "/")
-                 then .[(($repo_root | tostring | length) + 1):]
-                 else .
-                 end
-               | gsub("^\\./+"; ""));
-            [
-              ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
-              norm_file,
-              ((.StartLine // .start_line // .line // 0) | tostring),
-              ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
-            ] | join(":");
-          .[0] + .[1] | unique_by(dedup_key)
-        ' \
-          "$REPORT_RAW_OUT" "$RANGE_OUT" > "${REPORT_RAW_OUT}.merged"
-        mv "${REPORT_RAW_OUT}.merged" "$REPORT_RAW_OUT"
-        log "Merged range findings into main report. Total unique findings: $MERGED_COUNT"
-      fi
+      MERGED_COUNT=$(jq -s --arg repo_root "$REPO_ROOT" '
+        def dedup_key:
+          def norm_file:
+            ((.File // .file // "") | tostring
+             | gsub("\\\\"; "/")
+             | if startswith(($repo_root | tostring) + "/")
+               then .[(($repo_root | tostring | length) + 1):]
+               else .
+               end
+             | gsub("^\\./+"; ""));
+          [
+            ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
+            norm_file,
+            ((.StartLine // .start_line // .line // 0) | tostring),
+            ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
+          ] | join(":");
+        .[0] + .[1] | unique_by(dedup_key)
+      ' \
+        "$REPORT_RAW_OUT" "$RANGE_OUT" | jq 'length')
+      jq -s --arg repo_root "$REPO_ROOT" '
+        def dedup_key:
+          def norm_file:
+            ((.File // .file // "") | tostring
+             | gsub("\\\\"; "/")
+             | if startswith(($repo_root | tostring) + "/")
+               then .[(($repo_root | tostring | length) + 1):]
+               else .
+               end
+             | gsub("^\\./+"; ""));
+          [
+            ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
+            norm_file,
+            ((.StartLine // .start_line // .line // 0) | tostring),
+            ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
+          ] | join(":");
+        .[0] + .[1] | unique_by(dedup_key)
+      ' \
+        "$REPORT_RAW_OUT" "$RANGE_OUT" > "${REPORT_RAW_OUT}.merged"
+      mv "${REPORT_RAW_OUT}.merged" "$REPORT_RAW_OUT"
+      log "Merged range findings into main report. Total unique findings: $MERGED_COUNT"
     else
-      log "WARN: range report invalid JSON — skipping enrichment"
-      rm -f "$RANGE_OUT"
+      log "Range scan produced no findings — range report is empty"
     fi
   fi
 fi

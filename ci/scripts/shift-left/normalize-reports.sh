@@ -131,6 +131,52 @@ if ! jq -e '
   exit 1
 fi
 
+# --- Defense-in-depth: full JSON schema validation BEFORE signing with HMAC ---
+# normalize.py validates its in-memory dict before writing, but that guard can
+# be bypassed when jsonschema is not installed and CLOUDSENTINEL_SCHEMA_STRICT
+# is false. This independent check guarantees the HMAC is NEVER applied to a
+# schema-invalid artifact, regardless of what happened inside normalize.py.
+python3 - <<'PY'
+import json, sys
+from pathlib import Path
+
+schema_file = Path("shift-left/normalizer/schema/cloudsentinel_report.schema.json")
+report_file = Path(".cloudsentinel/golden_report.json")
+
+if not schema_file.is_file():
+    print(f"[normalize-reports][ERROR] Schema file missing: {schema_file}", file=sys.stderr)
+    sys.exit(1)
+if not report_file.is_file():
+    print(f"[normalize-reports][ERROR] Golden report missing: {report_file}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from jsonschema import Draft7Validator, validate
+except ImportError:
+    print(
+        "[normalize-reports][ERROR] jsonschema not installed — cannot validate golden report "
+        "before HMAC signing. Install with: pip install jsonschema",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+with schema_file.open(encoding="utf-8") as fh:
+    schema = json.load(fh)
+with report_file.open(encoding="utf-8") as fh:
+    report = json.load(fh)
+
+try:
+    Draft7Validator.check_schema(schema)
+    validate(report, schema)
+    print("[normalize-reports][schema] Golden report validated against JSON schema: OK")
+except Exception as exc:
+    print(
+        f"[normalize-reports][ERROR] Schema validation failed — refusing to sign with HMAC: {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
+
 # --- Artifact integrity: sign golden_report.json with HMAC-SHA256 ---
 # The .hmac sidecar is passed as an artifact and verified by opa-decision
 # before golden_report.json is fed to OPA — prevents artifact substitution
@@ -149,12 +195,33 @@ if [[ -n "${CI:-}" ]] && [[ ! -s .cloudsentinel/golden_report.json.hmac ]]; then
   echo "[normalize-reports][ERROR] HMAC sidecar missing or empty after signing." >&2
   exit 1
 fi
-if ! timeout 30 python3 shift-left/opa/fetch-exceptions.py; then
+# Exception fetch with configurable timeout and retry.
+# A transient DefectDojo blip should not kill the whole pipeline — the retry
+# loop gives the service a chance to recover before applying fail-closed logic.
+_EXCEPTION_TIMEOUT="${CLOUDSENTINEL_EXCEPTION_FETCH_TIMEOUT:-30}"
+_EXCEPTION_RETRIES="${CLOUDSENTINEL_EXCEPTION_FETCH_RETRIES:-2}"
+_EXCEPTION_RETRY_DELAY="${CLOUDSENTINEL_EXCEPTION_RETRY_DELAY:-5}"
+
+_fetch_ok=false
+for _attempt in $(seq 1 "${_EXCEPTION_RETRIES}"); do
+  echo "[normalize-reports][exceptions] Fetch attempt ${_attempt}/${_EXCEPTION_RETRIES} (timeout=${_EXCEPTION_TIMEOUT}s)"
+  if timeout "${_EXCEPTION_TIMEOUT}" python3 shift-left/opa/fetch-exceptions.py; then
+    _fetch_ok=true
+    break
+  fi
+  if [[ "${_attempt}" -lt "${_EXCEPTION_RETRIES}" ]]; then
+    echo "[normalize-reports][WARN] Exceptions fetch attempt ${_attempt} failed — retrying in ${_EXCEPTION_RETRY_DELAY}s" >&2
+    sleep "${_EXCEPTION_RETRY_DELAY}"
+  fi
+done
+
+if [[ "${_fetch_ok}" != "true" ]]; then
   if [ "${CLOUDSENTINEL_FAIL_CLOSED:-true}" = "true" ]; then
-    echo "[normalize-reports][ERROR] Exceptions fetch failed/timed out. CLOUDSENTINEL_FAIL_CLOSED=true. Halting." >&2
+    echo "[normalize-reports][ERROR] Exceptions fetch failed after ${_EXCEPTION_RETRIES} attempt(s). CLOUDSENTINEL_FAIL_CLOSED=true. Halting." >&2
+    echo "[normalize-reports][ERROR] Set CLOUDSENTINEL_EXCEPTION_FETCH_TIMEOUT / CLOUDSENTINEL_EXCEPTION_FETCH_RETRIES to tune retry behaviour." >&2
     exit 1
   else
-    echo "[normalize-reports][WARN] Exceptions fetch failed/timed out. Entering DEGRADED mode."
+    echo "[normalize-reports][WARN] Exceptions fetch failed after ${_EXCEPTION_RETRIES} attempt(s). Entering DEGRADED mode."
     cat > .cloudsentinel/exceptions.json <<'EOF'
 {
   "cloudsentinel": {

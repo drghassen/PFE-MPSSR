@@ -96,7 +96,19 @@ if use_warmed_db_cache; then
   if warmed_db_cache_available; then
     SKIP_DB_UPDATE_ARGS=(--skip-db-update)
   else
-    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download. Check trivy-db-warm job."
+    # TRIVY_SKIP_DB_UPDATE_IN_SCAN=true signals that trivy-db-warm ran in the
+    # guard stage and the GitLab cache should have been restored before this job.
+    # A cache miss here means either the warm job failed, the cache was evicted,
+    # or there is a pipeline dependency misconfiguration — all of which make a
+    # live download unreliable (stale mirror, network timeout, race with another
+    # warm job). Fail hard so the problem is visible rather than silently using
+    # a potentially outdated or incomplete DB.
+    # To allow fallback to live download, unset TRIVY_SKIP_DB_UPDATE_IN_SCAN.
+    if [[ -n "${CI:-}" ]]; then
+      err "TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB cache at ${TRIVY_CACHE_DIR_EFF}/db — trivy-db-warm job may have failed or cache was not restored."
+      exit 2
+    fi
+    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download."
   fi
 fi
 

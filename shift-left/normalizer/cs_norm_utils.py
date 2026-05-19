@@ -98,6 +98,9 @@ class NormalizerUtilsMixin:
             "status": "NOT_RUN",
             "findings": [],
             "errors": [reason],
+            # source_file is carried here so _process_scanner can populate
+            # context.traceability.source_report even for NOT_RUN scanners.
+            "source_file": path,
         }
         tr = {
             "tool": tool,

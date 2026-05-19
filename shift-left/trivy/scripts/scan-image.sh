@@ -84,7 +84,14 @@ if use_warmed_db_cache; then
   if warmed_db_cache_available; then
     SKIP_DB_UPDATE_ARGS=(--skip-db-update)
   else
-    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download. Check trivy-db-warm job."
+    # Same rationale as scan-fs.sh: if the warm job ran but the cache is absent,
+    # the pipeline setup is broken — failing loudly is safer than a silent
+    # fallback to a potentially stale or incomplete live download.
+    if [[ -n "${CI:-}" ]]; then
+      err "TRIVY_SKIP_DB_UPDATE_IN_SCAN=true but no valid DB cache at ${TRIVY_CACHE_DIR_EFF}/db — trivy-db-warm job may have failed or cache was not restored."
+      exit 2
+    fi
+    warn "Warmed Trivy DB cache miss (${TRIVY_CACHE_DIR_EFF}/db/trivy.db) — falling back to live DB download."
   fi
 fi
 

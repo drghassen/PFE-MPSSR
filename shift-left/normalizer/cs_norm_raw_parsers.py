@@ -236,6 +236,7 @@ class NormalizerRawParsersMixin:
             "status": "OK",
             "findings": findings,
             "errors": [],
+            "source_file": str(p),
         }
         tr = {
             "tool": "gitleaks",
@@ -326,6 +327,7 @@ class NormalizerRawParsersMixin:
             "status": "OK",
             "findings": findings,
             "errors": [],
+            "source_file": str(p),
         }
         tr = {
             "tool": "checkov",
@@ -546,6 +548,9 @@ class NormalizerRawParsersMixin:
             "status": status,
             "findings": findings,
             "errors": errs,
+            # Primary source file for traceability; image files are aggregated
+            # from the raw/image/ sub-directory and share this directory path.
+            "source_file": str(paths.get("fs", self.root / "shift-left/trivy/reports/raw/trivy-fs-raw.json")),
         }
         tr = {
             "tool": "trivy",
@@ -679,6 +684,7 @@ class NormalizerRawParsersMixin:
             "status": status,
             "findings": findings,
             "errors": [e for e in doc.get("summary", {}).get("parse_errors", []) if e],
+            "source_file": tool_path,
         }
         tr = {
             "tool": "cloudinit",

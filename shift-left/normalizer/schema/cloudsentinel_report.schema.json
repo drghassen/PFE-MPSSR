@@ -230,7 +230,18 @@
                 "severity": { "type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
                 "message": { "type": "string", "minLength": 1 },
                 "non_waivable_in_prod": { "type": "boolean" },
-                "block": { "type": "boolean" }
+                "block": { "type": "boolean" },
+                "resource_address": {
+                  "type": "string",
+                  "description": "Terraform resource address (e.g. azurerm_linux_virtual_machine.vm1). Embedded in each violation so OPA and the normalizer can correlate the finding to its exact resource without traversing resources_analyzed[]."
+                },
+                "resource_type": { "type": "string" },
+                "resource_name": { "type": "string" },
+                "file": {
+                  "type": "string",
+                  "description": "Relative path to the Terraform file that declares the resource."
+                },
+                "line": { "type": "integer", "minimum": 0 }
               }
             }
           }

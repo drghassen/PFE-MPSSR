@@ -43,7 +43,7 @@ class NormalizerFindingMixin:
         ).hexdigest()
 
     def _normalize_finding(
-        self, f: Dict[str, Any], tool: str, version: str, idx: int
+        self, f: Dict[str, Any], tool: str, version: str, idx: int, source_file: str = ""
     ) -> Dict[str, Any]:
         rid = self._first(
             f.get("id"),
@@ -162,7 +162,9 @@ class NormalizerFindingMixin:
                     "duplicate_of": None,
                 },
                 "traceability": {
-                    "source_report": f"{tool}_raw.json",
+                    # Use the actual raw-report path supplied by the parser so
+                    # any finding can be traced back to its exact source file.
+                    "source_report": source_file if source_file else f"{tool}_raw.json",
                     "source_index": idx,
                     "normalized_at": self.ts,
                 },
@@ -178,6 +180,9 @@ class NormalizerFindingMixin:
         )
         raws = data.get("findings", [])
         raws = raws if isinstance(raws, list) else []
+        # source_file is set by each parser so every finding carries the path of
+        # the raw report it came from — enables direct artifact traceability.
+        source_file = str(data.get("source_file", f"{name}_raw.json"))
         return {
             "tool": name,
             "version": v,
@@ -185,7 +190,7 @@ class NormalizerFindingMixin:
             "errors": [str(x) for x in data.get("errors", [])],
             "stats": self._empty_stats(),
             "findings": [
-                self._normalize_finding(f, name, v, i) for i, f in enumerate(raws)
+                self._normalize_finding(f, name, v, i, source_file) for i, f in enumerate(raws)
             ],
         }
 

@@ -67,13 +67,31 @@ def detect_db_packages(cloud_init_text: str, pattern_db: Dict[str, Any]) -> list
     return sorted(detected)
 
 
-def build_violation(rule: str, severity: str, message: str, block: bool) -> Dict[str, Any]:
+def build_violation(
+    rule: str,
+    severity: str,
+    message: str,
+    block: bool,
+    resource_address: str = "",
+    resource_type: str = "",
+    resource_name: str = "",
+    file: str = "",
+    line: int = 0,
+) -> Dict[str, Any]:
+    # resource_address is embedded directly in each violation so that the
+    # normalizer and OPA can correlate a finding to the exact Terraform resource
+    # without having to walk the parent resources_analyzed[] structure.
     return {
         "rule": rule,
         "severity": severity,
         "message": message,
         "non_waivable_in_prod": True,
         "block": block,
+        "resource_address": resource_address,
+        "resource_type": resource_type,
+        "resource_name": resource_name,
+        "file": file,
+        "line": line,
     }
 
 
@@ -113,6 +131,25 @@ def analyze_resource(
     security_bypass_detected = bool(security_bypass_patterns)
     blocking_env = env != "dev"
 
+    try:
+        rel_file = str(tf_file.resolve().relative_to(repo_root.resolve()))
+    except Exception:
+        rel_file = str(tf_file)
+
+    resource_addr = f"{resource_type}.{resource_name}"
+    resource_line = int(resource_body.get("__start_line__", 0) or 0)
+
+    # Shared kwargs injected into every violation so the normalizer and OPA can
+    # map a finding directly to its Terraform resource without traversing the
+    # parent resources_analyzed[] list.
+    _res_ctx = dict(
+        resource_address=resource_addr,
+        resource_type=resource_type,
+        resource_name=resource_name,
+        file=rel_file,
+        line=resource_line,
+    )
+
     violations: list[Dict[str, Any]] = []
     if role_tag_missing:
         violations.append(
@@ -121,6 +158,7 @@ def analyze_resource(
                 "HIGH",
                 "Missing mandatory VM tag cs:role",
                 block=blocking_env,
+                **_res_ctx,
             )
         )
 
@@ -131,6 +169,7 @@ def analyze_resource(
                 "CRITICAL",
                 "Role web-server conflicts with cloud-init database packages",
                 block=blocking_env,
+                **_res_ctx,
             )
         )
 
@@ -148,6 +187,7 @@ def analyze_resource(
                     )
                 ),
                 block=blocking_env,
+                **_res_ctx,
             )
         )
 
@@ -166,20 +206,16 @@ def analyze_resource(
                     )
                 ),
                 block=blocking_env,
+                **_res_ctx,
             )
         )
 
-    try:
-        rel_file = str(tf_file.resolve().relative_to(repo_root.resolve()))
-    except Exception:
-        rel_file = str(tf_file)
-
     return {
-        "resource_address": f"{resource_type}.{resource_name}",
+        "resource_address": resource_addr,
         "resource_type": resource_type,
         "resource_name": resource_name,
         "file": rel_file,
-        "line": int(resource_body.get("__start_line__", 0) or 0),
+        "line": resource_line,
         "environment": env,
         "role_tag": role_tag or None,
         "cloud_init_field": cloud_init_field or None,

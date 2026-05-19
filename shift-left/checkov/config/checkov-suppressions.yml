@@ -83,9 +83,16 @@ skip-check:
   #   FALSE POSITIVE — local_authentication_disabled=true is already set in
   #   the resource. Checkov misreads the attribute when the resource uses
   #   count = var.enabled ? 1 : 0 (conditional provisioning pattern).
+  #
+  # CKV2_CS_AZ_039  Custom check: public_network_access_enabled=false on Cosmos DB.
+  #   is_virtual_network_filter_enabled=true with an explicit virtual_network_rule
+  #   allow-list already restricts access to authorised subnets only.
+  #   Setting public_network_access_enabled=false would also block VNet service
+  #   endpoint traffic (same constraint as CKV_AZURE_101).
   - CKV_AZURE_101
   - CKV_AZURE_100
   - CKV_AZURE_132
+  - CKV2_CS_AZ_039
 
   # ─────────────────────────────────────────────────────────────────────────
   # COMPUTE — disk encryption via Disk Encryption Set

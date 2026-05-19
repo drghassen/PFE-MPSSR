@@ -174,6 +174,16 @@ jq -e 'type == "object" and (.results | type == "object")' "$REPORT_RAW" >/dev/n
 PARSING_ERRORS="$(jq -r '(.results.parsing_errors // []) | length' "$REPORT_RAW" 2>/dev/null || echo 0)"
 [[ "$PARSING_ERRORS" =~ ^[0-9]+$ ]] || PARSING_ERRORS=0
 if [[ "$PARSING_ERRORS" -gt 0 ]]; then
+  # In CI, parsing errors mean Terraform files were silently skipped — the scan
+  # result is incomplete and cannot be trusted as a security gate.
+  # Set CHECKOV_ALLOW_PARSING_ERRORS=true only for local debugging.
+  if [[ -n "${CI:-}" && "${CHECKOV_ALLOW_PARSING_ERRORS:-false}" != "true" ]]; then
+    log_err "${PARSING_ERRORS} parsing error(s) detected — Terraform files were silently skipped."
+    log_err "Incomplete scan cannot be used as a security gate. Fix the files or set CHECKOV_ALLOW_PARSING_ERRORS=true to override (local only)."
+    jq -r '(.results.parsing_errors // []) | .[]' "$REPORT_RAW" 2>/dev/null \
+      | while IFS= read -r _fe; do log_err "  parse error: ${_fe}"; done
+    exit 2
+  fi
   log_info "WARN: checkov reported ${PARSING_ERRORS} parsing error(s) — check $REPORT_LOG"
 fi
 
