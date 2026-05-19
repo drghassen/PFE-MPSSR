@@ -51,6 +51,13 @@ export TF_VAR_tenant_id="${TF_VAR_tenant_id:-${ARM_TENANT_ID}}"
 export TF_VAR_location="${TF_VAR_location:-norwayeast}"
 export TF_VAR_vm_admin_ssh_public_key="${TF_VAR_vm_admin_ssh_public_key:-${TF_VAR_admin_ssh_public_key:-}}"
 
+if [[ -z "${TF_VAR_vm_admin_ssh_public_key}" ]]; then
+  # Drift detection is read-only (-refresh-only). Supply a dummy SSH public key
+  # to satisfy OpenTofu variable validation without requiring sensitive keys in scheduled environments.
+  export TF_VAR_vm_admin_ssh_public_key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkHS70VGbV9j5fQ2728r4w8gFA8PG183RF51U dummy@cloudsentinel"
+  sr_audit "INFO" "dummy_ssh_key_injected" "TF_VAR_vm_admin_ssh_public_key was empty; injected a dummy SSH key for read-only drift detection."
+fi
+
 # Bridge TFSTATE_* CI convention → TF_BACKEND_* expected by the drift engine's TerraformRunner.
 export TF_BACKEND_RESOURCE_GROUP_NAME="${TF_BACKEND_RESOURCE_GROUP_NAME:-${TFSTATE_RESOURCE_GROUP:-}}"
 export TF_BACKEND_STORAGE_ACCOUNT_NAME="${TF_BACKEND_STORAGE_ACCOUNT_NAME:-${TFSTATE_STORAGE_ACCOUNT:-}}"
@@ -89,7 +96,13 @@ else
 fi
 
 if [[ "$DRIFT_ENGINE_EXIT_CODE" -ne 0 && "$DRIFT_ENGINE_EXIT_CODE" -ne 2 ]]; then
-  sr_fail "drift engine execution failed" 1 "$(jq -cn --argjson exit_code "$DRIFT_ENGINE_EXIT_CODE" '{exit_code:$exit_code}')"
+  error_details="{}"
+  if [[ -s "$DRIFT_REPORT_PATH" ]]; then
+    echo "[CloudSentinel][ERROR] Drift Engine failed. Extracted errors from report:" >&2
+    jq -r '.errors[] | "Type: \(.type)\nMessage: \(.message)\nRemediation: \(.remediation)\nDetails: \(.details | tostring)\n---"' "$DRIFT_REPORT_PATH" >&2
+    error_details="$(jq -c '{errors: .errors, exit_code: $exit_code}' --argjson exit_code "$DRIFT_ENGINE_EXIT_CODE" "$DRIFT_REPORT_PATH" 2>/dev/null || echo "{}")"
+  fi
+  sr_fail "drift engine execution failed" 1 "$error_details"
 fi
 
 sr_require_nonempty_file "$DRIFT_REPORT_PATH" "drift report"
