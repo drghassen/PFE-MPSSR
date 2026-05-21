@@ -18,6 +18,6 @@ package cloudsentinel.shiftright.drift
 
 import rego.v1
 
-default _drift_exceptions_store := {}
+default _drift_exceptions_store := []
 
-_drift_exceptions_store := data.cloudsentinel.drift_exceptions
+_drift_exceptions_store := data.cloudsentinel.drift_exceptions.exceptions

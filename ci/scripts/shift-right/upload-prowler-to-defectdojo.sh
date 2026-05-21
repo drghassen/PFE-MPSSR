@@ -197,7 +197,7 @@ else
     --form-string "test_title=CloudSentinel Prowler (Shift-Right)" \
     --form-string "scan_date=${SCAN_DATE}" \
     --form-string "verified=true" \
-    --form-string "close_old_findings=true" \
+    --form-string "close_old_findings=false" \
     --form-string "close_old_findings_product_scope=false" \
     --form-string "deduplication_on_engagement=true" \
     --form-string "minimum_severity=Info")"
