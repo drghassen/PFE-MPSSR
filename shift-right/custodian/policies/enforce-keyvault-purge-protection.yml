@@ -1,0 +1,47 @@
+policies:
+  - name: enforce-keyvault-purge-protection
+    resource: azure.keyvault
+    description: |
+      Detects Azure Key Vaults where soft delete or purge protection is not enabled.
+
+      Without purge protection, a Key Vault and its secrets can be permanently deleted
+      before the retention period expires. An attacker with delete permissions — or an
+      accidental deletion — can destroy cryptographic material irreversibly, breaking
+      any dependent application.
+
+      Azure requires soft delete as a prerequisite for purge protection. Both must be
+      enabled simultaneously to guarantee a 7–90 day recovery window.
+
+      Detection logic:
+        1. Key Vaults where enableSoftDelete is absent or false.
+        2. Key Vaults where enablePurgeProtection is absent or false.
+        3. Key Vaults tagged cs-purge-protection-approved=true are excluded
+           (intentional legacy Key Vaults managed under a separate DR policy).
+
+      Hybrid operating model:
+        - Cloud Custodian: detection + traceability tag.
+        - IaC enforcement: Terraform policy CKV2_CS_AZ_029_key_expiration.py.
+        - Alerting/Ticketing: routed via CloudSentinel OPA L2 (ticket) or L3 (auto).
+
+      Note: purge protection cannot be DISABLED once enabled. Remediating an existing
+      Key Vault requires enabling it — this is always a safe, non-destructive action.
+
+    filters:
+      - not:
+        - type: value
+          key: "tags.cs-purge-protection-approved"
+          value: "true"
+      - or:
+        - type: value
+          key: "properties.enableSoftDelete"
+          value: true
+          op: ne
+        - type: value
+          key: "properties.enablePurgeProtection"
+          value: true
+          op: ne
+
+    actions:
+      - type: tag
+        tag: cs-violation
+        value: keyvault-no-purge-protection

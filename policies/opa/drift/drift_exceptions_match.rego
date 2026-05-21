@@ -34,6 +34,37 @@ _is_excepted_violation(v) if {
 	_drift_exception_matches(ex, v)
 }
 
+# ── Partial match diagnostics — mirrors shift-left gate_exceptions_match.rego ──
+# Surfaces near-miss exceptions (same resource_type, wrong resource_id) so that
+# operators can diagnose stale exceptions after resource rename/move.
+_drift_resource_type_mismatch(ex, v) if {
+	get_resource_type(ex) != v.resource_type
+}
+
+_drift_resource_id_mismatch(ex, v) if {
+	get_resource_id(ex) != v.resource_id
+}
+
+drift_partial_mismatch_reasons(ex, v) := reasons if {
+	reasons := array.concat(
+		[m | _drift_resource_type_mismatch(ex, v); m := sprintf("resource_type mismatch: exception='%s' violation='%s'", [get_resource_type(ex), v.resource_type])],
+		[m | _drift_resource_id_mismatch(ex, v); m := sprintf("resource_id mismatch: exception='%s' violation='%s'", [get_resource_id(ex), v.resource_id])],
+	)
+}
+
+# Near-miss audit: valid exceptions that share resource_type with a violation but do not match fully.
+drift_partial_matches_audit[item] if {
+	some v in violations
+	some ex in active_valid_drift_exceptions
+	get_resource_type(ex) == v.resource_type
+	not _drift_exception_matches(ex, v)
+	item := {
+		"exception_id": _drift_exception_id(ex),
+		"violation_resource_id": v.resource_id,
+		"mismatch_reasons": drift_partial_mismatch_reasons(ex, v),
+	}
+}
+
 # ── Violations effectives = violations brutes moins les exceptées ──
 # Exposé séparément pour ne pas casser le contrat violations[] existant.
 effective_violations := [v |

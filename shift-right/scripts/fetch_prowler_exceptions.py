@@ -128,6 +128,47 @@ def _stable_exception_id(finding: dict[str, Any]) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+def _resolve_user_id(
+    user_id: int,
+    base_url: str,
+    api_key: str,
+    cache: "dict[int, str]",
+) -> str:
+    """Resolve a DefectDojo integer user ID to a username via GET /api/v2/users/{id}/.
+
+    When DefectDojo returns `owner` as a bare integer (older serializer versions),
+    we must resolve it to a real username so that the four-eyes check
+    `requested_by != approved_by` compares two strings of the same kind.
+    Without this, the gate always passes trivially: "1" != "admin" is always true.
+    """
+    if user_id in cache:
+        return cache[user_id]
+    try:
+        url = f"{_normalize_dojo_base_url(base_url)}/api/v2/users/{user_id}/"
+        headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        username = _clean_text(resp.json().get("username", ""))
+        if username:
+            cache[user_id] = username
+            logger.info(
+                "prowler_exception_user_resolved",
+                user_id=user_id,
+                username=username,
+            )
+            return username
+    except Exception as exc:
+        logger.warning(
+            "prowler_exception_user_resolution_failed",
+            user_id=user_id,
+            error=str(exc),
+            hint="falling back to integer string — four-eyes may be trivially satisfied",
+        )
+    fallback = str(user_id)
+    cache[user_id] = fallback
+    return fallback
+
+
 def _clean_text(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
@@ -251,7 +292,11 @@ def _extract_resource_type(
 
 
 def _parse_ra_to_exception(
-    finding: dict[str, Any], scope: dict[str, Any]
+    finding: dict[str, Any],
+    scope: dict[str, Any],
+    base_url: str = "",
+    api_key: str = "",
+    user_cache: "dict[int, str] | None" = None,
 ) -> dict[str, Any] | None:
     if not finding.get("risk_accepted"):
         return None
@@ -277,16 +322,27 @@ def _parse_ra_to_exception(
 
     ra = accepted_risks[0]
 
+    _cache: dict[int, str] = user_cache if user_cache is not None else {}
     owner_dict = ra.get("owner")
     if isinstance(owner_dict, dict):
+        # Expanded object returned by DefectDojo serializer (preferred path).
         requested_by = str(owner_dict.get("username", "unknown"))
         requested_by_details = {"id": owner_dict.get("id"), "username": requested_by}
+    elif isinstance(owner_dict, int):
+        # DefectDojo returned a bare integer FK — resolve to username to avoid
+        # the trivial four-eyes bypass where "1" != "admin" always passes.
+        resolved = _resolve_user_id(owner_dict, base_url, api_key, _cache)
+        requested_by = resolved
+        requested_by_details = {"id": owner_dict, "username": resolved}
+    elif owner_dict is not None and str(owner_dict).isdigit():
+        # Stringified integer (same issue, different serializer path).
+        uid = int(owner_dict)
+        resolved = _resolve_user_id(uid, base_url, api_key, _cache)
+        requested_by = resolved
+        requested_by_details = {"id": uid, "username": resolved}
     else:
         requested_by = str(owner_dict) if owner_dict else "unknown"
-        requested_by_details = {
-            "id": int(owner_dict) if str(owner_dict).isdigit() else None,
-            "username": requested_by,
-        }
+        requested_by_details = {"id": None, "username": requested_by}
 
     approved_by = str(
         ra.get("accepted_by", {}).get("username", "unknown")
@@ -683,9 +739,15 @@ def main(argv: list[str]) -> int:
     exceptions: list[dict[str, Any]] = []
     dropped: list[dict[str, Any]] = []
     skipped = 0
+    user_cache: dict[int, str] = {}
 
     for ra in raw_ras:
-        ex = _parse_ra_to_exception(ra, scope)
+        ex = _parse_ra_to_exception(
+            ra, scope,
+            base_url=args.base_url,
+            api_key=args.api_key,
+            user_cache=user_cache,
+        )
         if ex is None:
             skipped += 1
             continue

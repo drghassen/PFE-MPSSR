@@ -103,6 +103,9 @@ valid_prowler_exception(ex) if {
 	ex.approved_by != ""
 	# 5. Four-eyes principle
 	ex.requested_by != ex.approved_by
+	# 5b. ID format: SHA256 hex (64 chars) — mirrors shift-left gate_exceptions_validate.rego
+	_prowler_exception_id(ex) != ""
+	regex.match("^[a-f0-9]{64}$", _prowler_exception_id(ex))
 	# 6. check_id non-empty
 	ex.check_id != ""
 	# 7. resource_id non-empty

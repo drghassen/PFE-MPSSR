@@ -1,0 +1,45 @@
+policies:
+  - name: enforce-sql-threat-detection
+    resource: azure.sql-server
+    description: |
+      Detects Azure SQL Servers where Microsoft Defender for SQL (Advanced Threat
+      Protection) is not enabled at the server level.
+
+      Microsoft Defender for SQL detects anomalous activities indicating unusual
+      and potentially harmful attempts to access or exploit SQL databases, including
+      SQL injection attacks, brute-force attacks, and access from suspicious
+      locations — and alerts the security team via email.
+
+      Disabling or not enabling Defender for SQL leaves the database with no
+      behavioural anomaly detection, meaning a SQL injection or credential
+      stuffing attack produces no automated alert.
+
+      Detection logic:
+        1. SQL Servers where the securityAlertPolicies state is not "Enabled".
+           Evaluated via the /securityAlertPolicies child resource exposed as
+           a JMESPath path on the parent azure.sql-server resource.
+        2. Servers tagged cs-defender-sql-approved=true are excluded
+           (intentional — e.g. non-production servers with separate SOC coverage).
+
+      Hybrid operating model:
+        - Cloud Custodian: detection + traceability tag.
+        - IaC enforcement: Terraform policy CKV2_CS_AZ_012_sql_encryption.py.
+        - Alerting/Ticketing: routed via CloudSentinel OPA L2 (ticket).
+
+      Note: enabling Defender for SQL via the API is a one-call, non-disruptive
+      operation. There is no restart required.
+
+    filters:
+      - not:
+        - type: value
+          key: "tags.cs-defender-sql-approved"
+          value: "true"
+      - type: value
+        key: "properties.state"
+        value: "Enabled"
+        op: ne
+
+    actions:
+      - type: tag
+        tag: cs-violation
+        value: sql-no-threat-detection

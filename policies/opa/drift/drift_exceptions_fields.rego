@@ -95,6 +95,8 @@ _drift_exceptions_list := object.get(_drift_exceptions_store, "exceptions", [])
 #  11. environments non-empty, matches input.environment
 #  12. repo/branch scope (optional — absent = matches all)
 
+_drift_known_severities := {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}
+
 valid_drift_exception(ex) if {
 	# 1. Source verified
 	ex.source == "defectdojo"
@@ -105,6 +107,9 @@ valid_drift_exception(ex) if {
 	ex.approved_by != ""
 	# 5. Four-eyes principle
 	ex.requested_by != ex.approved_by
+	# 5b. ID format: SHA256 hex (64 chars) — mirrors shift-left gate_exceptions_validate.rego
+	_drift_exception_id(ex) != ""
+	regex.match("^[a-f0-9]{64}$", _drift_exception_id(ex))
 	# 6. resource_type non-empty
 	ex.resource_type != ""
 	# 7. resource_id non-empty

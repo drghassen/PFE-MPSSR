@@ -145,8 +145,8 @@ def _draft_exception(
     occurrence_hash = sanitize_text(finding_raw.get("hash_code")).lower()
     finding_id = sanitize_text(finding_raw.get("id"))
 
-    requested_by = parse_requested_by(ra)
-    approved_by = parse_approved_by(ra)
+    requested_by = parse_requested_by(ctx, ra)
+    approved_by = parse_approved_by(ctx, ra)
     decision = parse_decision(ra)
     approved_at = parse_approved_at(ra)
     expires_at = parse_expires_at(ra)

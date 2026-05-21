@@ -16,6 +16,7 @@ from .fetch_utils import (
     normalize_severity,
     now_utc,
     parse_datetime,
+    resolve_user_id,
     sanitize_text,
     sanitize_username,
     sha256_hex,
@@ -42,6 +43,8 @@ class FetchContext:
     approver_allowlist: Set[str]
     fuzzy_threshold: float
     dropped: List[Dict[str, Any]] = field(default_factory=list)
+    # Cache for DefectDojo user ID → username resolution (four-eyes fix).
+    user_cache: Dict[int, str] = field(default_factory=dict)
 
 
 def stable_exception_id(
@@ -56,12 +59,32 @@ def stable_exception_id(
     return sha256_hex(seed)
 
 
-def parse_requested_by(ra: Dict[str, Any]) -> str:
-    return sanitize_username(cf(ra, "requested_by") or ra.get("owner"))
+def parse_requested_by(ctx: "FetchContext", ra: Dict[str, Any]) -> str:
+    direct = cf(ra, "requested_by")
+    if direct:
+        return sanitize_username(direct)
+    owner_raw = ra.get("owner")
+    if isinstance(owner_raw, dict):
+        return sanitize_username(owner_raw.get("username", ""))
+    if isinstance(owner_raw, int):
+        return resolve_user_id(owner_raw, ctx.dojo_url, ctx.dojo_api_key, ctx.user_cache)
+    if owner_raw is not None and str(owner_raw).strip().isdigit():
+        return resolve_user_id(int(owner_raw), ctx.dojo_url, ctx.dojo_api_key, ctx.user_cache)
+    return sanitize_username(owner_raw)
 
 
-def parse_approved_by(ra: Dict[str, Any]) -> str:
-    return sanitize_username(cf(ra, "approved_by") or ra.get("accepted_by"))
+def parse_approved_by(ctx: "FetchContext", ra: Dict[str, Any]) -> str:
+    direct = cf(ra, "approved_by")
+    if direct:
+        return sanitize_username(direct)
+    accepted_raw = ra.get("accepted_by")
+    if isinstance(accepted_raw, dict):
+        return sanitize_username(accepted_raw.get("username", ""))
+    if isinstance(accepted_raw, int):
+        return resolve_user_id(accepted_raw, ctx.dojo_url, ctx.dojo_api_key, ctx.user_cache)
+    if accepted_raw is not None and str(accepted_raw).strip().isdigit():
+        return resolve_user_id(int(accepted_raw), ctx.dojo_url, ctx.dojo_api_key, ctx.user_cache)
+    return sanitize_username(accepted_raw)
 
 
 def parse_decision(ra: Dict[str, Any]) -> str:

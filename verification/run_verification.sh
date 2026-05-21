@@ -186,6 +186,53 @@ _verify_sql_no_public_network() {
   return 1
 }
 
+# enforce-keyvault-purge-protection
+# Passes when both enableSoftDelete=true AND enablePurgeProtection=true.
+_verify_keyvault_purge_protection() {
+  _require_az || return 2
+  local soft_delete purge_protection
+  soft_delete="$(az keyvault show --id "$RESOURCE_ID" \
+    --query 'properties.enableSoftDelete' -o tsv 2>/dev/null)" \
+    || { echo "az keyvault query failed for $RESOURCE_ID" >&2; return 2; }
+  purge_protection="$(az keyvault show --id "$RESOURCE_ID" \
+    --query 'properties.enablePurgeProtection' -o tsv 2>/dev/null)" \
+    || { echo "az keyvault query failed for $RESOURCE_ID" >&2; return 2; }
+  if [[ "${soft_delete,,}" == "true" && "${purge_protection,,}" == "true" ]]; then
+    return 0
+  fi
+  echo "keyvault missing purge protection for $RESOURCE_ID (softDelete=${soft_delete}, purgeProtection=${purge_protection})" >&2
+  return 1
+}
+
+# enforce-appservice-https
+# Passes when httpsOnly=true on the App Service.
+_verify_appservice_https() {
+  _require_az || return 2
+  local https_only
+  https_only="$(az webapp show --ids "$RESOURCE_ID" \
+    --query 'httpsOnly' -o tsv 2>/dev/null)" \
+    || { echo "az webapp query failed for $RESOURCE_ID" >&2; return 2; }
+  if [[ "${https_only,,}" == "true" ]]; then return 0; fi
+  echo "app service httpsOnly is '${https_only}' (want true) for $RESOURCE_ID" >&2
+  return 1
+}
+
+# enforce-sql-threat-detection
+# Passes when the Default security alert policy is Enabled on the SQL server.
+_verify_sql_threat_detection() {
+  _require_az || return 2
+  local state
+  state="$(az sql server threat-policy show --ids "$RESOURCE_ID" \
+    --query 'state' -o tsv 2>/dev/null)" \
+    || { echo "az sql threat-policy query failed for $RESOURCE_ID" >&2; return 2; }
+  if [[ -z "$state" ]]; then
+    echo "az sql threat-policy returned empty result for $RESOURCE_ID" >&2; return 2
+  fi
+  if [[ "${state^^}" == "ENABLED" ]]; then return 0; fi
+  echo "sql threat detection state is '${state}' (want Enabled) for $RESOURCE_ID" >&2
+  return 1
+}
+
 # ── Policy dispatcher ─────────────────────────────────────────────────────────
 
 _is_known_policy() {
@@ -199,7 +246,13 @@ _is_known_policy() {
     prowler:storage_container_public_access_level_is_private|\
     enforce-storage-container-private|\
     enforce-storage-tls|\
-    enforce-sql-no-public-network)
+    enforce-sql-no-public-network|\
+    enforce-keyvault-purge-protection|\
+    prowler:keyvault_soft_delete_is_enabled|\
+    enforce-appservice-https|\
+    prowler:app_ensure_https_is_enforced|\
+    enforce-sql-threat-detection|\
+    prowler:sqlserver_threat_detection_types_all)
       return 0 ;;
     *) return 1 ;;
   esac
@@ -225,6 +278,15 @@ _run_check() {
       _verify_enforce_storage_tls ;;
     enforce-sql-no-public-network)
       _verify_sql_no_public_network ;;
+    enforce-keyvault-purge-protection|\
+    prowler:keyvault_soft_delete_is_enabled)
+      _verify_keyvault_purge_protection ;;
+    enforce-appservice-https|\
+    prowler:app_ensure_https_is_enforced)
+      _verify_appservice_https ;;
+    enforce-sql-threat-detection|\
+    prowler:sqlserver_threat_detection_types_all)
+      _verify_sql_threat_detection ;;
   esac
 }
 

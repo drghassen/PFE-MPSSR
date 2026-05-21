@@ -1,0 +1,41 @@
+policies:
+  - name: enforce-appservice-https
+    resource: azure.webapp
+    description: |
+      Detects Azure App Services where HTTPS-only mode is not enforced.
+
+      When httpsOnly is false, the application accepts plaintext HTTP connections.
+      Session tokens, authentication cookies, and API keys transmitted over HTTP
+      are visible to any network observer — enabling session hijacking and
+      credential theft without requiring any additional attacker capability.
+
+      Azure App Service's httpsOnly flag automatically redirects all HTTP traffic
+      to HTTPS at the platform level, with zero code change required.
+
+      Detection logic:
+        1. Web Apps where properties.httpsOnly is false or absent.
+        2. Apps tagged cs-http-allowed=true are excluded (intentional HTTP-only
+           internal apps, e.g. health-check probes that cannot use HTTPS).
+
+      Hybrid operating model:
+        - Cloud Custodian: detection + traceability tag.
+        - IaC enforcement: Terraform policy CKV2_CS_AZ_026_appservice_tls.py.
+        - Alerting/Ticketing: routed via CloudSentinel OPA L2 (ticket).
+
+      Note: enabling httpsOnly does NOT restart the application and takes effect
+      immediately. It is safe to tag-and-remediate in production.
+
+    filters:
+      - not:
+        - type: value
+          key: "tags.cs-http-allowed"
+          value: "true"
+      - type: value
+        key: "properties.httpsOnly"
+        value: true
+        op: ne
+
+    actions:
+      - type: tag
+        tag: cs-violation
+        value: appservice-http-allowed

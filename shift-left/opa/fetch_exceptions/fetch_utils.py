@@ -41,6 +41,50 @@ TRIVY_SECRET_RULE_ALIASES = {
 }
 
 
+def resolve_user_id(
+    user_id: int,
+    dojo_url: str,
+    dojo_api_key: str,
+    cache: "Dict[int, str]",
+) -> str:
+    """Resolve a DefectDojo integer user ID to a username via GET /api/v2/users/{id}/.
+
+    When DefectDojo returns `owner` or `accepted_by` as a bare integer (older
+    serializer versions), we must resolve it to a real username so that the
+    four-eyes check `requested_by != approved_by` compares two usernames of the
+    same kind. Without this, the gate passes trivially: "1" != "admin" is always
+    true — a governance bypass in disguise.
+    """
+    if user_id in cache:
+        return cache[user_id]
+
+    try:
+        import urllib.request
+
+        base = dojo_url.strip().rstrip("/")
+        if base.endswith("/api/v2"):
+            base = base[: -len("/api/v2")]
+        url = f"{base}/api/v2/users/{user_id}/"
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Token {dojo_api_key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            import json as _json
+
+            data = _json.loads(resp.read().decode("utf-8"))
+            username = sanitize_text(data.get("username", "")).lower()
+            if username:
+                cache[user_id] = username
+                return username
+    except Exception:
+        pass
+
+    fallback = str(user_id)
+    cache[user_id] = fallback
+    return fallback
+
+
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 

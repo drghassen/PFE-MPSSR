@@ -61,6 +61,30 @@
     },
     "CKV_AWS_21": {
       "remediation_supported": false
+    },
+    "enforce-keyvault-purge-protection": {
+      "remediation_supported": false,
+      "custodian_policy": "enforce-keyvault-purge-protection",
+      "verification_script": "verify_keyvault_purge_protection.sh"
+    },
+    "enforce-appservice-https": {
+      "remediation_supported": false,
+      "custodian_policy": "enforce-appservice-https",
+      "verification_script": "verify_appservice_https.sh"
+    },
+    "enforce-sql-threat-detection": {
+      "remediation_supported": false,
+      "custodian_policy": "enforce-sql-threat-detection",
+      "verification_script": "verify_sql_threat_detection.sh"
+    },
+    "prowler:keyvault_soft_delete_is_enabled": {
+      "remediation_supported": false
+    },
+    "prowler:app_ensure_https_is_enforced": {
+      "remediation_supported": false
+    },
+    "prowler:sqlserver_threat_detection_types_all": {
+      "remediation_supported": false
     }
   }
 }
