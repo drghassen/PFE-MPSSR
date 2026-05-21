@@ -9,6 +9,8 @@ package cloudsentinel.shiftright.drift
 
 import rego.v1
 
+valid_drift_exception_id := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Groupe 1 — Defaults et fail-safe (valide P0.1)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -499,6 +501,7 @@ test_unknown_type_has_null_custodian_policy if {
 # Every exception must declare at least one explicit target environment.
 test_exception_with_empty_environments_is_universal if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -515,6 +518,7 @@ test_exception_with_empty_environments_is_universal if {
 # B4: exception with matching environment is valid
 test_exception_matching_environment_is_valid if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -531,6 +535,7 @@ test_exception_matching_environment_is_valid if {
 # B4: exception with non-matching environment is rejected
 test_exception_wrong_environment_is_rejected if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -551,6 +556,7 @@ test_exception_wrong_environment_is_rejected if {
 # B6: exception where expires_at precedes approved_at is rejected
 test_exception_expires_before_approved_is_rejected if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -568,6 +574,7 @@ test_exception_expires_before_approved_is_rejected if {
 # B6: well-formed exception with correct temporal order is accepted
 test_exception_correct_temporal_order_is_accepted if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -588,6 +595,7 @@ test_exception_correct_temporal_order_is_accepted if {
 # B10: wildcard * in resource_type is rejected
 test_exception_wildcard_resource_type_star_rejected if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -604,6 +612,7 @@ test_exception_wildcard_resource_type_star_rejected if {
 # B10: wildcard ? in resource_id is rejected
 test_exception_wildcard_resource_id_question_mark_rejected if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -620,6 +629,7 @@ test_exception_wildcard_resource_id_question_mark_rejected if {
 # B10: wildcard * in resource_id is rejected
 test_exception_wildcard_resource_id_star_rejected if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -636,6 +646,7 @@ test_exception_wildcard_resource_id_star_rejected if {
 # B10: exception with no wildcards and exact resource_id is accepted
 test_exception_no_wildcard_is_accepted if {
 	ex := {
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"requested_by": "alice",
@@ -667,6 +678,7 @@ test_effective_violations_excludes_approved_exception if {
 
 	exceptions_doc := {
 		"exceptions": [{
+			"id": valid_drift_exception_id,
 			"source": "defectdojo",
 			"status": "approved",
 			"resource_type": "azurerm_storage_account",
@@ -699,6 +711,7 @@ test_excepted_violations_contains_suppressed_item if {
 
 	exceptions_doc := {
 		"exceptions": [{
+			"id": valid_drift_exception_id,
 			"source": "defectdojo",
 			"status": "approved",
 			"resource_type": "azurerm_storage_account",
@@ -727,6 +740,7 @@ test_excepted_violations_contains_suppressed_item if {
 # indéfiniment pour une donnée obsolète — faux positif de gouvernance.
 test_expired_exception_does_not_trigger_deny if {
 	exceptions_doc := {"exceptions": [{
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"resource_type": "azurerm_storage_account",
@@ -755,6 +769,7 @@ test_expired_exception_does_not_trigger_deny if {
 # sans impacter valid_exceptions ni excepted_violations.
 test_expired_exception_counted_in_summary if {
 	exceptions_doc := {"exceptions": [{
+		"id": valid_drift_exception_id,
 		"source": "defectdojo",
 		"status": "approved",
 		"resource_type": "azurerm_storage_account",

@@ -2,6 +2,8 @@ package cloudsentinel.shiftright.prowler
 
 import rego.v1
 
+valid_prowler_exception_id := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
 base_input := {
   "environment": "production",
   "repo": "group/project",
@@ -150,6 +152,7 @@ test_exception_removes_effective_violation if {
     with data.cloudsentinel.prowler_exceptions as {
       "exceptions": [
         {
+          "id": valid_prowler_exception_id,
           "source": "defectdojo",
           "status": "approved",
           "check_id": "storage_default_network_access_rule_is_denied",
@@ -185,6 +188,7 @@ test_exception_with_missing_resource_type_is_rejected if {
     with data.cloudsentinel.prowler_exceptions as {
       "exceptions": [
         {
+          "id": valid_prowler_exception_id,
           "source": "defectdojo",
           "status": "approved",
           "check_id": "storage_default_network_access_rule_is_denied",
@@ -193,6 +197,7 @@ test_exception_with_missing_resource_type_is_rejected if {
           "requested_by": "alice",
           "approved_by": "bob",
           "approved_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
           "environments": ["production"],
         }
       ],
@@ -219,6 +224,7 @@ test_exception_with_mismatched_resource_type_does_not_match if {
     with data.cloudsentinel.prowler_exceptions as {
       "exceptions": [
         {
+          "id": valid_prowler_exception_id,
           "source": "defectdojo",
           "status": "approved",
           "check_id": "storage_default_network_access_rule_is_denied",
@@ -227,6 +233,7 @@ test_exception_with_mismatched_resource_type_does_not_match if {
           "requested_by": "alice",
           "approved_by": "bob",
           "approved_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2027-01-01T00:00:00Z",
           "environments": ["production"],
         }
       ],
