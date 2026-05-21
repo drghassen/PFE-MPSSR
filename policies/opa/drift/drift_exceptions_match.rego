@@ -29,7 +29,7 @@ _drift_exception_matches(ex, v) if {
 
 # ── Prédicat : la violation est-elle couverte par une exception valide ? ──
 _is_excepted_violation(v) if {
-	some ex in object.get(_drift_exceptions_store, "exceptions", [])
+	some ex in _drift_exceptions_list
 	valid_drift_exception(ex)
 	_drift_exception_matches(ex, v)
 }
@@ -48,13 +48,13 @@ excepted_violations := [v |
 
 # ── Métriques d'exceptions pour audit et traçabilité ──
 drift_exception_summary := {
-	"total_exceptions_loaded": count(object.get(_drift_exceptions_store, "exceptions", [])),
+	"total_exceptions_loaded": count(_drift_exceptions_list),
 	"valid_exceptions": count([ex |
-		some ex in object.get(_drift_exceptions_store, "exceptions", [])
+		some ex in _drift_exceptions_list
 		valid_drift_exception(ex)
 	]),
 	"expired_exceptions": count([ex |
-		some ex in object.get(_drift_exceptions_store, "exceptions", [])
+		some ex in _drift_exceptions_list
 		_drift_exception_is_expired(ex)
 	]),
 	"excepted_violations": count(excepted_violations),

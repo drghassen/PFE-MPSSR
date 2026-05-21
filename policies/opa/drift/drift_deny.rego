@@ -59,7 +59,7 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	some ex in object.get(_drift_exceptions_store, "exceptions", [])
+	some ex in _drift_exceptions_list
 	not ex.repos
 	not ex.branches
 	not object.get(object.get(input, "meta", {}), "allow_legacy_exceptions", false)
