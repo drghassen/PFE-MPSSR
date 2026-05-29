@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# jq filters below use $vars supplied by jq --arg/--argjson.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 # Shared fail-closed helpers for CloudSentinel shift-right scripts.

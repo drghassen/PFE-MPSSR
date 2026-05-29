@@ -103,7 +103,9 @@ export ARM_STORAGE_USE_AZUREAD=true
 # Sanitize TFSTATE key: strip path separators to prevent traversal.
 # CI_COMMIT_REF_SLUG is derived from branch name — treat as untrusted input.
 TFSTATE_KEY_RAW="${TFSTATE_KEY:-student-secure-${CI_COMMIT_REF_SLUG}.tfstate}"
-TFSTATE_KEY_SAFE="$(echo "${TFSTATE_KEY_RAW}" | tr -d '/\\' | sed 's/\.\.//g')"
+TFSTATE_KEY_SAFE="${TFSTATE_KEY_RAW//\//}"
+TFSTATE_KEY_SAFE="${TFSTATE_KEY_SAFE//\\/}"
+TFSTATE_KEY_SAFE="${TFSTATE_KEY_SAFE//../}"
 if [[ "${TFSTATE_KEY_SAFE}" != "${TFSTATE_KEY_RAW}" ]]; then
   echo "[deploy][SECURITY] TFSTATE key sanitized: '${TFSTATE_KEY_RAW}' → '${TFSTATE_KEY_SAFE}'" >&2
 fi

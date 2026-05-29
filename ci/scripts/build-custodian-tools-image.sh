@@ -1,4 +1,6 @@
 #!/busybox/sh
+# BusyBox ash in the Kaniko image supports pipefail.
+# shellcheck disable=SC3040
 set -euo pipefail
 
 mkdir -p /kaniko/.docker

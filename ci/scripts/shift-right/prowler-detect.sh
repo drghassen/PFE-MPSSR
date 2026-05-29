@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# jq filters below use $vars supplied by jq --arg/--argjson.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 source ci/scripts/shift-right/lib/pipeline-guard.sh
@@ -159,7 +161,12 @@ else
 
   OCSF_PATH="$(find "$PROWLER_OUTPUT_DIR" -maxdepth 1 -type f -name 'prowler-output-*.ocsf.json' -newer "$marker_file" -print | sort | tail -n1)"
   if [[ -z "$OCSF_PATH" ]]; then
-    OCSF_PATH="$(ls -1t "$PROWLER_OUTPUT_DIR"/prowler-output-*.ocsf.json 2>/dev/null | head -n1 || true)"
+    OCSF_PATH="$(
+      find "$PROWLER_OUTPUT_DIR" -maxdepth 1 -type f -name 'prowler-output-*.ocsf.json' \
+        -printf '%T@ %p\n' 2>/dev/null |
+        sort -nr |
+        awk 'NR == 1 {sub(/^[^ ]+ /, ""); print}'
+    )"
   fi
 
   rm -f "$marker_file"

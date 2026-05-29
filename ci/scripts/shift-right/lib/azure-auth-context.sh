@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# jq filters below use $vars supplied by jq --arg/--argjson.
+# shellcheck disable=SC2016
 # Sourced by shift-right scripts requiring Azure authentication.
 # Requires: pipeline-guard.sh must be sourced before this file.
 #

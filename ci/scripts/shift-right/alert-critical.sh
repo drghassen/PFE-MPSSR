@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# jq filters below use $vars supplied by jq --arg/--argjson.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 source ci/scripts/shift-right/lib/pipeline-guard.sh
@@ -205,7 +207,8 @@ sr_audit "WARN" "alert_triggered" "L2/L3 findings detected; sending alert" "$(sr
   --argjson total_l1 "$TOTAL_L1" \
   --argjson total_l2 "$TOTAL_L2" \
   --argjson total_l3 "$TOTAL_L3" \
-  '{channel:$channel, priority:$priority, subject:$subject, pipeline_correlation_id:$correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason, l0_count:$total_l0, l1_count:$total_l1, l2_count:$total_l2, l3_count:$total_l3}')"
+  --argjson total_actionable "$TOTAL_ACTIONABLE" \
+  '{channel:$channel, priority:$priority, subject:$subject, pipeline_correlation_id:$correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason, l0_count:$total_l0, l1_count:$total_l1, l2_count:$total_l2, l3_count:$total_l3, actionable_count:$total_actionable}')"
 
 if [[ "$CHANNEL" == "teams" ]]; then
   sr_require_env TEAMS_WEBHOOK_URL
@@ -428,10 +431,11 @@ else
     --arg priority "$ALERT_PRIORITY" \
     --argjson l3_count "$TOTAL_L3" \
     --argjson l2_count "$TOTAL_L2" \
+    --argjson actionable_count "$TOTAL_ACTIONABLE" \
     --arg pipeline_correlation_id "$CORRELATION_ID" \
     --arg pipeline_url "$PIPELINE_URL" \
     --arg block_reason "$BLOCK_REASON" \
-    '{title:$title, description:$description, labels:$labels, priority:$priority, l3_count:$l3_count, l2_count:$l2_count, pipeline_correlation_id:$pipeline_correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason}')"
+    '{title:$title, description:$description, labels:$labels, priority:$priority, l3_count:$l3_count, l2_count:$l2_count, actionable_count:$actionable_count, pipeline_correlation_id:$pipeline_correlation_id, pipeline_url:$pipeline_url, block_reason:$block_reason}')"
 
   if [[ -n "${GITLAB_API_TOKEN:-}" ]]; then
     GITLAB_AUTH_HEADER="PRIVATE-TOKEN: ${GITLAB_API_TOKEN}"
@@ -454,6 +458,7 @@ sr_audit "INFO" "alert_sent" "runtime alert delivered" "$(sr_build_details \
   --arg generated_at_utc "$GENERATED_AT_UTC" \
   --argjson l3_count "$TOTAL_L3" \
   --argjson l2_count "$TOTAL_L2" \
-  '{channel:$channel, priority:$priority, pipeline_correlation_id:$correlation_id, generated_at_utc:$generated_at_utc, l3_count:$l3_count, l2_count:$l2_count}')"
+  --argjson actionable_count "$TOTAL_ACTIONABLE" \
+  '{channel:$channel, priority:$priority, pipeline_correlation_id:$correlation_id, generated_at_utc:$generated_at_utc, l3_count:$l3_count, l2_count:$l2_count, actionable_count:$actionable_count}')"
 
 exit 0
