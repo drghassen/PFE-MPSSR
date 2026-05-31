@@ -47,6 +47,38 @@ fi
 # Distributed integrity model: the consumer verifies before using the artifact.
 bash ci/scripts/verify-hmac.sh "${artifact}"
 
+sign_decision_artifact() {
+  local decision_artifact=".cloudsentinel/opa_decision.json"
+
+  if [[ ! -s "${decision_artifact}" ]]; then
+    echo "[opa-decision][ERROR] Missing/empty decision artifact: ${decision_artifact}" >&2
+    return 1
+  fi
+
+  if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      python3 ci/scripts/shift-left/artifact_hmac.py sign "${decision_artifact}"
+    else
+      openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${decision_artifact}" | awk '{print $NF}' > "${decision_artifact}.hmac"
+      echo "[artifact-hmac] Signed   ${decision_artifact} -> ${decision_artifact}.hmac"
+    fi
+  elif [[ -n "${CI:-}" ]]; then
+    echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
+    echo "[opa-decision][ERROR] Cannot sign decision artifact for downstream integrity checks." >&2
+    return 1
+  else
+    echo "[opa-decision][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping decision artifact signing (non-CI mode)."
+  fi
+
+  if [[ -n "${CI:-}" ]] && [[ ! -s "${decision_artifact}.hmac" ]]; then
+    echo "[opa-decision][ERROR] Missing/empty HMAC sidecar after signing: ${decision_artifact}.hmac" >&2
+    return 1
+  fi
+
+  # Ensure downstream jobs can read decision artifacts.
+  chmod a+r .cloudsentinel/opa_decision.json .cloudsentinel/opa_decision.json.hmac .cloudsentinel/decision_audit_events.jsonl .cloudsentinel/audit_events.jsonl 2>/dev/null || true
+}
+
 # Generate ephemeral auth token for this CI run
 OPA_AUTH_TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 export OPA_AUTH_TOKEN
@@ -63,7 +95,7 @@ opa run --server --addr=127.0.0.1:8181 \
   --authorization=basic \
   --log-level=info \
   --log-format=json \
-  --set=decision_logs.console=true \
+  --set=decision_logs.console=false \
   policies/opa/gate \
   policies/opa/system/authz.rego \
   .cloudsentinel/exceptions.json \
@@ -100,7 +132,12 @@ fi
 _opa_rc=0
 OPA_REQUIRE_SERVER=true OPA_SERVER_URL="http://127.0.0.1:8181" bash shift-left/opa/run-opa.sh --enforce || _opa_rc=$?
 if [[ "$_opa_rc" -ne 0 ]]; then
-  echo "[opa-decision][ERROR] run-opa.sh exited with code ${_opa_rc}. OPA server log:" >&2
+  if [[ -s ".cloudsentinel/opa_decision.json" ]]; then
+    sign_decision_artifact
+    exit "$_opa_rc"
+  fi
+
+  echo "[opa-decision][ERROR] run-opa.sh exited with code ${_opa_rc} before producing a decision artifact. OPA server log:" >&2
   if [[ -s /tmp/opa-server.log ]]; then
     tail -n 100 /tmp/opa-server.log >&2
   else
@@ -110,26 +147,4 @@ if [[ "$_opa_rc" -ne 0 ]]; then
 fi
 
 # Sign OPA decision so downstream consumers (deploy/reporting) can verify integrity.
-decision_artifact=".cloudsentinel/opa_decision.json"
-if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    python3 ci/scripts/shift-left/artifact_hmac.py sign "${decision_artifact}"
-  else
-    openssl dgst -sha256 -hmac "${CLOUDSENTINEL_HMAC_SECRET}" "${decision_artifact}" | awk '{print $NF}' > "${decision_artifact}.hmac"
-    echo "[artifact-hmac] Signed   ${decision_artifact} -> ${decision_artifact}.hmac"
-  fi
-elif [[ -n "${CI:-}" ]]; then
-  echo "[opa-decision][ERROR] CLOUDSENTINEL_HMAC_SECRET is not set in CI." >&2
-  echo "[opa-decision][ERROR] Cannot sign decision artifact for downstream integrity checks." >&2
-  exit 1
-else
-  echo "[opa-decision][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping decision artifact signing (non-CI mode)."
-fi
-
-if [[ -n "${CI:-}" ]] && [[ ! -s "${decision_artifact}.hmac" ]]; then
-  echo "[opa-decision][ERROR] Missing/empty HMAC sidecar after signing: ${decision_artifact}.hmac" >&2
-  exit 1
-fi
-
-# Ensure downstream jobs can read decision artifacts.
-chmod a+r .cloudsentinel/opa_decision.json .cloudsentinel/opa_decision.json.hmac .cloudsentinel/decision_audit_events.jsonl .cloudsentinel/audit_events.jsonl 2>/dev/null || true
+sign_decision_artifact
