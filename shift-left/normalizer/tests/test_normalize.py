@@ -37,6 +37,7 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
         self.tracked_files = [
             self.cloud_dir / "gitleaks_raw.json",
             self.cloud_dir / "checkov_raw.json",
+            self.cloud_dir / "cloudinit_analysis.json",
             self.cloud_dir / "golden_report.json",
             self.trivy_raw_dir / "trivy-fs-raw.json",
             self.trivy_raw_dir / "trivy-config-raw.json",
@@ -106,6 +107,14 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
                 }
             },
         )
+        self._write(
+            self.cloud_dir / "cloudinit_analysis.json",
+            {
+                "schema_version": "1.0.0",
+                "resources_analyzed": [],
+                "summary": {"parse_errors": []},
+            },
+        )
         if include_trivy:
             empty = {"SchemaVersion": 2, "Trivy": {"Version": "0.69.1"}, "Results": []}
             self._write(self.trivy_raw_dir / "trivy-fs-raw.json", empty)
@@ -152,6 +161,13 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
         with (self.cloud_dir / "golden_report.json").open("r", encoding="utf-8") as f:
             report = json.load(f)
         self.assertEqual(report["scanners"]["trivy"]["status"], "NOT_RUN")
+
+    def test_cloudinit_empty_resources_is_passed_not_not_run(self):
+        report = self._generate()
+        self.assertEqual(report["scanners"]["cloudinit"]["status"], "PASSED")
+        self.assertEqual(report["summary"]["by_tool"]["cloudinit"]["status"], "PASSED")
+        self.assertEqual(report["resources_analyzed"], [])
+        self.assertNotIn("cloudinit", report["quality_gate"]["details"]["not_run_scanners"])
 
     def test_summary_non_negative(self):
         report = self._generate()

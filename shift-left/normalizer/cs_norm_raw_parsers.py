@@ -588,8 +588,8 @@ class NormalizerRawParsersMixin:
             return self._not_run("cloudinit", tool_path, "skipped_local_fast")
 
         if not cloudinit_path.is_file():
-            # Non-blocking absence: cloud-init scanner only runs when VMs are present.
-            # Treat as NOT_RUN (advisory) rather than hard failure.
+            # Missing artifact means the detector did not execute or its artifact was
+            # lost. That is different from a valid scan finding no VM resources.
             return self._not_run(
                 "cloudinit", tool_path, f"missing_report:{cloudinit_path}"
             )
@@ -677,7 +677,10 @@ class NormalizerRawParsersMixin:
                 })
 
         scanner_version = str(doc.get("schema_version", "1.0.0"))
-        status = "OK" if resources else "NOT_RUN"
+        # A valid cloud-init report with zero VM resources is a completed scan with
+        # no applicable targets. It must be PASSED, not NOT_RUN/advisory, otherwise
+        # repositories without VMs are falsely blocked by the required-scanner gate.
+        status = "OK"
         rep = {
             "tool": "cloudinit",
             "version": scanner_version,

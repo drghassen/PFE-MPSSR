@@ -8,6 +8,7 @@ BACKUP_DIR="$(mktemp -d -t cs-normalizer-smoke-backup-XXXXXX)"
 FILES=(
   "gitleaks_raw.json"
   "checkov_raw.json"
+  "cloudinit_analysis.json"
   "golden_report.json"
 )
 TRIVY_RAW_DIR="$REPO_ROOT/shift-left/trivy/reports/raw"
@@ -66,6 +67,9 @@ JSON
 cat > "$TRIVY_RAW_DIR/trivy-image-raw.json" <<'JSON'
 {"SchemaVersion":2,"Trivy":{"Version":"0.69.1"},"Results":[]}
 JSON
+cat > "$CLOUD_DIR/cloudinit_analysis.json" <<'JSON'
+{"schema_version":"1.0.0","resources_analyzed":[],"summary":{"parse_errors":[]}}
+JSON
 
 export CLOUDSENTINEL_SCHEMA_STRICT="false"
 export CLOUDSENTINEL_EXECUTION_MODE="local"
@@ -76,5 +80,6 @@ jq -e '.schema_version | type == "string"' "$CLOUD_DIR/golden_report.json" >/dev
 jq -e '.findings | type == "array"' "$CLOUD_DIR/golden_report.json" >/dev/null
 jq -e '.quality_gate.thresholds | type == "object"' "$CLOUD_DIR/golden_report.json" >/dev/null
 jq -e '.summary.global | type == "object"' "$CLOUD_DIR/golden_report.json" >/dev/null
+jq -e '.scanners.cloudinit.status == "PASSED"' "$CLOUD_DIR/golden_report.json" >/dev/null
 
 echo "[smoke][normalizer] PASS"

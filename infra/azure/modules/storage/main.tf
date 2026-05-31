@@ -5,10 +5,10 @@ resource "azurerm_storage_account" "this" {
   account_tier                      = "Standard"
   account_replication_type          = "LRS"
   account_kind                      = "StorageV2"
-  min_tls_version                   = "TLS1_2"
-  https_traffic_only_enabled        = true
+  min_tls_version                   = "TLS1_0"
+  https_traffic_only_enabled        = false
   public_network_access_enabled     = true
-  allow_nested_items_to_be_public   = false
+  allow_nested_items_to_be_public   = true
   shared_access_key_enabled         = true
   default_to_oauth_authentication   = true
   cross_tenant_replication_enabled  = false

@@ -2,8 +2,8 @@ locals {
   cloud_init_vm1 = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
     vm_role = "web-server"
   }))
-  cloud_init_vm2 = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
-    vm_role = "app-server"
+  cloud_init_vm2 = base64encode(templatefile("${path.module}/templates/cloud-init-role-spoofing.yaml.tftpl", {
+    vm_role = "web-server"
   }))
 }
 
@@ -90,7 +90,7 @@ resource "azurerm_linux_virtual_machine" "vm2" {
   size                  = var.vm_size
   admin_username        = var.admin_username
   custom_data           = local.cloud_init_vm2
-  tags                  = merge(var.tags, { "cs:role" = "app-server" })
+  tags                  = merge(var.tags, { "cs:role" = "web-server" })
 
   disable_password_authentication = true
   allow_extension_operations      = false

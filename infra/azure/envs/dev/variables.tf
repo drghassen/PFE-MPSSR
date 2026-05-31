@@ -105,7 +105,7 @@ variable "storage_allowed_ip_rules" {
 
 variable "aci_image" {
   type    = string
-  default = "mcr.microsoft.com/azuredocs/aci-helloworld:latest"
+  default = "python:3.8-slim-buster"
 }
 
 variable "aci_cpu" {
