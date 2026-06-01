@@ -12,6 +12,21 @@ source ci/scripts/setup-custom-ca.sh
 source ci/scripts/shift-left/audit-utils.sh
 trap 'cloudsentinel_finalize_audit "$?" "normalize-reports" "normalize" "normalizer" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_head_raw.json" ".cloudsentinel/gitleaks_range_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/dropped_exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
 
+line() {
+  printf '%s\n' '==============================================================================='
+}
+
+print_header() {
+  line
+  printf 'CloudSentinel Normalization\n'
+  line
+  printf 'Purpose : Normalize scanner outputs into the Golden Report before OPA decision\n'
+  printf 'Scope   : Gitleaks + Checkov + Trivy + Cloud-init\n'
+  printf 'Mode    : fail-closed schema and artifact integrity contract\n'
+  printf 'Report  : .cloudsentinel/golden_report.json\n'
+  line
+}
+
 list_input_artifacts() {
   local artifacts=(
 	    ".cloudsentinel/gitleaks_raw.json"
@@ -21,13 +36,19 @@ list_input_artifacts() {
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
   )
-  echo "[normalize-reports][debug] Input artifacts inventory:"
+  line
+  printf 'Input Artifact Inventory\n'
+  line
+  printf '%-36s %-10s %-12s %s\n' 'Artifact' 'Status' 'Size' 'Path'
+  printf '%-36s %-10s %-12s %s\n' '--------' '------' '----' '----'
   for file in "${artifacts[@]}"; do
     if [[ -f "$file" ]]; then
       size="$(wc -c < "$file" | tr -d ' ')"
-      echo "[normalize-reports][debug] - ${file} size=${size}B"
+      artifact="$(basename "$file")"
+      printf '%-36s %-10s %-12s %s\n' "${artifact}" "present" "${size}B" "${file}"
     else
-      echo "[normalize-reports][debug] - ${file} MISSING"
+      artifact="$(basename "$file")"
+      printf '%-36s %-10s %-12s %s\n' "${artifact}" "missing" "-" "${file}"
     fi
   done
 }
@@ -48,7 +69,7 @@ debug_trivy_results_shape() {
           "Results:<missing>"
         end
       ' "$file" 2>/dev/null || echo "Results:<unknown>")"
-      echo "[normalize-reports][debug] - ${file}: ${shape}"
+      echo "[normalize-reports][debug] ${file}: ${shape}"
     fi
   done
 }
@@ -66,17 +87,259 @@ log_scan_id_propagation() {
   if [[ "$include_golden" == "true" ]]; then
     files+=(".cloudsentinel/golden_report.json")
   fi
-  echo "[normalize-reports][debug] scan_id propagation:"
+  line
+  printf 'Scan ID Propagation\n'
+  line
+  printf '%-36s %-12s %s\n' 'Artifact' 'Status' 'scan_id'
+  printf '%-36s %-12s %s\n' '--------' '------' '-------'
   for file in "${files[@]}"; do
     [[ -f "$file" ]] || continue
     if jq empty "$file" >/dev/null 2>&1; then
       sid="$(jq -r '.scan_id // .metadata.scan_id // .scan_metadata.scan_id // ""' "$file" 2>/dev/null || true)"
       st="$(jq -r '.scan_status // ""' "$file" 2>/dev/null || true)"
-      echo "[normalize-reports][debug] - ${file}: scan_id=${sid:-<missing>} scan_status=${st:-<n/a>}"
+      printf '%-36s %-12s %s\n' "$(basename "$file")" "${st:-n/a}" "${sid:-<missing>}"
     else
-      echo "[normalize-reports][debug] - ${file}: INVALID_JSON"
+      printf '%-36s %-12s %s\n' "$(basename "$file")" "invalid" "INVALID_JSON"
     fi
   done
+}
+
+print_normalization_summary() {
+  python3 - <<'PY'
+import json
+from pathlib import Path
+
+report_path = Path(".cloudsentinel/golden_report.json")
+
+def line():
+    print("=" * 79)
+
+def sev(stats, key):
+    return int(stats.get(key, 0) or 0)
+
+with report_path.open(encoding="utf-8") as handle:
+    report = json.load(handle)
+
+metadata = report.get("metadata", {})
+summary = report.get("summary", {})
+by_tool = summary.get("by_tool", {})
+findings = report.get("findings", [])
+
+line()
+print("Normalization Result Summary")
+line()
+print(f"Status              : {report.get('scan_status', 'unknown')}")
+print(f"Environment         : {metadata.get('environment', 'unknown')}")
+print(f"Execution mode      : {metadata.get('execution', {}).get('mode', 'unknown')}")
+print(f"Golden Report       : {report_path}")
+print(f"Correlation scan_id : {report.get('scan_id', '<missing>')}")
+print(f"Executed scanners   : {', '.join(metadata.get('executed_scanners', [])) or '<none>'}")
+line()
+print("Scanner Normalization Summary")
+line()
+print(f"{'Scanner':<12} {'Status':<10} {'Total':>6} {'Critical':>9} {'High':>7} {'Medium':>8} {'Low':>7}")
+print(f"{'-------':<12} {'------':<10} {'-----':>6} {'--------':>9} {'----':>7} {'------':>8} {'---':>7}")
+for scanner in ("gitleaks", "checkov", "trivy", "cloudinit"):
+    stats = by_tool.get(scanner, {})
+    print(
+        f"{scanner:<12} {str(stats.get('status', 'NOT_RUN')):<10} "
+        f"{sev(stats, 'TOTAL'):>6} {sev(stats, 'CRITICAL'):>9} "
+        f"{sev(stats, 'HIGH'):>7} {sev(stats, 'MEDIUM'):>8} {sev(stats, 'LOW'):>7}"
+    )
+
+def read_json(path):
+    p = Path(path)
+    if not p.is_file():
+        return None, "missing"
+    try:
+        with p.open(encoding="utf-8") as handle:
+            return json.load(handle), "present"
+    except Exception:
+        return None, "invalid"
+
+def tool_findings(tool):
+    return [
+        f for f in findings
+        if f.get("source", {}).get("tool") == tool
+        and not f.get("context", {}).get("deduplication", {}).get("is_duplicate", False)
+    ]
+
+def count_checkov_raw(path=".cloudsentinel/checkov_raw.json"):
+    doc, status = read_json(path)
+    if status != "present":
+        return status
+    results = doc.get("results", {}) if isinstance(doc, dict) else {}
+    failed = results.get("failed_checks", []) if isinstance(results, dict) else []
+    return str(len(failed)) if isinstance(failed, list) else "invalid"
+
+def count_trivy_doc(doc):
+    if not isinstance(doc, dict):
+        return 0
+    total = 0
+    for result in doc.get("Results", []) if isinstance(doc.get("Results"), list) else []:
+        if not isinstance(result, dict):
+            continue
+        vulns = result.get("Vulnerabilities", [])
+        if isinstance(vulns, list):
+            total += len([v for v in vulns if isinstance(v, dict)])
+        misconfigs = result.get("Misconfigurations", [])
+        if isinstance(misconfigs, list):
+            total += len([
+                m for m in misconfigs
+                if isinstance(m, dict)
+                and str(m.get("Status", "")).upper() in {"FAILURE", "FAIL", "EXCEPTION"}
+            ])
+    return total
+
+def count_trivy_raw(path):
+    doc, status = read_json(path)
+    if status != "present":
+        return status
+    return str(count_trivy_doc(doc))
+
+def count_trivy_image_raw():
+    image_dir = Path("shift-left/trivy/reports/raw/image")
+    if not image_dir.is_dir():
+        return "missing"
+    files = sorted(image_dir.glob("trivy-image-*-raw.json"))
+    if not files:
+        return "missing"
+    total = 0
+    invalid = False
+    for file in files:
+        doc, status = read_json(file)
+        if status != "present":
+            invalid = True
+            continue
+        total += count_trivy_doc(doc)
+    return "invalid" if invalid else str(total)
+
+def sum_counts(*values):
+    nums = []
+    markers = []
+    for value in values:
+        text = str(value)
+        if text.isdigit():
+            nums.append(int(text))
+        else:
+            markers.append(text)
+    if nums and not markers:
+        return str(sum(nums))
+    if nums:
+        return f"{sum(nums)}+{','.join(markers)}"
+    return ",".join(markers) if markers else "0"
+
+def count_cloudinit_raw(path=".cloudsentinel/cloudinit_analysis.json"):
+    doc, status = read_json(path)
+    if status != "present":
+        return status
+    resources = doc.get("resources_analyzed", []) if isinstance(doc, dict) else []
+    if not isinstance(resources, list):
+        return "invalid"
+    total = 0
+    for resource in resources:
+        if not isinstance(resource, dict):
+            continue
+        violations = resource.get("violations", [])
+        if isinstance(violations, list):
+            total += len([v for v in violations if isinstance(v, dict)])
+    return str(total)
+
+line()
+print("Scanner Detection Scope")
+line()
+print(f"{'Scanner / level':<24} {'Raw':>12} {'Normalized':>12} {'OPA signal':<18} {'Meaning'}")
+print(f"{'---------------':<24} {'---':>12} {'----------':>12} {'----------':<18} {'-------'}")
+print(
+    f"{'checkov IaC':<24} {count_checkov_raw():>12} "
+    f"{len(tool_findings('checkov')):>12} {'threshold input':<18} Terraform/IaC misconfiguration"
+)
+trivy_fs_raw = count_trivy_raw("shift-left/trivy/reports/raw/trivy-fs-raw.json")
+trivy_image_raw = count_trivy_image_raw()
+trivy_total_raw = sum_counts(trivy_fs_raw, trivy_image_raw)
+print(
+    f"{'trivy fs raw':<24} {trivy_fs_raw:>12} "
+    f"{'-':>12} {'evidence':<18} filesystem dependencies and config"
+)
+print(
+    f"{'trivy image raw':<24} {trivy_image_raw:>12} "
+    f"{'-':>12} {'evidence':<18} container image vulnerabilities"
+)
+print(
+    f"{'trivy aggregate':<24} {trivy_total_raw:>12} "
+    f"{len(tool_findings('trivy')):>12} {'threshold input':<18} normalized Trivy findings for OPA"
+)
+print(
+    f"{'cloud-init':<24} {count_cloudinit_raw():>12} "
+    f"{len(tool_findings('cloudinit')):>12} {'intent rules':<18} VM bootstrap and role-spoofing signals"
+)
+
+gitleaks_findings = [
+    f for f in findings
+    if f.get("source", {}).get("tool") == "gitleaks"
+    and not f.get("context", {}).get("deduplication", {}).get("is_duplicate", False)
+]
+current_tree = [
+    f for f in gitleaks_findings
+    if f.get("context", {}).get("git", {}).get("present_in_head") is True
+]
+latest_push = [
+    f for f in gitleaks_findings
+    if f.get("context", {}).get("git", {}).get("in_latest_push") is True
+]
+historical_only = [
+    f for f in gitleaks_findings
+    if f.get("context", {}).get("git", {}).get("present_in_head") is False
+    and f.get("context", {}).get("git", {}).get("in_latest_push") is False
+]
+blocking = [
+    f
+    for f in gitleaks_findings
+    if f.get("context", {}).get("git", {}).get("present_in_head") is True
+    or f.get("context", {}).get("git", {}).get("in_latest_push") is True
+]
+
+def raw_count(path):
+    p = Path(path)
+    if not p.is_file():
+        return "missing"
+    try:
+        with p.open(encoding="utf-8") as handle:
+            doc = json.load(handle)
+        if isinstance(doc, list):
+            return str(len(doc))
+        if isinstance(doc, dict):
+            return str(len(doc.get("findings", [])))
+        return "invalid"
+    except Exception:
+        return "invalid"
+
+line()
+print("Gitleaks Detection Scope")
+line()
+print(f"{'Level':<22} {'Raw':>8} {'Normalized':>12} {'OPA signal':<14} {'Meaning'}")
+print(f"{'-----':<22} {'---':>8} {'----------':>12} {'----------':<14} {'-------'}")
+print(
+    f"{'full history + merge':<22} {raw_count('.cloudsentinel/gitleaks_raw.json'):>8} "
+    f"{len(gitleaks_findings):>12} {'audit':<14} complete evidence set"
+)
+print(
+    f"{'current tree / HEAD':<22} {raw_count('.cloudsentinel/gitleaks_head_raw.json'):>8} "
+    f"{len(current_tree):>12} {'blocking':<14} secret still present in code"
+)
+print(
+    f"{'latest push / MR':<22} {raw_count('.cloudsentinel/gitleaks_range_raw.json'):>8} "
+    f"{len(latest_push):>12} {'blocking':<14} secret introduced by latest change"
+)
+print(
+    f"{'historical only':<22} {'-':>8} "
+    f"{len(historical_only):>12} {'advisory':<14} old finding no longer active"
+)
+line()
+print(f"Gitleaks OPA blocking set : {len(blocking)} finding(s)")
+print("Decision ownership        : normalization labels scope; OPA alone returns ALLOW/DENY")
+line()
+PY
 }
 
 run_detection_contract_check() {
@@ -113,13 +376,13 @@ run_detection_contract_check() {
   fi
 }
 
+print_header
 list_input_artifacts
 debug_trivy_results_shape
 log_scan_id_propagation false
 run_detection_contract_check
 python3 shift-left/normalizer/normalize.py
-jq '.summary' .cloudsentinel/golden_report.json
-jq '.quality_gate' .cloudsentinel/golden_report.json
+print_normalization_summary
 log_scan_id_propagation true
 
 if ! jq -e '
