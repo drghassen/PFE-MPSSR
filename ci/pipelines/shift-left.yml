@@ -109,6 +109,8 @@ gitleaks-scan:
     paths:
       - .cloudsentinel/gitleaks_raw.json
       - .cloudsentinel/gitleaks_raw.json.hmac
+      - .cloudsentinel/gitleaks_head_raw.json
+      - .cloudsentinel/gitleaks_head_raw.json.hmac
       - .cloudsentinel/gitleaks_range_raw.json
       - .cloudsentinel/gitleaks_range_raw.json.hmac
       - .cloudsentinel/audit/gitleaks-scan_audit.json

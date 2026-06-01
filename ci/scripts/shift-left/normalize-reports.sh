@@ -10,12 +10,14 @@ export DOJO_API_KEY="${DOJO_API_KEY:-${DEFECTDOJO_API_KEY:-${DEFECTDOJO_API_TOKE
 # Optional enterprise PKI bootstrap for DefectDojo TLS.
 source ci/scripts/setup-custom-ca.sh
 source ci/scripts/shift-left/audit-utils.sh
-trap 'cloudsentinel_finalize_audit "$?" "normalize-reports" "normalize" "normalizer" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/dropped_exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
+trap 'cloudsentinel_finalize_audit "$?" "normalize-reports" "normalize" "normalizer" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_head_raw.json" ".cloudsentinel/gitleaks_range_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/dropped_exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
 
 list_input_artifacts() {
   local artifacts=(
-    ".cloudsentinel/gitleaks_raw.json"
-    ".cloudsentinel/checkov_raw.json"
+	    ".cloudsentinel/gitleaks_raw.json"
+	    ".cloudsentinel/gitleaks_head_raw.json"
+	    ".cloudsentinel/gitleaks_range_raw.json"
+	    ".cloudsentinel/checkov_raw.json"
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
   )
@@ -54,8 +56,10 @@ debug_trivy_results_shape() {
 log_scan_id_propagation() {
   local include_golden="${1:-false}"
   local files=(
-    ".cloudsentinel/gitleaks_raw.json"
-    ".cloudsentinel/checkov_raw.json"
+	    ".cloudsentinel/gitleaks_raw.json"
+	    ".cloudsentinel/gitleaks_head_raw.json"
+	    ".cloudsentinel/gitleaks_range_raw.json"
+	    ".cloudsentinel/checkov_raw.json"
     "shift-left/trivy/reports/raw/trivy-fs-raw.json"
     ".cloudsentinel/cloudinit_analysis.json"
   )

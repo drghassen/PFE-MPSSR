@@ -152,8 +152,11 @@ class NormalizerFindingMixin:
                 "git": {
                     "author_email": self.git_author_email,
                     "commit_date": self.git_commit_date,
-                    # True for all non-gitleaks tools (IaC findings always represent current state).
-                    # For gitleaks: True = introduced in latest push (blocks), False = historical (advisory).
+                    # For gitleaks:
+                    # - present_in_head=true means the secret is still in the current code tree.
+                    # - in_latest_push=true means the secret was introduced by the latest push/MR.
+                    # Either signal is blocking in OPA. Historical-only secrets remain advisory.
+                    "present_in_head": bool(meta.get("present_in_head", True)),
                     "in_latest_push": bool(meta.get("in_latest_push", True)),
                 },
                 "deduplication": {

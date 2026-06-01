@@ -478,9 +478,13 @@
               "properties": {
                 "author_email": { "type": "string", "format": "email" },
                 "commit_date": { "type": "string", "format": "date-time" },
+                "present_in_head": {
+                  "type": "boolean",
+                  "description": "True for Gitleaks findings still present in the current repository tree. OPA blocks active secrets even if the file was not modified in the latest push."
+                },
                 "in_latest_push": {
                   "type": "boolean",
-                  "description": "True for all non-gitleaks findings. For gitleaks: true = introduced in the current push (blocks pipeline), false = historical finding (advisory only, never blocks)."
+                  "description": "True for all non-gitleaks findings. For gitleaks: true = introduced in the current push. Historical-only Gitleaks findings are advisory only when present_in_head is also false."
                 }
               }
             },

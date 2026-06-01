@@ -36,6 +36,8 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
         self.backup_dir = Path(tempfile.mkdtemp(prefix="cs-normalizer-test-"))
         self.tracked_files = [
             self.cloud_dir / "gitleaks_raw.json",
+            self.cloud_dir / "gitleaks_head_raw.json",
+            self.cloud_dir / "gitleaks_range_raw.json",
             self.cloud_dir / "checkov_raw.json",
             self.cloud_dir / "cloudinit_analysis.json",
             self.cloud_dir / "golden_report.json",
@@ -91,6 +93,8 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
 
     def _seed_raw(self, include_trivy=True):
         self._write(self.cloud_dir / "gitleaks_raw.json", [])
+        self._write(self.cloud_dir / "gitleaks_head_raw.json", [])
+        self._write(self.cloud_dir / "gitleaks_range_raw.json", [])
         self._write(
             self.cloud_dir / "checkov_raw.json",
             {
@@ -184,6 +188,52 @@ class TestCloudSentinelNormalizer(unittest.TestCase):
             "EXEMPTED",
         ):
             self.assertGreaterEqual(int(stats[key]), 0)
+
+    def test_gitleaks_current_tree_and_latest_push_flags(self):
+        self._seed_raw(include_trivy=True)
+        current_secret = {
+            "RuleID": "generic-api-key",
+            "Description": "Current tree secret",
+            "File": "app/current.py",
+            "StartLine": 10,
+            "EndLine": 10,
+            "CloudSentinelSecretHash": "a" * 64,
+        }
+        latest_secret = {
+            "RuleID": "generic-api-key",
+            "Description": "Latest push secret",
+            "File": "app/latest.py",
+            "StartLine": 20,
+            "EndLine": 20,
+            "CloudSentinelSecretHash": "b" * 64,
+        }
+        self._write(self.cloud_dir / "gitleaks_raw.json", [current_secret, latest_secret])
+        self._write(self.cloud_dir / "gitleaks_head_raw.json", [current_secret])
+        self._write(
+            self.cloud_dir / "gitleaks_range_raw.json",
+            [
+                {
+                    **latest_secret,
+                    "Commit": "abc1234",
+                    "Email": "security@example.com",
+                    "Date": "2026-01-01T00:00:00Z",
+                }
+            ],
+        )
+
+        self.CloudSentinelNormalizer().generate()
+        with (self.cloud_dir / "golden_report.json").open("r", encoding="utf-8") as f:
+            report = json.load(f)
+
+        by_path = {
+            finding["resource"]["path"]: finding["context"]["git"]
+            for finding in report["findings"]
+            if finding["source"]["tool"] == "gitleaks"
+        }
+        self.assertTrue(by_path["app/current.py"]["present_in_head"])
+        self.assertFalse(by_path["app/current.py"]["in_latest_push"])
+        self.assertFalse(by_path["app/latest.py"]["present_in_head"])
+        self.assertTrue(by_path["app/latest.py"]["in_latest_push"])
 
 
 if __name__ == "__main__":

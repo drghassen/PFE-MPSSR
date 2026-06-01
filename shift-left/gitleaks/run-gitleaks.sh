@@ -19,6 +19,7 @@ fi
 REPO_ROOT="$(cs_get_repo_root)"
 OUT_DIR="$REPO_ROOT/.cloudsentinel"
 REPORT_RAW_OUT="$OUT_DIR/gitleaks_raw.json"
+HEAD_OUT="$OUT_DIR/gitleaks_head_raw.json"
 CONFIG_PATH="${CONFIG_PATH:-$REPO_ROOT/shift-left/gitleaks/gitleaks.toml}"
 IGNORE_PATH="${IGNORE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaksignore}"
 BASELINE_PATH="${BASELINE_PATH:-${GITLEAKS_BASELINE_PATH:-$REPO_ROOT/shift-left/gitleaks/.gitleaks-baseline.json}}"
@@ -155,6 +156,56 @@ os.replace(tmp_path, report_path)
 PY
 }
 
+merge_gitleaks_report() {
+  local target="$1"
+  local source="$2"
+  local label="$3"
+
+  [[ -f "$source" ]] || return 0
+  if ! jq -e '
+    type == "array" or (type == "object" and ((.findings // .leaks // []) | type == "array"))
+  ' "$source" >/dev/null 2>&1; then
+    err "cannot merge invalid gitleaks ${label} report: $source"
+    exit 2
+  fi
+  if ! jq -e '
+    type == "array" or (type == "object" and ((.findings // .leaks // []) | type == "array"))
+  ' "$target" >/dev/null 2>&1; then
+    err "cannot merge into invalid gitleaks main report: $target"
+    exit 2
+  fi
+
+  local merged
+  merged="$(mktemp "$OUT_DIR/gitleaks_merged_XXXXXX.json")"
+  jq -s --arg repo_root "$REPO_ROOT" '
+    def records:
+      if type == "array" then .
+      elif type == "object" and ((.findings // null) | type == "array") then .findings
+      elif type == "object" and ((.leaks // null) | type == "array") then .leaks
+      else []
+      end;
+    def dedup_key:
+      def norm_file:
+        ((.File // .file // "") | tostring
+         | gsub("\\\\"; "/")
+         | if startswith(($repo_root | tostring) + "/")
+           then .[(($repo_root | tostring | length) + 1):]
+           else .
+           end
+         | gsub("^\\./+"; ""));
+      [
+        ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
+        norm_file,
+        ((.StartLine // .start_line // .line // 0) | tostring),
+        ((.EndLine // .end_line // .line // 0) | tostring),
+        ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
+      ] | join(":");
+    ((.[0] | records) + (.[1] | records)) | unique_by(dedup_key)
+  ' "$target" "$source" > "$merged"
+  mv "$merged" "$target"
+  log "Merged ${label} findings into main report. Total unique findings: $(jq 'length' "$target")"
+}
+
 SCAN_MODE="${SCAN_MODE:-}"
 if [[ "$SCAN_MODE" != "ci" && "$SCAN_MODE" != "local" ]]; then
   [[ -n "${CI:-}" ]] && SCAN_MODE="ci" || SCAN_MODE="local"
@@ -163,7 +214,8 @@ fi
 log "Starting raw scan (mode=$SCAN_MODE, target=$SCAN_TARGET, source=$GITLEAKS_SOURCE_PATH, max_size=${MAX_SIZE_MB}MB)..."
 
 if [[ "$SCAN_MODE" == "local" ]]; then
-  rm -f "$OUT_DIR/gitleaks_range_raw.json" "$OUT_DIR/gitleaks_range_raw.json.hmac"
+  rm -f "$OUT_DIR/gitleaks_range_raw.json" "$OUT_DIR/gitleaks_range_raw.json.hmac" \
+    "$HEAD_OUT" "$HEAD_OUT.hmac"
 fi
 
 IGNORE_ARGS=()
@@ -214,7 +266,7 @@ if [[ "$SCAN_MODE" == "local" ]]; then
       STAGED_OUT="$OUT_DIR/gitleaks_staged_raw.json"
       HISTORY_OUT="$OUT_DIR/gitleaks_history_raw.json"
       RANGE_OUT="$OUT_DIR/gitleaks_range_raw.json"
-      rm -f "$STAGED_OUT" "$HISTORY_OUT" "$RANGE_OUT"
+      rm -f "$STAGED_OUT" "$HISTORY_OUT" "$RANGE_OUT" "$HEAD_OUT"
 
       run_cmd gitleaks protect --staged --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$STAGED_OUT" --max-target-megabytes "$MAX_SIZE_MB"
       RC_STAGED=$?
@@ -226,11 +278,19 @@ if [[ "$SCAN_MODE" == "local" ]]; then
         if [[ "$RC_HISTORY" -gt 1 ]]; then
           RC="$RC_HISTORY"
         else
-          RC=0
-          validate_gitleaks_report "$STAGED_OUT"
-          validate_gitleaks_report "$HISTORY_OUT"
-          enrich_with_secret_hash "$STAGED_OUT"
-          enrich_with_secret_hash "$HISTORY_OUT"
+          printf '[]' > "$HEAD_OUT"
+          run_cmd gitleaks detect --source "$GITLEAKS_SOURCE_PATH" --no-git --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$HEAD_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+          RC_HEAD=$?
+          if [[ "$RC_HEAD" -gt 1 ]]; then
+            RC="$RC_HEAD"
+          else
+            RC=0
+            validate_gitleaks_report "$STAGED_OUT"
+            validate_gitleaks_report "$HISTORY_OUT"
+            validate_gitleaks_report "$HEAD_OUT"
+            enrich_with_secret_hash "$STAGED_OUT"
+            enrich_with_secret_hash "$HISTORY_OUT"
+            enrich_with_secret_hash "$HEAD_OUT"
 
           jq -s --arg repo_root "$REPO_ROOT" '
             def dedup_key:
@@ -262,6 +322,7 @@ if [[ "$SCAN_MODE" == "local" ]]; then
                        Email:  ((.Email // "")  | if . == "" then $email  else . end),
                        Date:   ((.Date // "")   | if . == "" then $date   else . end)})' \
             "$STAGED_OUT" > "$RANGE_OUT"
+          fi
         fi
       fi
       ;;
@@ -271,6 +332,19 @@ if [[ "$SCAN_MODE" == "local" ]]; then
       ;;
   esac
 else
+  # CI produces three complementary reports:
+  # - gitleaks_head_raw.json: current repository tree at HEAD, blocking signal.
+  # - gitleaks_range_raw.json: latest push/MR range, blocking signal.
+  # - gitleaks_raw.json: full git history merged with the two reports, audit input.
+  printf '[]' > "$HEAD_OUT"
+  set +e
+  run_cmd gitleaks detect --source "$GITLEAKS_SOURCE_PATH" --no-git --redact --config "$CONFIG_PATH" "${IGNORE_ARGS[@]}" "${BASELINE_ARGS[@]}" --report-format json --report-path "$HEAD_OUT" --max-target-megabytes "$MAX_SIZE_MB"
+  RC_HEAD=$?
+  if [[ "$RC_HEAD" -gt 1 ]]; then
+    err "gitleaks current-tree scan failed rc=$RC_HEAD"
+    exit 2
+  fi
+
   # CI scans full git history (GIT_DEPTH=0 guarantees a complete clone).
   # --no-git is intentionally absent: a secret removed in a prior commit
   # stays visible in history and must not be silently dropped from the gate.
@@ -288,6 +362,14 @@ validate_gitleaks_report "$REPORT_RAW_OUT"
 enrich_with_secret_hash "$REPORT_RAW_OUT"
 jq -e 'all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "$REPORT_RAW_OUT" >/dev/null \
   || { err "gitleaks raw output missing CloudSentinelSecretHash"; exit 2; }
+
+if [[ -f "$HEAD_OUT" ]]; then
+  validate_gitleaks_report "$HEAD_OUT"
+  enrich_with_secret_hash "$HEAD_OUT"
+  jq -e 'all(.[]; ((.CloudSentinelSecretHash // .SecretHash // "") | type == "string" and test("^[0-9a-f]{64}$")))' "$HEAD_OUT" >/dev/null \
+    || { err "gitleaks HEAD output missing CloudSentinelSecretHash"; exit 2; }
+  merge_gitleaks_report "$REPORT_RAW_OUT" "$HEAD_OUT" "current-tree"
+fi
 
 log "Raw report ready: $REPORT_RAW_OUT"
 
@@ -364,49 +446,7 @@ if [[ -n "${CI:-}" ]]; then
     if jq -e 'length > 0' "$RANGE_OUT" >/dev/null 2>&1; then
       enrich_with_secret_hash "$RANGE_OUT"
       log "Range report ready: $RANGE_OUT"
-      # Merge range findings into the main report for OPA gate evaluation.
-      # Deduplication uses composite key (RuleID:File:StartLine:SecretHash), not Fingerprint.
-      # File is normalized (absolute repo prefix removed, slashes unified) to align --no-git vs --log-opts.
-      MERGED_COUNT=$(jq -s --arg repo_root "$REPO_ROOT" '
-        def dedup_key:
-          def norm_file:
-            ((.File // .file // "") | tostring
-             | gsub("\\\\"; "/")
-             | if startswith(($repo_root | tostring) + "/")
-               then .[(($repo_root | tostring | length) + 1):]
-               else .
-               end
-             | gsub("^\\./+"; ""));
-          [
-            ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
-            norm_file,
-            ((.StartLine // .start_line // .line // 0) | tostring),
-            ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
-          ] | join(":");
-        .[0] + .[1] | unique_by(dedup_key)
-      ' \
-        "$REPORT_RAW_OUT" "$RANGE_OUT" | jq 'length')
-      jq -s --arg repo_root "$REPO_ROOT" '
-        def dedup_key:
-          def norm_file:
-            ((.File // .file // "") | tostring
-             | gsub("\\\\"; "/")
-             | if startswith(($repo_root | tostring) + "/")
-               then .[(($repo_root | tostring | length) + 1):]
-               else .
-               end
-             | gsub("^\\./+"; ""));
-          [
-            ((.RuleID // .rule_id // "GITLEAKS_UNKNOWN") | tostring | ascii_upcase),
-            norm_file,
-            ((.StartLine // .start_line // .line // 0) | tostring),
-            ((.CloudSentinelSecretHash // .SecretHash // .secret_hash // "") | tostring)
-          ] | join(":");
-        .[0] + .[1] | unique_by(dedup_key)
-      ' \
-        "$REPORT_RAW_OUT" "$RANGE_OUT" > "${REPORT_RAW_OUT}.merged"
-      mv "${REPORT_RAW_OUT}.merged" "$REPORT_RAW_OUT"
-      log "Merged range findings into main report. Total unique findings: $MERGED_COUNT"
+      merge_gitleaks_report "$REPORT_RAW_OUT" "$RANGE_OUT" "latest-range"
     else
       log "Range scan produced no findings — range report is empty"
     fi

@@ -493,7 +493,7 @@ def _validate_detection_artifact(
 ) -> None:
     artifact_id = result["id"]
 
-    if artifact_id == "gitleaks_raw":
+    if artifact_id in {"gitleaks_raw", "gitleaks_head_raw"}:
         if not isinstance(doc, dict):
             _fail(result, "gitleaks_raw_must_be_json_object")
             return
@@ -914,6 +914,7 @@ def _validate_artifact(
 
     if artifact_id in {
         "gitleaks_raw",
+        "gitleaks_head_raw",
         "checkov_raw",
         "trivy_fs_raw",
         "cloudinit_analysis",

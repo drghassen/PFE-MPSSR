@@ -16,6 +16,17 @@
           "signed_artifact": ".cloudsentinel/gitleaks_raw.json"
         },
         {
+          "id": "gitleaks_head_raw",
+          "path": ".cloudsentinel/gitleaks_head_raw.json",
+          "kind": "json"
+        },
+        {
+          "id": "gitleaks_head_raw_hmac",
+          "path": ".cloudsentinel/gitleaks_head_raw.json.hmac",
+          "kind": "hmac",
+          "signed_artifact": ".cloudsentinel/gitleaks_head_raw.json"
+        },
+        {
           "id": "checkov_raw",
           "path": ".cloudsentinel/checkov_raw.json",
           "kind": "json"

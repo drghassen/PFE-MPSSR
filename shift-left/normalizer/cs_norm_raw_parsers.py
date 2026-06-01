@@ -53,8 +53,11 @@ class NormalizerRawParsersMixin:
         return self._sha256(fallback_material)
 
     def _parse_gitleaks(self, skip=False):
-        # ENRICHISSEMENT UNIQUEMENT — gitleaks_range_raw.json n'est jamais un signal OPA.
-        # La clé composite (RuleID, File, StartLine, EndLine, SecretHash) est la seule clé de matching.
+        # Enrichment-only side reports:
+        # - gitleaks_head_raw.json marks secrets still present in the current tree.
+        # - gitleaks_range_raw.json marks secrets introduced by the latest push/MR.
+        # The composite key (RuleID, File, StartLine, EndLine, SecretHash) is the
+        # only matching key. Fingerprint is not stable between --no-git and --log-opts.
         # Fingerprint NON utilisé : incompatible entre modes --no-git et --log-opts.
         p = self.out_dir / "gitleaks_raw.json"
         if skip:
@@ -153,7 +156,71 @@ class NormalizerRawParsersMixin:
                     },
                 }
             )
-        # Enrichissement depuis le scan range (best-effort)
+        # Enrichissement depuis le scan current-tree HEAD (blocking signal)
+        # Si le fichier est absent/invalide, present_in_head=true par défaut:
+        # fail-safe conservateur pour ne pas rendre un secret actif advisory.
+        head_p = self.out_dir / "gitleaks_head_raw.json"
+        if not head_p.is_file():
+            for f in findings:
+                meta = f.get("metadata")
+                if isinstance(meta, dict):
+                    meta.setdefault("present_in_head", True)
+        if head_p.is_file():
+            head_doc, head_err = self._read_json(head_p)
+            head_records: List[Any] = []
+            head_doc_valid = False
+            if isinstance(head_doc, list):
+                head_records = head_doc
+                head_doc_valid = True
+            elif isinstance(head_doc, dict):
+                candidates = head_doc.get("findings")
+                if candidates is None:
+                    candidates = head_doc.get("leaks")
+                if isinstance(candidates, list):
+                    head_records = candidates
+                    head_doc_valid = True
+            if not head_err and head_doc_valid:
+                head_index: Dict[tuple, Dict[str, Any]] = {}
+                for h_item in head_records:
+                    if not isinstance(h_item, dict):
+                        continue
+                    h_rid = str(h_item.get("RuleID") or h_item.get("rule_id") or "").upper().strip()
+                    h_file = self._norm_path(h_item.get("File") or h_item.get("file") or "")
+                    h_start = self._to_int(
+                        self._first(h_item.get("StartLine"), h_item.get("start_line"), h_item.get("line"), "0"),
+                        0,
+                    )
+                    h_end = self._to_int(
+                        self._first(h_item.get("EndLine"), h_item.get("end_line"), h_item.get("line"), h_start),
+                        h_start,
+                    )
+                    h_hash = self._gitleaks_secret_hash(
+                        h_item, h_rid, h_file, h_start, h_end
+                    )
+                    if not h_rid or not h_file:
+                        continue
+                    key = (h_rid, h_file, h_start, h_end, h_hash)
+                    if key not in head_index:
+                        head_index[key] = h_item
+
+                for f in findings:
+                    f_rid = str(f.get("id") or "").upper().strip()
+                    f_file = self._norm_path(f.get("file") or "")
+                    f_start = self._to_int(f.get("start_line"), 0)
+                    f_end = self._to_int(f.get("end_line"), f_start)
+                    meta = f.get("metadata")
+                    f_hash = ""
+                    if isinstance(meta, dict):
+                        f_hash = str(meta.get("secret_hash") or "").strip().lower()
+                        key = (f_rid, f_file, f_start, f_end, f_hash)
+                        meta["present_in_head"] = key in head_index
+            else:
+                for f in findings:
+                    meta = f.get("metadata")
+                    if isinstance(meta, dict):
+                        meta.setdefault("present_in_head", True)
+
+        # Enrichissement depuis le scan range (latest push/MR blocking signal)
         # Si le range file est absent, in_latest_push = True par défaut (conservatif — on bloque)
         range_p = self.out_dir / "gitleaks_range_raw.json"
         if not range_p.is_file():

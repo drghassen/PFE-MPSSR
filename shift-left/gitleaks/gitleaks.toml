@@ -30,6 +30,7 @@ paths = [
   '''(^|/)\.terraform/''',
   '''(^|/)\.terragrunt-cache/''',
   '''(^|/)\.git/''',
+  '''(^|/)\.cloudsentinel/''',
   # Lock files and compiled/binary assets.
   '''.*\.lock$''',
   '''(^|/)package-lock\.json$''',

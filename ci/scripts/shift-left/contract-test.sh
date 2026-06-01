@@ -5,7 +5,7 @@ set -euo pipefail
 # Fail-fast guard before OPA decision stage.
 
 source ci/scripts/shift-left/audit-utils.sh
-trap 'cloudsentinel_finalize_audit "$?" "contract-test" "contract" "artifact-contract" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
+trap 'cloudsentinel_finalize_audit "$?" "contract-test" "contract" "artifact-contract" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_head_raw.json" ".cloudsentinel/gitleaks_range_raw.json" ".cloudsentinel/checkov_raw.json" "shift-left/trivy/reports/raw/trivy-fs-raw.json" ".cloudsentinel/cloudinit_analysis.json" ".cloudsentinel/golden_report.json" ".cloudsentinel/exceptions.json" ".cloudsentinel/audit_events.jsonl" ".cloudsentinel/artifact_contract_report.json"' EXIT
 
 print_line() {
   printf '%s\n' '==============================================================================='

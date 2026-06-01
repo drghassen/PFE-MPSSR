@@ -2,7 +2,7 @@
 set -euo pipefail
 
 source ci/scripts/shift-left/audit-utils.sh
-trap 'cloudsentinel_finalize_audit "$?" "gitleaks-scan" "scan" "gitleaks" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_range_raw.json"' EXIT
+trap 'cloudsentinel_finalize_audit "$?" "gitleaks-scan" "scan" "gitleaks" ".cloudsentinel/gitleaks_raw.json" ".cloudsentinel/gitleaks_head_raw.json" ".cloudsentinel/gitleaks_range_raw.json"' EXIT
 
 gitleaks version
 mkdir -p .cloudsentinel
@@ -20,9 +20,19 @@ if [[ -f .cloudsentinel/gitleaks_range_raw.json ]]; then
     --executed-target "${GITLEAKS_SOURCE_PATH:-${SCAN_TARGET:-repo}}" \
     --scan-status success
 fi
+if [[ -f .cloudsentinel/gitleaks_head_raw.json ]]; then
+  python3 ci/libs/cloudsentinel_contracts.py stamp-artifact-metadata \
+    --artifact .cloudsentinel/gitleaks_head_raw.json \
+    --tool gitleaks \
+    --executed-target "${GITLEAKS_SOURCE_PATH:-${SCAN_TARGET:-repo}}:current-tree" \
+    --scan-status success
+fi
 
 if [[ -n "${CLOUDSENTINEL_HMAC_SECRET:-}" ]]; then
   python3 ci/scripts/shift-left/artifact_hmac.py sign .cloudsentinel/gitleaks_raw.json
+  if [[ -f .cloudsentinel/gitleaks_head_raw.json ]]; then
+    python3 ci/scripts/shift-left/artifact_hmac.py sign .cloudsentinel/gitleaks_head_raw.json
+  fi
   if [[ -f .cloudsentinel/gitleaks_range_raw.json ]]; then
     python3 ci/scripts/shift-left/artifact_hmac.py sign .cloudsentinel/gitleaks_range_raw.json
   fi
@@ -33,7 +43,11 @@ else
   echo "[gitleaks][WARN] CLOUDSENTINEL_HMAC_SECRET not set — skipping HMAC signing (non-CI mode)."
 fi
 
-chmod a+r .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_raw.json.hmac .cloudsentinel/gitleaks_range_raw.json .cloudsentinel/gitleaks_range_raw.json.hmac 2>/dev/null || true
+chmod a+r \
+  .cloudsentinel/gitleaks_raw.json .cloudsentinel/gitleaks_raw.json.hmac \
+  .cloudsentinel/gitleaks_head_raw.json .cloudsentinel/gitleaks_head_raw.json.hmac \
+  .cloudsentinel/gitleaks_range_raw.json .cloudsentinel/gitleaks_range_raw.json.hmac \
+  2>/dev/null || true
 
 IGNORE_FILE="shift-left/gitleaks/.gitleaksignore"
 if [[ -f "$IGNORE_FILE" ]]; then
@@ -53,3 +67,9 @@ if [[ -f "$IGNORE_FILE" ]]; then
   echo "[gitleaks][GOVERNANCE] .gitleaksignore governance check passed."
 fi
 jq -r '"[scan-summary] gitleaks_raw_findings=" + (((.findings // []) | length)|tostring)' .cloudsentinel/gitleaks_raw.json
+if [[ -f .cloudsentinel/gitleaks_head_raw.json ]]; then
+  jq -r '"[scan-summary] gitleaks_head_findings=" + (((.findings // []) | length)|tostring)' .cloudsentinel/gitleaks_head_raw.json
+fi
+if [[ -f .cloudsentinel/gitleaks_range_raw.json ]]; then
+  jq -r '"[scan-summary] gitleaks_range_findings=" + (((.findings // []) | length)|tostring)' .cloudsentinel/gitleaks_range_raw.json
+fi

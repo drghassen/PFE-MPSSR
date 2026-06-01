@@ -915,3 +915,70 @@ test_low_finding_warns_not_blocks if {
 	some msg in result.warn
 	contains(msg, "LOW findings (1)")
 }
+
+_gitleaks_secret_base := {
+	"status": "FAILED",
+	"source": {"tool": "gitleaks", "id": "generic-api-key"},
+	"resource": {
+		"name": "app/config.py",
+		"path": "app/config.py",
+		"location": {"file": "app/config.py", "start_line": 7},
+	},
+	"severity": {"level": "CRITICAL"},
+}
+
+test_gitleaks_historical_only_secret_is_advisory if {
+	finding := object.union(_gitleaks_secret_base, {
+		"context": {
+			"git": {
+				"present_in_head": false,
+				"in_latest_push": false,
+			},
+		},
+	})
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"findings": [finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	result.allow
+	count(result.deny) == 0
+}
+
+test_gitleaks_secret_present_in_head_blocks_even_when_not_latest_push if {
+	finding := object.union(_gitleaks_secret_base, {
+		"context": {
+			"git": {
+				"present_in_head": true,
+				"in_latest_push": false,
+			},
+		},
+	})
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"findings": [finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CRITICAL findings")
+}
+
+test_gitleaks_secret_in_latest_push_blocks_even_if_not_present_in_head if {
+	finding := object.union(_gitleaks_secret_base, {
+		"context": {
+			"git": {
+				"present_in_head": false,
+				"in_latest_push": true,
+			},
+		},
+	})
+	result := data.cloudsentinel.gate.decision with input as object.union(_base, {
+		"findings": [finding],
+	})
+		with data.cloudsentinel.exceptions.exceptions as []
+
+	not result.allow
+	some msg in result.deny
+	contains(msg, "CRITICAL findings")
+}
