@@ -117,6 +117,14 @@ def line():
 def sev(stats, key):
     return int(stats.get(key, 0) or 0)
 
+def display_result(status):
+    status = str(status or "NOT_RUN").upper()
+    if status == "FAILED":
+        return "FINDINGS"
+    if status == "PASSED":
+        return "CLEAN"
+    return status
+
 with report_path.open(encoding="utf-8") as handle:
     report = json.load(handle)
 
@@ -137,12 +145,12 @@ print(f"Executed scanners   : {', '.join(metadata.get('executed_scanners', [])) 
 line()
 print("Scanner Normalization Summary")
 line()
-print(f"{'Scanner':<12} {'Status':<10} {'Total':>6} {'Critical':>9} {'High':>7} {'Medium':>8} {'Low':>7}")
+print(f"{'Scanner':<12} {'Result':<10} {'Total':>6} {'Critical':>9} {'High':>7} {'Medium':>8} {'Low':>7}")
 print(f"{'-------':<12} {'------':<10} {'-----':>6} {'--------':>9} {'----':>7} {'------':>8} {'---':>7}")
 for scanner in ("gitleaks", "checkov", "trivy", "cloudinit"):
     stats = by_tool.get(scanner, {})
     print(
-        f"{scanner:<12} {str(stats.get('status', 'NOT_RUN')):<10} "
+        f"{scanner:<12} {display_result(stats.get('status', 'NOT_RUN')):<10} "
         f"{sev(stats, 'TOTAL'):>6} {sev(stats, 'CRITICAL'):>9} "
         f"{sev(stats, 'HIGH'):>7} {sev(stats, 'MEDIUM'):>8} {sev(stats, 'LOW'):>7}"
     )
